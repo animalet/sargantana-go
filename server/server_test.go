@@ -6,6 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/animalet/sargantana-go/controller"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 )
 
 func TestLoadSecrets_SetsEnvVars(t *testing.T) {
@@ -34,30 +38,15 @@ func TestLoadSecrets_SetsEnvVars(t *testing.T) {
 }
 
 func TestSessionCookieName_IsCustomizable(t *testing.T) {
-	os.Setenv("SESSION_SECRET", "dummysecret")
-	customSessionName := "my-custom-session"
-	s := NewServer(
-		"localhost",
-		0,
-		"",
-		"",
-		"",
-		"",
-		true,
-		"",
-		false,
-		nil,
-		customSessionName,
-		"",
-	)
-	defer s.Shutdown()
-	err := s.Start()
+	customSessionName, s := testServerWithSession()
+
+	err := s.Start(&sessionController{})
 	if err != nil {
 		t.Fatalf("Failed to start server: %v", err)
 	}
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/", nil)
+	req, _ := http.NewRequest("GET", "/session", nil)
 	s.httpServer.Handler.ServeHTTP(w, req)
 
 	cookieHeader := w.Header().Get("Set-Cookie")
@@ -67,4 +56,37 @@ func TestSessionCookieName_IsCustomizable(t *testing.T) {
 	if cookieHeader[:len(customSessionName)] != customSessionName {
 		t.Errorf("Expected cookie name %q, got header: %q", customSessionName, cookieHeader)
 	}
+}
+
+func testServerWithSession() (string, *Server) {
+	os.Setenv("SESSION_SECRET", "dummysecret")
+	customSessionName := "my-custom-session"
+	s := NewServer(
+		"localhost",
+		0,
+		"",
+		".",
+		"",
+		"",
+		true,
+		"",
+		false,
+		nil,
+		customSessionName,
+		"",
+	)
+	return customSessionName, s
+}
+
+type sessionController struct {
+	controller.IController
+}
+
+func (s sessionController) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
+	engine.GET("/session", func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set("test_key", "test_value")
+		session.Save()
+		c.String(http.StatusOK, "Session set")
+	})
 }

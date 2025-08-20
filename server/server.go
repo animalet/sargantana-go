@@ -38,9 +38,10 @@ type config struct {
 	sessionName           string
 }
 type Server struct {
-	config        *config
-	httpServer    *http.Server
-	shutdownHooks []func() error
+	config          *config
+	httpServer      *http.Server
+	shutdownHooks   []func() error
+	shutdownChannel chan os.Signal
 }
 
 func NewServer(
@@ -250,12 +251,12 @@ func (s *Server) bootstrap(appControllers ...controller.IController) error {
 }
 
 func (s *Server) waitForSignal() error {
-	quit := make(chan os.Signal, 1)
+	s.shutdownChannel = make(chan os.Signal, 1)
 	// kill (no params) by default sends syscall.SIGTERM
 	// kill -2 is syscall.SIGINT
 	// kill -9 is syscall.SIGKILL but can't be caught, so don't need add it
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	log.Printf("Shutdown signal received (%s)\n", <-quit)
+	signal.Notify(s.shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
+	log.Printf("Shutdown signal received (%s)\n", <-s.shutdownChannel)
 	return s.Shutdown()
 }
 
