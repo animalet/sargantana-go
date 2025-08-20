@@ -18,9 +18,15 @@ test-coverage:
 	go test -covermode=atomic -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 
-format:
+install-tools:
+	go install golang.org/x/tools/cmd/goimports@latest
+
+TOOLS_BIN_DIR := $(shell go env GOPATH)/bin
+GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
+
+format: install-tools
 	@echo "Formatting code..."
-	go fmt ./...
+	go fmt ./... && $(GOIMPORTS) -w .
 
 lint:
 	@echo "Linting code..."
