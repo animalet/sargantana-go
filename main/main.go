@@ -3,7 +3,7 @@ package main
 import "github.com/animalet/sargantana-go/server"
 
 func main() {
-	err := server.NewServerFromFlags().StartAndBlock(
+	err := server.NewServerFromFlags().StartAndWaitForSignal(
 	// Put your controllers here
 	)
 	if err != nil {

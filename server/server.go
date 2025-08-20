@@ -116,7 +116,7 @@ func address(host string, port int) string {
 	return host + ":" + strconv.Itoa(port)
 }
 
-func (s *Server) StartAndBlock(appControllers ...controller.IController) error {
+func (s *Server) StartAndWaitForSignal(appControllers ...controller.IController) error {
 	err := s.Start(appControllers...)
 	if err != nil {
 		return err
@@ -282,7 +282,7 @@ func (s *Server) Shutdown() error {
 	}
 
 	// Free up resources used by controllers
-	log.Println("Closing controllers...")
+	log.Println("Executing shutdown hooks...")
 	for _, hook := range s.shutdownHooks {
 		if err := hook(); err != nil {
 			log.Printf("Error during shutdown hook: %s", err)
