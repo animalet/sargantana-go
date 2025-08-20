@@ -5,9 +5,7 @@ FRONTEND_DIR := frontend
 PROJECT_NAME := $(shell basename $(CURDIR))
 
 # Tasks
-.PHONY: all format test clean lint mod-tidy docs test bench ci
-
-all: format test
+.PHONY: all format test clean lint mod-tidy docs test bench
 
 test:
 	@echo "Running backend tests..."
@@ -45,7 +43,7 @@ bench:
 	@echo "Running benchmarks..."
 	go test -bench=. ./...
 
-ci: mod-tidy format lint test
+all: mod-tidy format lint test
 
 clean:
 	@echo "Cleaning up..."
