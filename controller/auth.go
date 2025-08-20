@@ -205,8 +205,8 @@ func (a *Auth) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 		})
 }
 
-func (a *Auth) Close() {
-
+func (a *Auth) Close() error {
+	return nil
 }
 
 func (a *Auth) success(c *gin.Context, user goth.User) {

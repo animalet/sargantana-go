@@ -1,6 +1,8 @@
 package server
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,9 +19,10 @@ func TestLoadSecrets_SetsEnvVars(t *testing.T) {
 	for name, value := range secrets {
 		secretFile := filepath.Join(dir, name)
 		os.WriteFile(secretFile, []byte("   "+value+" \n  \t"), 0644)
+		os.Setenv(name, "")
 	}
 
-	s := &Server{secretsDir: dir, debug: false}
+	s := &Server{config: &config{secretsDir: dir, debug: false}}
 	s.loadSecrets()
 
 	// assert that the environment variables are set correctly
@@ -27,5 +30,41 @@ func TestLoadSecrets_SetsEnvVars(t *testing.T) {
 		if got := os.Getenv(name); got != expected {
 			t.Errorf("Expected %s=%q, got %s=%q", name, expected, name, got)
 		}
+	}
+}
+
+func TestSessionCookieName_IsCustomizable(t *testing.T) {
+	os.Setenv("SESSION_SECRET", "dummysecret")
+	customSessionName := "my-custom-session"
+	s := NewServer(
+		"localhost",
+		0,
+		"",
+		"",
+		"",
+		"",
+		true,
+		"",
+		false,
+		nil,
+		customSessionName,
+		"",
+	)
+	defer s.Shutdown()
+	err := s.Start()
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/", nil)
+	s.httpServer.Handler.ServeHTTP(w, req)
+
+	cookieHeader := w.Header().Get("Set-Cookie")
+	if cookieHeader == "" {
+		t.Fatalf("No Set-Cookie header found")
+	}
+	if cookieHeader[:len(customSessionName)] != customSessionName {
+		t.Errorf("Expected cookie name %q, got header: %q", customSessionName, cookieHeader)
 	}
 }

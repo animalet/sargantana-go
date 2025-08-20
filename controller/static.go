@@ -30,23 +30,33 @@ func (s Static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
 	})
 
 	if stat, err := os.Stat(s.htmlTemplatesDir); stat != nil && stat.IsDir() {
-		// Only load templates if there are any .html files
+		// check if dir is empty
 		var found bool
-		filepath.WalkDir(s.htmlTemplatesDir, func(path string, d fs.DirEntry, err error) error {
-			if !d.IsDir() && filepath.Ext(d.Name()) == ".html" {
+		err = filepath.WalkDir(s.htmlTemplatesDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if !d.IsDir() {
 				found = true
 			}
 			return nil
 		})
+
+		if err != nil {
+			log.Printf("Error walking through templates directory: %v", err)
+			return
+		}
+
 		if found {
 			engine.LoadHTMLGlob(s.htmlTemplatesDir + "/**")
 		} else {
-			log.Printf("Templates directory present but no .html files found, skipping LoadHTMLGlob")
+			log.Printf("Templates directory present but no files found, skipping templates.")
 		}
 	} else {
 		log.Printf("Templates directory not present: %v", err)
 	}
 }
 
-func (s Static) Close() {
+func (s Static) Close() error {
+	return nil
 }
