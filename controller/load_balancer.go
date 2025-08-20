@@ -59,8 +59,8 @@ func (l *LoadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc)
 	}
 }
 
-func (l *LoadBalancer) Close() {
-
+func (l *LoadBalancer) Close() error {
+	return nil
 }
 
 func (l *LoadBalancer) nextEndpoint() url.URL {

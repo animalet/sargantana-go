@@ -1,9 +1,15 @@
 package server
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/animalet/sargantana-go/controller"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 )
 
 func TestLoadSecrets_SetsEnvVars(t *testing.T) {
@@ -17,9 +23,10 @@ func TestLoadSecrets_SetsEnvVars(t *testing.T) {
 	for name, value := range secrets {
 		secretFile := filepath.Join(dir, name)
 		os.WriteFile(secretFile, []byte("   "+value+" \n  \t"), 0644)
+		os.Setenv(name, "")
 	}
 
-	s := &Server{secretsDir: dir, debug: false}
+	s := &Server{config: &config{secretsDir: dir, debug: false}}
 	s.loadSecrets()
 
 	// assert that the environment variables are set correctly
@@ -28,4 +35,58 @@ func TestLoadSecrets_SetsEnvVars(t *testing.T) {
 			t.Errorf("Expected %s=%q, got %s=%q", name, expected, name, got)
 		}
 	}
+}
+
+func TestSessionCookieName_IsCustomizable(t *testing.T) {
+	customSessionName, s := testServerWithSession()
+
+	err := s.Start(&sessionController{})
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/session", nil)
+	s.httpServer.Handler.ServeHTTP(w, req)
+
+	cookieHeader := w.Header().Get("Set-Cookie")
+	if cookieHeader == "" {
+		t.Fatalf("No Set-Cookie header found")
+	}
+	if cookieHeader[:len(customSessionName)] != customSessionName {
+		t.Errorf("Expected cookie name %q, got header: %q", customSessionName, cookieHeader)
+	}
+}
+
+func testServerWithSession() (string, *Server) {
+	os.Setenv("SESSION_SECRET", "dummysecret")
+	customSessionName := "my-custom-session"
+	s := NewServer(
+		"localhost",
+		0,
+		"",
+		".",
+		"",
+		"",
+		true,
+		"",
+		false,
+		nil,
+		customSessionName,
+		"",
+	)
+	return customSessionName, s
+}
+
+type sessionController struct {
+	controller.IController
+}
+
+func (s sessionController) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
+	engine.GET("/session", func(c *gin.Context) {
+		session := sessions.Default(c)
+		session.Set("test_key", "test_value")
+		session.Save()
+		c.String(http.StatusOK, "Session set")
+	})
 }
