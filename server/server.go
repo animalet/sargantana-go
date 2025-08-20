@@ -198,6 +198,14 @@ func (s *Server) bootstrap(appControllers ...controller.IController) error {
 
 	if s.config.callbackEndpoint == "" {
 		s.config.callbackEndpoint = "http://" + s.config.address
+		if u, err := url.Parse(s.config.callbackEndpoint); err != nil {
+			return fmt.Errorf("invalid callback endpoint %s: %v", s.config.callbackEndpoint, err)
+		} else {
+			if u.Hostname() == "0.0.0.0" {
+				log.Println("Callback endpoint is set to 0.0.0.0, changing it to localhost")
+				s.config.callbackEndpoint = u.Scheme + "://localhost" + ":" + u.Port()
+			}
+		}
 	}
 
 	controllers := []controller.IController{
