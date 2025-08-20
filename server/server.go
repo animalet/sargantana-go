@@ -32,6 +32,7 @@ type Server struct {
 	loadBalancerPath      string
 	loadBalancerAuth      bool
 	loadBalancerEndpoints []url.URL
+	sessionName           string // Added field for session name
 }
 
 func NewServer(
@@ -43,6 +44,7 @@ func NewServer(
 	lbPath string,
 	lbAuth bool,
 	lbEndpoints []url.URL,
+	sessionName string,
 ) *Server {
 	return &Server{
 		host:                  host,
@@ -55,6 +57,7 @@ func NewServer(
 		loadBalancerPath:      lbPath,
 		loadBalancerAuth:      lbAuth,
 		loadBalancerEndpoints: lbEndpoints,
+		sessionName:           sessionName, // Set session name
 	}
 }
 
@@ -66,6 +69,7 @@ func NewServerFromFlags() *Server {
 	host := flag.String("host", "localhost", "Host to listen on")
 	port := flag.Int("port", 8080, "port to listen on")
 	useCookies := flag.Bool("cookies", false, "Use cookies for session storage")
+	sessionName := flag.String("cookiename", "sargantana-go", "Session cookie name. Be aware that this name will be used regardless of the session storage type (cookies or Redis)")
 	lbPath := flag.String("lbpath", "lb", "Path to use for load balancing")
 	lbAuth := flag.Bool("lbauth", false, "Use authentication for load balancing")
 
@@ -80,11 +84,11 @@ func NewServerFromFlags() *Server {
 	})
 
 	flag.Parse()
-
 	return &Server{
 		host:                  *host,
 		port:                  *port,
 		cookieBasedSession:    *useCookies,
+		sessionName:           *sessionName,
 		secretsDir:            *secretsDir,
 		frontendDir:           *frontend,
 		templatesDir:          *templates,
@@ -103,6 +107,7 @@ func (s *Server) Start(appControllers ...controller.IController) error {
 		log.Printf("Host: %s\n", s.host)
 		log.Printf("Port: %d\n", s.port)
 		log.Printf("Use cookies for session storage: %t\n", s.cookieBasedSession)
+		log.Printf("Session cookie name: %s\n", s.sessionName)
 		log.Printf("Load balancing path: %s\n", s.loadBalancerPath)
 		log.Printf("Load balancing authentication: %t\n", s.loadBalancerAuth)
 		log.Printf("Load balancer endpoints: %v\n", s.loadBalancerEndpoints)
@@ -191,7 +196,7 @@ func (s *Server) doStart(controllers ...controller.IController) error {
 		engine.Use(ginBodyLogMiddleware)
 	}
 	engine.Use(gin.Logger(), gin.Recovery())
-	engine.Use(sessions.Sessions("gene", sessionStore))
+	engine.Use(sessions.Sessions(s.sessionName, sessionStore)) // Use dynamic session name
 
 	for _, c := range controllers {
 		c.Bind(engine, controller.LoginFunc)
