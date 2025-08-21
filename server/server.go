@@ -55,9 +55,9 @@ func NewServerFromFlags() *Server {
 	return NewServer(
 		*host, *port,
 		*redis,
-		*sessionName,
+		*secretsDir,
 		*debug,
-		*secretsDir)
+		*sessionName)
 }
 
 func address(host string, port int) string {

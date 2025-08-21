@@ -65,11 +65,10 @@ func NewLoadBalancerFromFlags() *LoadBalancer {
 		lbEndpoints = append(lbEndpoints, *u)
 		return nil
 	})
-
 	return NewLoadBalancer(lbEndpoints, *lbPath, *lbAuth)
 }
 
-func (l *LoadBalancer) Bind(server *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
+func (l *LoadBalancer) Bind(server *gin.Engine, _ config.Config, loginMiddleware gin.HandlerFunc) {
 	if len(l.endpoints) == 0 {
 		log.Printf("Load balancer not loaded")
 		return

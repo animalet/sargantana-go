@@ -30,11 +30,10 @@ func NewStatic(staticsDir, htmlTemplatesDir string) *Static {
 func NewStaticFromFlags() *Static {
 	frontend := flag.String("frontend", "./frontend", "Path to the frontend static content directory")
 	templates := flag.String("templates", "./templates", "Path to the templates directory")
-
 	return NewStatic(*frontend, *templates)
 }
 
-func (s *Static) Bind(server *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
+func (s *Static) Bind(server *gin.Engine, _ config.Config, _ gin.HandlerFunc) {
 	server.Static("/static", s.staticsDir)
 	server.GET("/", func(c *gin.Context) {
 		c.Header("Content-Type", "text/html")

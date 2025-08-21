@@ -200,7 +200,7 @@ func (a *Auth) Bind(server *gin.Engine, config config.Config, loginMiddleware gi
 	if a.callbackAddress == "" {
 		u, err := url.Parse(config.Address())
 		if err != nil {
-			log.Fatalf("Failed to parse auth callback address %q: %v", config.Address(), err)
+			log.Panicf("Failed to parse auth callback address %q: %v", config.Address(), err)
 		}
 		if u.Hostname() == "0.0.0.0" {
 			log.Println("Auth callback endpoint is set to 0.0.0.0, changing it to localhost")
