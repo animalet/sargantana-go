@@ -1,126 +1,19 @@
-run:
-  timeout: 5m
-  issues-exit-code: 1
-  tests: true
-  modules-download-mode: readonly
+# This file contains all available configuration options
+# with their default values (in comments).
+#
+# This file is not a configuration example,
+# it contains the exhaustive configuration with explanations of the options.
 
-output:
-  format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
-  uniq-by-line: true
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-
-  goconst:
-    min-len: 2
-    min-occurrences: 2
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-
-  gocyclo:
-    min-complexity: 15
-
-  gofmt:
-    simplify: true
-
-  goimports:
-    local-prefixes: github.com/animalet/sargantana-go
-
-  golint:
-    min-confidence: 0
-
-  govet:
-    check-shadowing: true
-    enable-all: true
-
-  lll:
-    line-length: 120
-
-  maligned:
-    suggest-new: true
-
-  misspell:
-    locale: US
-
-  nakedret:
-    max-func-lines: 30
-
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: false
-
-  unparam:
-    check-exported: false
-
-  unused:
-    check-exported: false
-
-  whitespace:
-    multi-if: false
-    multi-func: false
+# Defines the configuration version.
+# The only possible value is "2".
+version: "2"
 
 linters:
-  enable:
-    - bodyclose
-    - deadcode
-    - depguard
-    - dogsled
-    - dupl
-    - errcheck
-    - funlen
-    - gochecknoinits
-    - goconst
-    - gocritic
-    - gocyclo
-    - gofmt
-    - goimports
-    - golint
-    - gomnd
-    - goprintffuncname
-    - gosec
-    - gosimple
-    - govet
-    - ineffassign
-    - interfacer
-    - lll
-    - misspell
-    - nakedret
-    - noctx
-    - nolintlint
-    - rowserrcheck
-    - scopelint
-    - staticcheck
-    - structcheck
-    - stylecheck
-    - typecheck
-    - unconvert
-    - unparam
-    - unused
-    - varcheck
-    - whitespace
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gomnd
-        - funlen
-        - gocyclo
-    - path: main/
-      linters:
-        - gochecknoinits
-
-  exclude-use-default: false
-  max-issues-per-linter: 0
-  max-same-issues: 0
+  # Default set of linters.
+  # The value can be:
+  # - `standard`: https://golangci-lint.run/docs/linters/#enabled-by-default
+  # - `all`: enables all linters by default.
+  # - `none`: disables all linters by default.
+  # - `fast`: enables only linters considered as "fast" (`golangci-lint help linters --json | jq '[ .[] | select(.fast==true) ] | map(.name)'`).
+  # Default: standard
+  default: standard

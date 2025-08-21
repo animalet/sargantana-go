@@ -26,7 +26,12 @@ func NewNeo4jDriver(options *Neo4jOptions) (neo4j.DriverWithContext, func()) {
 	defer cancelFunc()
 
 	session := driver.NewSession(timeout, neo4j.SessionConfig{DatabaseName: "neo4j"})
-	defer session.Close(timeout)
+	defer func() {
+		err := session.Close(timeout)
+		if err != nil {
+			log.Printf("Failed to close Neo4j session: %v", err)
+		}
+	}()
 
 	err = driver.VerifyConnectivity(timeout)
 	if err != nil {

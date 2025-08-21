@@ -115,7 +115,7 @@ func (l *LoadBalancer) forward(c *gin.Context) {
 	// Create the new request
 	request, err := http.NewRequest(c.Request.Method, targetUrl.String(), c.Request.Body)
 	if err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
+		_ = c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
 
@@ -134,10 +134,15 @@ func (l *LoadBalancer) forward(c *gin.Context) {
 
 	response, err := l.httpClient.Do(request)
 	if err != nil {
-		c.AbortWithError(http.StatusBadGateway, err)
+		_ = c.AbortWithError(http.StatusBadGateway, err)
 		return
 	}
-	defer response.Body.Close()
+	defer func() {
+		err = response.Body.Close()
+		if err != nil {
+			log.Printf("Error closing response body: %v", err)
+		}
+	}()
 
 	c.Status(response.StatusCode)
 	for k, v := range response.Header {
@@ -150,6 +155,6 @@ func (l *LoadBalancer) forward(c *gin.Context) {
 	}
 	// Copy response body
 	if _, err := io.Copy(c.Writer, response.Body); err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
+		_ = c.AbortWithError(http.StatusInternalServerError, err)
 	}
 }

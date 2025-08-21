@@ -3,7 +3,6 @@ package session
 import (
 	"testing"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gomodule/redigo/redis"
 	"github.com/markbates/goth/gothic"
 )
@@ -47,9 +46,6 @@ func TestNewCookieStore(t *testing.T) {
 			if gothic.Store == nil {
 				t.Error("gothic.Store was not set")
 			}
-
-			// Test that the store implements the sessions.Store interface
-			var _ sessions.Store = store
 		})
 	}
 }
@@ -107,7 +103,12 @@ func TestNewRedisSessionStore(t *testing.T) {
 			}()
 
 			pool := tt.poolFunc()
-			defer pool.Close()
+			defer func() {
+				err := pool.Close()
+				if err != nil {
+					t.Error("Failed to close Redis pool:", err)
+				}
+			}()
 
 			store := NewRedisSessionStore(tt.isReleaseMode, tt.secret, pool)
 
@@ -119,9 +120,6 @@ func TestNewRedisSessionStore(t *testing.T) {
 			if gothic.Store == nil {
 				t.Error("gothic.Store was not set")
 			}
-
-			// Test that the store implements the sessions.Store interface
-			var _ sessions.Store = store
 		})
 	}
 }
@@ -169,9 +167,6 @@ func TestSessionStore_CreatesSuccessfully(t *testing.T) {
 	if store == nil {
 		t.Fatal("Failed to create cookie store")
 	}
-
-	// Verify it implements the Store interface
-	var _ sessions.Store = store
 }
 
 // Mock Redis connection for testing

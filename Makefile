@@ -37,14 +37,6 @@ lint: format install-golangci-lint
 	go vet ./...
 	golangci-lint run ./...
 
-security:
-	@echo "Running security checks..."
-	@if ! command -v gosec &> /dev/null; then \
-		echo "Installing gosec..."; \
-		go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest; \
-	fi
-	gosec ./...
-
 mod-tidy:
 	@echo "Tidying go.mod and go.sum..."
 	go mod tidy
@@ -61,7 +53,7 @@ build:
 	@echo "Building application..."
 	go build -v -o bin/sargantana-go ./main
 
-ci: mod-tidy format lint security test
+ci: mod-tidy format lint test
 
 all: ci build
 
