@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"flag"
 	"io"
 	"log"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/animalet/sargantana-go/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,6 +33,10 @@ func NewLoadBalancer(endpoints []url.URL, path string, auth bool) *LoadBalancer 
 		}
 	}
 
+	log.Printf("Load balancing path: %q\n", path)
+	log.Printf("Load balancing authentication: %t\n", auth)
+	log.Printf("Load balancer endpoints: %v\n", endpoints)
+
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConns:        100,
@@ -46,16 +52,33 @@ func NewLoadBalancer(endpoints []url.URL, path string, auth bool) *LoadBalancer 
 	}
 }
 
-func (l *LoadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+func NewLoadBalancerFromFlags() *LoadBalancer {
+	lbPath := flag.String("lbpath", "lb", "Path to use for load balancing")
+	lbAuth := flag.Bool("lbauth", false, "Use authentication for load balancing")
+
+	lbEndpoints := make([]url.URL, 0)
+	flag.Func("lb", "Path to use for load balancing", func(s string) error {
+		u, err := url.Parse(s)
+		if err != nil {
+			return err
+		}
+		lbEndpoints = append(lbEndpoints, *u)
+		return nil
+	})
+
+	return NewLoadBalancer(lbEndpoints, *lbPath, *lbAuth)
+}
+
+func (l *LoadBalancer) Bind(server *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
 	if len(l.endpoints) == 0 {
 		log.Printf("Load balancer not loaded")
 		return
 	}
 
 	if l.auth {
-		engine.Any(l.path, loginMiddleware, l.forward)
+		server.Any(l.path, loginMiddleware, l.forward)
 	} else {
-		engine.Any(l.path, l.forward)
+		server.Any(l.path, l.forward)
 	}
 }
 

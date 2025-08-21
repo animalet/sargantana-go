@@ -1,11 +1,13 @@
 package controller
 
 import (
+	"flag"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 
+	"github.com/animalet/sargantana-go/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,15 +18,25 @@ type Static struct {
 }
 
 func NewStatic(staticsDir, htmlTemplatesDir string) *Static {
+	log.Printf("Statics directory: %q\n", staticsDir)
+	log.Printf("Templates directory: %q\n", htmlTemplatesDir)
+
 	return &Static{
 		staticsDir:       staticsDir,
 		htmlTemplatesDir: htmlTemplatesDir,
 	}
 }
 
-func (s Static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
-	engine.Static("/static", s.staticsDir)
-	engine.GET("/", func(c *gin.Context) {
+func NewStaticFromFlags() *Static {
+	frontend := flag.String("frontend", "./frontend", "Path to the frontend static content directory")
+	templates := flag.String("templates", "./templates", "Path to the templates directory")
+
+	return NewStatic(*frontend, *templates)
+}
+
+func (s *Static) Bind(server *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
+	server.Static("/static", s.staticsDir)
+	server.GET("/", func(c *gin.Context) {
 		c.Header("Content-Type", "text/html")
 		c.File(s.staticsDir + "/index.html")
 	})
@@ -48,7 +60,7 @@ func (s Static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
 		}
 
 		if found {
-			engine.LoadHTMLGlob(s.htmlTemplatesDir + "/**")
+			server.LoadHTMLGlob(s.htmlTemplatesDir + "/**")
 		} else {
 			log.Printf("Templates directory present but no files found, skipping templates.")
 		}
@@ -57,6 +69,6 @@ func (s Static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
 	}
 }
 
-func (s Static) Close() error {
+func (s *Static) Close() error {
 	return nil
 }
