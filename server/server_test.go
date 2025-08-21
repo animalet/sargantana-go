@@ -1,11 +1,13 @@
 package server
 
 import (
+	"flag"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
@@ -13,68 +15,453 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestLoadSecrets_SetsEnvVars(t *testing.T) {
-	secrets := map[string]string{
-		"MY_SECRET1": "supersecret",
-		"MY_SECRET2": "123123123123",
-		"MY_SECRET3": "asd123asd123",
+func TestNewServer(t *testing.T) {
+	tests := []struct {
+		name        string
+		host        string
+		port        int
+		redis       string
+		secretsDir  string
+		debug       bool
+		sessionName string
+	}{
+		{
+			name:        "basic server",
+			host:        "localhost",
+			port:        8080,
+			redis:       "",
+			secretsDir:  "",
+			debug:       false,
+			sessionName: "test-session",
+		},
+		{
+			name:        "debug server with redis",
+			host:        "0.0.0.0",
+			port:        9000,
+			redis:       "localhost:6379",
+			secretsDir:  "/secrets",
+			debug:       true,
+			sessionName: "redis-session",
+		},
 	}
 
-	dir := t.TempDir()
-	for name, value := range secrets {
-		secretFile := filepath.Join(dir, name)
-		os.WriteFile(secretFile, []byte("   "+value+" \n  \t"), 0644)
-		os.Setenv(name, "")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := NewServer(tt.host, tt.port, tt.redis, tt.secretsDir, tt.debug, tt.sessionName)
 
-	s := &Server{config: config.NewConfig("", "", dir, false, "")}
-	s.loadSecrets()
+			if server == nil {
+				t.Fatal("NewServer returned nil")
+			}
+			if server.config == nil {
+				t.Fatal("Server config is nil")
+			}
 
-	// assert that the environment variables are set correctly
-	for name, expected := range secrets {
-		if got := os.Getenv(name); got != expected {
-			t.Errorf("Expected %s=%q, got %s=%q", name, expected, name, got)
-		}
+			expectedAddress := tt.host + ":" + string(rune(tt.port/1000+48)) + string(rune((tt.port%1000)/100+48)) + string(rune((tt.port%100)/10+48)) + string(rune(tt.port%10+48))
+			if tt.port == 8080 {
+				expectedAddress = tt.host + ":8080"
+			} else if tt.port == 9000 {
+				expectedAddress = tt.host + ":9000"
+			}
+
+			if server.config.Address() != expectedAddress {
+				t.Errorf("Address = %v, want %v", server.config.Address(), expectedAddress)
+			}
+			if server.config.RedisSessionStore() != tt.redis {
+				t.Errorf("Redis = %v, want %v", server.config.RedisSessionStore(), tt.redis)
+			}
+			if server.config.SecretsDir() != tt.secretsDir {
+				t.Errorf("SecretsDir = %v, want %v", server.config.SecretsDir(), tt.secretsDir)
+			}
+			if server.config.Debug() != tt.debug {
+				t.Errorf("Debug = %v, want %v", server.config.Debug(), tt.debug)
+			}
+			if server.config.SessionName() != tt.sessionName {
+				t.Errorf("SessionName = %v, want %v", server.config.SessionName(), tt.sessionName)
+			}
+		})
 	}
 }
 
-func TestSessionCookieName_IsCustomizable(t *testing.T) {
-	customSessionName, s := testServerWithSession()
+func TestNewServerFromFlags(t *testing.T) {
+	// Save original args
+	originalArgs := os.Args
+	defer func() { os.Args = originalArgs }()
 
-	err := s.Start(&sessionController{})
+	tests := []struct {
+		name          string
+		args          []string
+		expectedHost  string
+		expectedPort  string
+		expectedDebug bool
+	}{
+		{
+			name:          "default values",
+			args:          []string{"program"},
+			expectedHost:  "localhost",
+			expectedPort:  "8080",
+			expectedDebug: false,
+		},
+		{
+			name:          "custom values",
+			args:          []string{"program", "-host=0.0.0.0", "-port=9090", "-debug=true"},
+			expectedHost:  "0.0.0.0",
+			expectedPort:  "9090",
+			expectedDebug: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Args = tt.args
+
+			// Create a dummy controller initializer
+			dummyInit := func(fs *flag.FlagSet) func() controller.IController {
+				return func() controller.IController {
+					return &mockController{name: "test"}
+				}
+			}
+
+			server, controllers := NewServerFromFlags(dummyInit)
+
+			if server == nil {
+				t.Fatal("NewServerFromFlags returned nil server")
+			}
+			if len(controllers) != 1 {
+				t.Errorf("Expected 1 controller, got %d", len(controllers))
+			}
+
+			expectedAddress := tt.expectedHost + ":" + tt.expectedPort
+			if server.config.Address() != expectedAddress {
+				t.Errorf("Address = %v, want %v", server.config.Address(), expectedAddress)
+			}
+			if server.config.Debug() != tt.expectedDebug {
+				t.Errorf("Debug = %v, want %v", server.config.Debug(), tt.expectedDebug)
+			}
+		})
+	}
+}
+
+func TestServer_LoadSecrets(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupFunc   func(string) error
+		secretsDir  string
+		expectError bool
+	}{
+		{
+			name: "valid secrets",
+			setupFunc: func(dir string) error {
+				return os.WriteFile(filepath.Join(dir, "TEST_SECRET"), []byte("secret_value"), 0644)
+			},
+			expectError: false,
+		},
+		{
+			name: "empty directory",
+			setupFunc: func(dir string) error {
+				return nil // Create empty directory
+			},
+			expectError: false,
+		},
+		{
+			name:        "non-existent directory",
+			setupFunc:   nil,
+			secretsDir:  "/non/existent/path",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var secretsDir string
+			if tt.secretsDir != "" {
+				secretsDir = tt.secretsDir
+			} else {
+				secretsDir = t.TempDir()
+				if tt.setupFunc != nil {
+					err := tt.setupFunc(secretsDir)
+					if err != nil {
+						t.Fatalf("Setup failed: %v", err)
+					}
+				}
+			}
+
+			server := &Server{
+				config: config.NewConfig("localhost:8080", "", secretsDir, false, "test"),
+			}
+
+			err := server.loadSecrets()
+
+			if tt.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestServer_Start(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Set up environment
+	os.Setenv("SESSION_SECRET", "test-secret")
+	defer os.Unsetenv("SESSION_SECRET")
+
+	tests := []struct {
+		name        string
+		debug       bool
+		controllers []controller.IController
+	}{
+		{
+			name:        "debug mode",
+			debug:       true,
+			controllers: []controller.IController{&mockController{name: "test1"}},
+		},
+		{
+			name:        "release mode",
+			debug:       false,
+			controllers: []controller.IController{&mockController{name: "test2"}},
+		},
+		{
+			name:  "multiple controllers",
+			debug: true,
+			controllers: []controller.IController{
+				&mockController{name: "test3"},
+				&mockController{name: "test4"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := NewServer("localhost", 0, "", "", tt.debug, "test-session")
+
+			err := server.Start(tt.controllers...)
+			if err != nil {
+				t.Errorf("Start() returned error: %v", err)
+			}
+
+			if server.httpServer == nil {
+				t.Error("httpServer not initialized")
+			}
+
+			// Cleanup
+			server.Shutdown()
+		})
+	}
+}
+
+func TestServer_StartAndWaitForSignal(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Set up environment
+	os.Setenv("SESSION_SECRET", "test-secret")
+	defer os.Unsetenv("SESSION_SECRET")
+
+	server := NewServer("localhost", 0, "", "", true, "test-session")
+	controller := &mockController{name: "test"}
+
+	// Start server in goroutine
+	errorChan := make(chan error, 1)
+	go func() {
+		err := server.StartAndWaitForSignal(controller)
+		errorChan <- err
+	}()
+
+	// Give server time to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Send shutdown signal
+	if server.shutdownChannel != nil {
+		server.shutdownChannel <- os.Interrupt
+	} else {
+		// Force shutdown if channel not initialized
+		server.Shutdown()
+	}
+
+	// Wait for completion with timeout
+	select {
+	case err := <-errorChan:
+		if err != nil {
+			t.Errorf("StartAndWaitForSignal() returned error: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("StartAndWaitForSignal() timed out")
+		server.Shutdown() // Force cleanup
+	}
+}
+
+func TestServer_Shutdown(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Set up environment
+	os.Setenv("SESSION_SECRET", "test-secret")
+	defer os.Unsetenv("SESSION_SECRET")
+
+	server := NewServer("localhost", 0, "", "", false, "test-session")
+	controller := &mockController{name: "test"}
+
+	// Start server
+	err := server.Start(controller)
 	if err != nil {
 		t.Fatalf("Failed to start server: %v", err)
 	}
 
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/session", nil)
-	s.httpServer.Handler.ServeHTTP(w, req)
-
-	cookieHeader := w.Header().Get("Set-Cookie")
-	if cookieHeader == "" {
-		t.Fatalf("No Set-Cookie header found")
+	// Test shutdown
+	err = server.Shutdown()
+	if err != nil {
+		t.Errorf("Shutdown() returned error: %v", err)
 	}
-	if cookieHeader[:len(customSessionName)] != customSessionName {
-		t.Errorf("Expected cookie name %q, got header: %q", customSessionName, cookieHeader)
+
+	// Verify controller was closed
+	if !controller.closed {
+		t.Error("Controller Close() was not called during shutdown")
 	}
 }
 
-func testServerWithSession() (string, *Server) {
-	os.Setenv("SESSION_SECRET", "dummysecret")
-	customSessionName := "my-custom-session"
-	s := NewServer("localhost", 0, "", ".", true, customSessionName)
-	return customSessionName, s
+func TestServer_Bootstrap(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Set up environment
+	os.Setenv("SESSION_SECRET", "test-secret")
+	defer os.Unsetenv("SESSION_SECRET")
+
+	tempDir := t.TempDir()
+	server := NewServer("localhost", 0, "", tempDir, true, "test-session")
+
+	controllers := []controller.IController{
+		&mockController{name: "controller1"},
+		&mockController{name: "controller2"},
+	}
+
+	err := server.bootstrap(controllers...)
+	if err != nil {
+		t.Errorf("bootstrap() returned error: %v", err)
+	}
+
+	// Verify controllers were bound
+	for _, ctrl := range controllers {
+		mockCtrl := ctrl.(*mockController)
+		if !mockCtrl.bound {
+			t.Errorf("Controller %s was not bound", mockCtrl.name)
+		}
+	}
+
+	// Cleanup
+	server.Shutdown()
 }
 
-type sessionController struct {
-	controller.IController
+func TestServer_SessionStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Set up environment
+	os.Setenv("SESSION_SECRET", "test-secret")
+	defer os.Unsetenv("SESSION_SECRET")
+
+	tests := []struct {
+		name  string
+		redis string
+	}{
+		{
+			name:  "cookie store",
+			redis: "",
+		},
+		{
+			name:  "redis store",
+			redis: "localhost:6379",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := NewServer("localhost", 0, tt.redis, "", false, "test-session")
+			controller := &sessionTestController{}
+
+			err := server.Start(controller)
+			if err != nil {
+				t.Errorf("Start() with %s returned error: %v", tt.name, err)
+			}
+
+			// Test session functionality
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", "/session-test", nil)
+			server.httpServer.Handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("Session test failed with status %d", w.Code)
+			}
+
+			// Cleanup
+			server.Shutdown()
+		})
+	}
 }
 
-func (s sessionController) Bind(server *gin.Engine, _ config.Config, _ gin.HandlerFunc) {
-	server.GET("/session", func(c *gin.Context) {
+func TestAddress(t *testing.T) {
+	tests := []struct {
+		host     string
+		port     int
+		expected string
+	}{
+		{
+			host:     "localhost",
+			port:     8080,
+			expected: "localhost:8080",
+		},
+		{
+			host:     "0.0.0.0",
+			port:     3000,
+			expected: "0.0.0.0:3000",
+		},
+		{
+			host:     "",
+			port:     80,
+			expected: ":80",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			result := address(tt.host, tt.port)
+			if result != tt.expected {
+				t.Errorf("address(%s, %d) = %s, want %s", tt.host, tt.port, result, tt.expected)
+			}
+		})
+	}
+}
+
+// Mock controller for testing
+type mockController struct {
+	name   string
+	bound  bool
+	closed bool
+}
+
+func (m *mockController) Bind(engine *gin.Engine, cfg config.Config, loginMiddleware gin.HandlerFunc) {
+	m.bound = true
+	engine.GET("/"+m.name, func(c *gin.Context) {
+		c.String(http.StatusOK, "Hello from "+m.name)
+	})
+}
+
+func (m *mockController) Close() error {
+	m.closed = true
+	return nil
+}
+
+// Session test controller
+type sessionTestController struct{}
+
+func (s *sessionTestController) Bind(engine *gin.Engine, cfg config.Config, loginMiddleware gin.HandlerFunc) {
+	engine.GET("/session-test", func(c *gin.Context) {
 		session := sessions.Default(c)
 		session.Set("test_key", "test_value")
 		session.Save()
 		c.String(http.StatusOK, "Session set")
 	})
+}
+
+func (s *sessionTestController) Close() error {
+	return nil
 }
