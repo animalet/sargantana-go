@@ -42,22 +42,32 @@ func NewServer(host string, port int, redis, secretsDir string, debug bool, sess
 	return &Server{config: c}
 }
 
-func NewServerFromFlags() *Server {
-	debug := flag.Bool("debug", false, "Enable debug mode")
-	secretsDir := flag.String("secrets", "", "Path to the secrets directory")
-	host := flag.String("host", "localhost", "Host to listen on")
-	port := flag.Int("port", 8080, "port to listen on")
-	redis := flag.String("redis", "", "Use the specified Redis address as a session store. It expects <host>[:<port>] format and only TCP is currently supported. Defaults to cookie based session storage")
-	sessionName := flag.String("cookiename", "sargantana-go", "Session cookie name. Be aware that this name will be used regardless of the session storage type (cookies or Redis)")
+func NewServerFromFlags(flagInitializers ...func(flagSet *flag.FlagSet) func() controller.IController) (*Server, []controller.IController) {
+	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	debug := flagSet.Bool("debug", false, "Enable debug mode")
+	secretsDir := flagSet.String("secrets", "", "Path to the secrets directory")
+	host := flagSet.String("host", "localhost", "Host to listen on")
+	port := flagSet.Int("port", 8080, "port to listen on")
+	redis := flagSet.String("redis", "", "Use the specified Redis address as a session store. It expects <host>[:<port>] format and only TCP is currently supported. Defaults to cookie based session storage")
+	sessionName := flagSet.String("cookiename", "sargantana-go", "Session cookie name. Be aware that this name will be used regardless of the session storage type (cookies or Redis)")
 
-	flag.Parse()
+	var constructors []func() controller.IController
+	for _, init := range flagInitializers {
+		constructors = append(constructors, init(flagSet))
+	}
+
+	var controllers []controller.IController
+	flagSet.Parse(os.Args[1:])
+	for _, c := range constructors {
+		controllers = append(controllers, c())
+	}
 
 	return NewServer(
 		*host, *port,
 		*redis,
 		*secretsDir,
 		*debug,
-		*sessionName)
+		*sessionName), controllers
 }
 
 func address(host string, port int) string {

@@ -52,12 +52,12 @@ func NewLoadBalancer(endpoints []url.URL, path string, auth bool) *LoadBalancer 
 	}
 }
 
-func NewLoadBalancerFromFlags() *LoadBalancer {
-	lbPath := flag.String("lbpath", "lb", "Path to use for load balancing")
-	lbAuth := flag.Bool("lbauth", false, "Use authentication for load balancing")
+func NewLoadBalancerFromFlags(flagSet *flag.FlagSet) func() IController {
+	lbPath := flagSet.String("lbpath", "lb", "Path to use for load balancing")
+	lbAuth := flagSet.Bool("lbauth", false, "Use authentication for load balancing")
 
 	lbEndpoints := make([]url.URL, 0)
-	flag.Func("lb", "Path to use for load balancing", func(s string) error {
+	flagSet.Func("lb", "Path to use for load balancing", func(s string) error {
 		u, err := url.Parse(s)
 		if err != nil {
 			return err
@@ -65,7 +65,7 @@ func NewLoadBalancerFromFlags() *LoadBalancer {
 		lbEndpoints = append(lbEndpoints, *u)
 		return nil
 	})
-	return NewLoadBalancer(lbEndpoints, *lbPath, *lbAuth)
+	return func() IController { return NewLoadBalancer(lbEndpoints, *lbPath, *lbAuth) }
 }
 
 func (l *LoadBalancer) Bind(server *gin.Engine, _ config.Config, loginMiddleware gin.HandlerFunc) {

@@ -27,10 +27,10 @@ func NewStatic(staticsDir, htmlTemplatesDir string) *Static {
 	}
 }
 
-func NewStaticFromFlags() *Static {
-	frontend := flag.String("frontend", "./frontend", "Path to the frontend static content directory")
-	templates := flag.String("templates", "./templates", "Path to the templates directory")
-	return NewStatic(*frontend, *templates)
+func NewStaticFromFlags(flagSet *flag.FlagSet) func() IController {
+	frontend := flagSet.String("frontend", "./frontend", "Path to the frontend static content directory")
+	templates := flagSet.String("templates", "./templates", "Path to the templates directory")
+	return func() IController { return NewStatic(*frontend, *templates) }
 }
 
 func (s *Static) Bind(server *gin.Engine, _ config.Config, _ gin.HandlerFunc) {
