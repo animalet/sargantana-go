@@ -2,12 +2,16 @@ package controller
 
 import (
 	"encoding/gob"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/animalet/sargantana-go/config"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
@@ -74,6 +78,7 @@ import (
 
 type Auth struct {
 	IController
+	callbackAddress string
 }
 
 type UserObject struct {
@@ -163,8 +168,12 @@ func providers(callbackEndpoint string) {
 }
 
 func NewAuth(callbackEndpoint string) *Auth {
-	providers(callbackEndpoint)
-	return &Auth{}
+	return &Auth{callbackAddress: callbackEndpoint}
+}
+
+func NewAuthFromFlags(flagSet *flag.FlagSet) func() IController {
+	callback := flagSet.String("callback", "", "Callback endpoint for authentication, in case you are behind a reverse proxy or load balancer. If not set, it will default to http://<host>:<port>")
+	return func() IController { return NewAuth(*callback) }
 }
 
 func LoginFunc(c *gin.Context) {
@@ -188,8 +197,28 @@ func LoginFunc(c *gin.Context) {
 	c.Next()
 }
 
-func (a *Auth) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
-	engine.Group("/auth").
+func (a *Auth) Bind(server *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
+	if a.callbackAddress == "" {
+		address := config.Address()
+		// Add http:// if not present
+		if strings.Index(address, "://") == -1 {
+			address = "http://" + address
+		}
+		u, err := url.Parse(address)
+		if err != nil {
+			log.Panicf("Failed to parse auth callback address %q: %v", address, err)
+		}
+		if u.Hostname() == "0.0.0.0" {
+			log.Println("Auth callback endpoint is set to 0.0.0.0, changing it to localhost")
+			a.callbackAddress = u.Scheme + "://localhost" + ":" + u.Port()
+		}
+		a.callbackAddress = u.Scheme + "://" + u.Hostname() + ":" + u.Port()
+	}
+
+	log.Printf("Callback endpoint: %q\n", a.callbackAddress)
+	providers(a.callbackAddress)
+
+	server.Group("/auth").
 		Use(func(c *gin.Context) {
 			// Hack to make gothic work with gin
 			q := c.Request.URL.Query()

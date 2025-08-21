@@ -1,11 +1,25 @@
 package main
 
-import "github.com/animalet/sargantana-go/server"
+import (
+	"flag"
+
+	"github.com/animalet/sargantana-go/controller"
+	"github.com/animalet/sargantana-go/server"
+)
 
 func main() {
-	err := server.NewServerFromFlags().StartAndWaitForSignal(
-	// Put your controllers here
-	)
+	// Create a set of controllers that will be initialized from command line arguments (flags)
+	controllerInitializers := []func(*flag.FlagSet) func() controller.IController{
+		controller.NewStaticFromFlags,
+		controller.NewAuthFromFlags,
+		controller.NewLoadBalancerFromFlags,
+	}
+
+	// Parse command line flags and create the server and controllers based on those flags
+	sargantana, controllers := server.NewServerFromFlags(controllerInitializers...)
+
+	// Start the server with the controllers and wait for a termination signal
+	err := sargantana.StartAndWaitForSignal(controllers...)
 	if err != nil {
 		panic(err)
 	}

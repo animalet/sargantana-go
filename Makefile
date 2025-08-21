@@ -26,7 +26,7 @@ format: install-tools
 	@echo "Formatting code..."
 	go fmt ./... && $(GOIMPORTS) -w .
 
-lint:
+lint: format
 	@echo "Linting code..."
 	go vet ./...
 	# golangci-lint run ./... # Uncomment if you use golangci-lint

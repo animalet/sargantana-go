@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/animalet/sargantana-go/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,7 +21,7 @@ func setupTestServerWithLB(endpoints []string, lbAuth bool) *gin.Engine {
 		parsedEndpoints = append(parsedEndpoints, *u)
 	}
 	lb := NewLoadBalancer(parsedEndpoints, "/proxy", lbAuth)
-	lb.Bind(r, nil)
+	lb.Bind(r, config.Config{}, nil)
 
 	return r
 }

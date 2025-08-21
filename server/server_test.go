@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -26,7 +27,7 @@ func TestLoadSecrets_SetsEnvVars(t *testing.T) {
 		os.Setenv(name, "")
 	}
 
-	s := &Server{config: &config{secretsDir: dir, debug: false}}
+	s := &Server{config: config.NewConfig("", "", dir, false, "")}
 	s.loadSecrets()
 
 	// assert that the environment variables are set correctly
@@ -61,20 +62,7 @@ func TestSessionCookieName_IsCustomizable(t *testing.T) {
 func testServerWithSession() (string, *Server) {
 	os.Setenv("SESSION_SECRET", "dummysecret")
 	customSessionName := "my-custom-session"
-	s := NewServer(
-		"localhost",
-		0,
-		"",
-		".",
-		"",
-		"",
-		true,
-		"",
-		false,
-		nil,
-		customSessionName,
-		"",
-	)
+	s := NewServer("localhost", 0, "", ".", true, customSessionName)
 	return customSessionName, s
 }
 
@@ -82,8 +70,8 @@ type sessionController struct {
 	controller.IController
 }
 
-func (s sessionController) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
-	engine.GET("/session", func(c *gin.Context) {
+func (s sessionController) Bind(server *gin.Engine, _ config.Config, _ gin.HandlerFunc) {
+	server.GET("/session", func(c *gin.Context) {
 		session := sessions.Default(c)
 		session.Set("test_key", "test_value")
 		session.Save()

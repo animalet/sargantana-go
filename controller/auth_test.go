@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/animalet/sargantana-go/config"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -21,7 +22,13 @@ func setupAuthTestServer() *gin.Engine {
 	store := cookie.NewStore([]byte("secret-key"))
 	r.Use(sessions.Sessions("mysession", store))
 	auth := NewAuth("callback")
-	auth.Bind(r, LoginFunc)
+	auth.Bind(r, *config.NewConfig(
+		"",
+		"",
+		"",
+		false,
+		"",
+	), LoginFunc)
 	return r
 }
 

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/animalet/sargantana-go/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,7 +33,7 @@ func setupTestServerWithSatic() *gin.Engine {
 
 	r := gin.New()
 	static := NewStatic(staticDir, templateDir)
-	static.Bind(r, nil)
+	static.Bind(r, config.Config{}, nil)
 	return r
 }
 
