@@ -6,7 +6,7 @@
 ```
 
 [![CI](https://github.com/animalet/sargantana-go/workflows/CI/badge.svg)](https://github.com/animalet/sargantana-go/actions/workflows/ci.yml)
-[![coverage](https://raw.githubusercontent.com/animalet/sargantana-go/badges/.badges/main/coverage.svg)](https://goreportcard.com/report/github.com/animalet/sargantana-go)
+[![coverage](https://raw.githubusercontent.com/animalet/sargantana-go/badges/main/coverage.svg)](https://github.com/animalet/sargantana-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/animalet/sargantana-go)](https://goreportcard.com/report/github.com/animalet/sargantana-go)
 [![Go Reference](https://pkg.go.dev/badge/github.com/animalet/sargantana-go.svg)](https://pkg.go.dev/github.com/animalet/sargantana-go)
 [![Release](https://img.shields.io/github/v/release/animalet/sargantana-go?include_prereleases&label=release&color=blue)](https://github.com/animalet/sargantana-go/releases/latest)
