@@ -184,6 +184,7 @@ func (s *Server) bootstrap(appControllers ...controller.IController) error {
 
 	log.Println("Starting server on " + s.config.Address())
 	s.listenAndServe()
+
 	return nil
 }
 
