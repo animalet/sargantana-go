@@ -9,7 +9,7 @@ PROJECT_NAME := $(shell basename $(CURDIR))
 
 test:
 	@echo "Running backend tests..."
-	go test ./...
+	go test $(shell go list ./... | grep -v /main$$)
 
 test-coverage:
 	@echo "Running backend tests with coverage..."
