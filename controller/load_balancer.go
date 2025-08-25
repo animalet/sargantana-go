@@ -13,6 +13,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// LoadBalancer is a controller that provides round-robin load balancing functionality.
+// It distributes incoming requests across multiple backend endpoints and supports
+// optional authentication requirements for protected load-balanced routes.
 type LoadBalancer struct {
 	IController
 	endpoints     []url.URL
@@ -23,6 +26,16 @@ type LoadBalancer struct {
 	auth          bool
 }
 
+// NewLoadBalancer creates a new LoadBalancer controller with the specified configuration.
+// It sets up round-robin load balancing across the provided endpoints and configures
+// an optimized HTTP client for backend communication.
+//
+// Parameters:
+//   - endpoints: List of backend server URLs to load balance across
+//   - path: URL path where the load balancer will be accessible (e.g., "api" for /api/*)
+//   - auth: Whether authentication is required to access load-balanced routes
+//
+// Returns a pointer to the configured LoadBalancer controller.
 func NewLoadBalancer(endpoints []url.URL, path string, auth bool) *LoadBalancer {
 	if len(endpoints) == 0 {
 		log.Printf("No endpoints provided for load balancing")
@@ -52,6 +65,19 @@ func NewLoadBalancer(endpoints []url.URL, path string, auth bool) *LoadBalancer 
 	}
 }
 
+// NewLoadBalancerFromFlags creates a LoadBalancer controller factory function that reads
+// configuration from command-line flags. This function is designed to be used
+// with the server's flag-based initialization system.
+//
+// The following flags are registered:
+//   - lbpath: Path to use for load balancing (default: "lb")
+//   - lbauth: Use authentication for load balancing (default: false)
+//   - lb: Backend endpoint URLs (can be specified multiple times)
+//
+// Parameters:
+//   - flagSet: The flag set to register the load balancer flags with
+//
+// Returns a factory function that creates a LoadBalancer controller when called.
 func NewLoadBalancerFromFlags(flagSet *flag.FlagSet) func() IController {
 	lbPath := flagSet.String("lbpath", "lb", "Path to use for load balancing")
 	lbAuth := flagSet.Bool("lbauth", false, "Use authentication for load balancing")

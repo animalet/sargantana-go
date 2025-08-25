@@ -1,3 +1,6 @@
+// Package server provides the core HTTP server implementation for the Sargantana Go web framework.
+// It handles server lifecycle management, controller registration, session configuration,
+// secrets loading, and graceful shutdown functionality.
 package server
 
 import (
@@ -24,6 +27,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Server represents the main HTTP server instance for the Sargantana Go framework.
+// It encapsulates the server configuration, HTTP server instance, shutdown hooks,
+// and signal handling for graceful shutdown.
 type Server struct {
 	config          *config.Config
 	httpServer      *http.Server
@@ -31,6 +37,18 @@ type Server struct {
 	shutdownChannel chan os.Signal
 }
 
+// NewServer creates a new Server instance with the specified configuration parameters.
+// It initializes the server with basic configuration but does not start it.
+//
+// Parameters:
+//   - host: The hostname or IP address to bind to (e.g., "localhost", "0.0.0.0")
+//   - port: The port number to listen on (e.g., 8080)
+//   - redis: Redis server address for session storage (empty string uses cookies)
+//   - secretsDir: Directory path containing secret files for environment variables
+//   - debug: Whether to enable debug mode with detailed logging
+//   - sessionName: Name of the session cookie
+//
+// Returns a pointer to the configured Server instance.
 func NewServer(host string, port int, redis, secretsDir string, debug bool, sessionName string) *Server {
 	c := config.NewConfig(
 		address(host, port),
@@ -42,6 +60,17 @@ func NewServer(host string, port int, redis, secretsDir string, debug bool, sess
 	return &Server{config: c}
 }
 
+// NewServerFromFlags creates a new Server instance and controllers from command-line flags.
+// This is the primary way to initialize a Sargantana Go application with flag-based configuration.
+// It registers all controller flags, parses command line arguments, and creates both the server
+// and controller instances.
+//
+// Parameters:
+//   - flagInitializers: Variable number of controller factory functions that register their flags
+//
+// Returns:
+//   - *Server: The configured server instance
+//   - []controller.IController: List of initialized controllers
 func NewServerFromFlags(flagInitializers ...func(flagSet *flag.FlagSet) func() controller.IController) (*Server, []controller.IController) {
 	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	debug := flagSet.Bool("debug", false, "Enable debug mode")
@@ -74,6 +103,10 @@ func address(host string, port int) string {
 	return host + ":" + strconv.Itoa(port)
 }
 
+// StartAndWaitForSignal starts the HTTP server and waits for an OS signal to gracefully shut it down.
+// It handles initialization, secret loading, and controller registration before starting the server.
+// Upon receiving a termination signal, it gracefully shuts down the server, allowing active connections
+// to complete and freeing up resources.
 func (s *Server) StartAndWaitForSignal(appControllers ...controller.IController) error {
 	err := s.Start(appControllers...)
 	if err != nil {
@@ -82,6 +115,9 @@ func (s *Server) StartAndWaitForSignal(appControllers ...controller.IController)
 	return s.waitForSignal()
 }
 
+// Start initializes the server components and starts listening for incoming HTTP requests.
+// It configures the server based on the provided flags, loads secrets, and sets up the router and middleware.
+// This function must be called before the server can handle requests.
 func (s *Server) Start(appControllers ...controller.IController) error {
 	if s.config.Debug() {
 		log.Printf("Debug mode is enabled\n")
@@ -210,6 +246,8 @@ func (s *Server) addShutdownHook(f func() error) {
 	s.shutdownHooks = append(s.shutdownHooks, f)
 }
 
+// Shutdown gracefully shuts down the server, waiting for active connections to complete
+// and freeing up resources. It executes registered shutdown hooks in the process.
 func (s *Server) Shutdown() error {
 	log.Println("Shutting down server...")
 

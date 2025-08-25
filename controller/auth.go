@@ -76,14 +76,20 @@ import (
 	"github.com/markbates/goth/providers/zoom"
 )
 
+// Auth is a controller that provides OAuth2 authentication functionality.
+// It supports 50+ OAuth2 providers through the Goth library and handles
+// the complete authentication flow including user session management.
 type Auth struct {
 	IController
 	callbackAddress string
 }
 
+// UserObject represents an authenticated user stored in the session.
+// It contains both a unique identifier and the complete user information
+// received from the OAuth2 provider.
 type UserObject struct {
-	Id   string    `json:"id"`
-	User goth.User `json:"user"`
+	Id   string    `json:"id"`   // Unique identifier for the user session
+	User goth.User `json:"user"` // Complete user information from OAuth2 provider
 }
 
 func providers(callbackEndpoint string) {
@@ -167,15 +173,51 @@ func providers(callbackEndpoint string) {
 	)
 }
 
+// NewAuth creates a new Auth controller with the specified callback endpoint.
+// The callback endpoint is used to construct OAuth2 callback URLs for all providers.
+// If an empty string is provided, the callback endpoint will be automatically
+// determined from the server configuration during binding.
+//
+// Parameters:
+//   - callbackEndpoint: The base URL where OAuth2 providers should redirect after authentication
+//     (e.g., "https://myapp.com" will result in callbacks to "https://myapp.com/auth/{provider}/callback")
+//
+// Returns a pointer to the configured Auth controller.
 func NewAuth(callbackEndpoint string) *Auth {
 	return &Auth{callbackAddress: callbackEndpoint}
 }
 
+// NewAuthFromFlags creates an Auth controller factory function that reads
+// configuration from command-line flags. This function is designed to be used
+// with the server's flag-based initialization system.
+//
+// The following flags are registered:
+//   - callback: Callback endpoint for authentication, used when behind a reverse proxy or load balancer
+//     If not set, it will default to http://<host>:<port>
+//
+// Parameters:
+//   - flagSet: The flag set to register the auth controller flags with
+//
+// Returns a factory function that creates an Auth controller when called.
 func NewAuthFromFlags(flagSet *flag.FlagSet) func() IController {
 	callback := flagSet.String("callback", "", "Callback endpoint for authentication, in case you are behind a reverse proxy or load balancer. If not set, it will default to http://<host>:<port>")
 	return func() IController { return NewAuth(*callback) }
 }
 
+// LoginFunc is a middleware function that protects routes requiring authentication.
+// It verifies that a user is logged in and their session has not expired.
+// If the user is not authenticated or their session has expired, the request is aborted
+// with an appropriate HTTP status code.
+//
+// Usage:
+//
+//	engine.GET("/protected", controller.LoginFunc, myProtectedHandler)
+//
+// Responses:
+//   - 403 Forbidden: User is not logged in
+//   - 401 Unauthorized: User session has expired
+//   - 500 Internal Server Error: Failed to clear expired session
+//   - Continues to next handler: User is authenticated and session is valid
 func LoginFunc(c *gin.Context) {
 	userSession := sessions.Default(c)
 	userObject := userSession.Get("user")

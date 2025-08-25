@@ -22,6 +22,8 @@ Sargantana Go is a performant web application framework built on top of [Gin](ht
 provides simple solutions for common web development scenarios. It includes built-in support for OAuth2 authentication,
 session management, static file serving, load balancing, and database integration.
 
+I started this as a side project to improve my Go skills and to have a solid base for building web applications quickly. It is designed to be easy to use and extend, allowing developers to focus on building their applications rather than dealing with boilerplate code.
+
 ## Features
 
 - **Web Server**: High-performance HTTP server using [Gin](https://github.com/gin-gonic/gin)
