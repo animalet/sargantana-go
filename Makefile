@@ -13,7 +13,7 @@ test:
 
 test-coverage:
 	@echo "Running backend tests with coverage..."
-	go test -covermode=atomic -coverprofile=coverage.out ./...
+	go test -covermode=atomic -coverprofile=coverage.out $(shell go list ./... | grep -v /main$$)
 	go tool cover -html=coverage.out -o coverage.html
 
 install-tools:
