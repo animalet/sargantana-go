@@ -1,8 +1,10 @@
 # Makefile
 
 # Variables
-FRONTEND_DIR := frontend
-PROJECT_NAME := $(shell basename $(CURDIR))
+TOOLS_BIN_DIR := $(shell go env GOPATH)/bin
+GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
+GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
+GO_TEST_COVERAGE := $(TOOLS_BIN_DIR)/go-test-coverage
 
 # Tasks
 .PHONY: all format test clean lint mod-tidy test bench install-golangci-lint
@@ -30,11 +32,6 @@ install-golangci-lint:
 		echo "Installing golangci-lint..."; \
 		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v2.4.0; \
 	fi
-
-TOOLS_BIN_DIR := $(shell go env GOPATH)/bin
-GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
-GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
-GO_TEST_COVERAGE := $(TOOLS_BIN_DIR)/go-test-coverage
 
 format: install-goimports
 	@echo "Formatting code..."
