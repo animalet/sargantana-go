@@ -8,3 +8,6 @@ threshold:
 exclude:
   paths:
     - main\.go$
+git-token: ${{ github.ref_name == 'main' && secrets.GITHUB_TOKEN || '' }}
+## name of branch where badges are stored ideally this should be orphan branch
+git-branch: badges
