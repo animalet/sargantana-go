@@ -1,5 +1,15 @@
 # Sargantana Go
 
+```
+   ____                              __                        ____      
+  / __/__ ________ ____ ______ ___  / /____ ____  ___ _       / __ \___  
+ _\ \/ _ `/ __/ _ `/ _ `/ _ / _ `/ _ \/ __/ _ `/ _ \/ _ `/      / /_/ / _ \ 
+/___/\_,_/_/  \_, /\_,_/_//_/\_,_/_//_/\_,_/_//_/\_,_/      /____/\___/ 
+             /___/                                                      
+
+        🦎 Fast • Flexible • Full-Stack Go Web Framework
+```
+
 [![CI](https://github.com/animalet/sargantana-go/workflows/CI/badge.svg)](https://github.com/animalet/sargantana-go/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/animalet/sargantana-go/branch/main/graph/badge.svg)](https://codecov.io/gh/animalet/sargantana-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/animalet/sargantana-go)](https://goreportcard.com/report/github.com/animalet/sargantana-go)
