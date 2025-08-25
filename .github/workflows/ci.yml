@@ -64,14 +64,7 @@ jobs:
       - name: Run tests with coverage
         run: make test-coverage
 
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+      - name: check test coverage
+        uses: vladopajic/go-test-coverage@v2
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage.out
-
-      - name: Comment coverage on PR
-        if: github.event_name == 'pull_request'
-        run: |
-          coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}')
-          echo "Test coverage: $coverage" >> $GITHUB_STEP_SUMMARY
+          config: ./.testcoverage.yml

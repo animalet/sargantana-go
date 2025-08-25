@@ -9,6 +9,8 @@
 [![codecov](https://codecov.io/gh/animalet/sargantana-go/branch/main/graph/badge.svg)](https://codecov.io/gh/animalet/sargantana-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/animalet/sargantana-go)](https://goreportcard.com/report/github.com/animalet/sargantana-go)
 [![Go Reference](https://pkg.go.dev/badge/github.com/animalet/sargantana-go.svg)](https://pkg.go.dev/github.com/animalet/sargantana-go)
+[![Release](https://img.shields.io/github/v/release/animalet/sargantana-go?include_prereleases&label=release&color=blue)](https://github.com/animalet/sargantana-go/releases/latest)
+[![Release](https://img.shields.io/github/v/release/animalet/sargantana-go?include_prereleases&label=release&color=blue)](https://github.com/animalet/sargantana-go/releases/latest)
 [![License](https://img.shields.io/github/license/animalet/sargantana-go)](LICENSE)
 
 ## What is this?
