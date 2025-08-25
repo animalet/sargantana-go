@@ -19,6 +19,11 @@ session management, static file serving, load balancing, and database integratio
 
 I started this as a side project to improve my Go skills and to have a solid base for building web applications quickly. It is designed to be easy to use and extend, allowing developers to focus on building their applications rather than dealing with boilerplate code.
 
+## Disclaimer
+This project is currently in active development and may not be suitable for production use. While I have implemented
+basic functionality and tested it in development environments, there are no guarantees regarding its stability,
+security, or performance yet. Use at your own risk.
+
 ## Features
 
 - **Web Server**: High-performance HTTP server using [Gin](https://github.com/gin-gonic/gin)
@@ -45,6 +50,17 @@ go get github.com/animalet/sargantana-go
 ```
 
 ### Basic Usage
+
+#### Use a binary
+
+```bash
+go build -o sargantana-go main/main.go
+```
+
+Run it!
+```bash
+./sargantana-go -host localhost -port 8080 -frontend ./public -templates ./templates -debug
+```
 
 #### Create a simple web application configured via command line flags
 

@@ -5,7 +5,7 @@ FRONTEND_DIR := frontend
 PROJECT_NAME := $(shell basename $(CURDIR))
 
 # Tasks
-.PHONY: all format test clean lint mod-tidy docs test bench install-golangci-lint
+.PHONY: all format test clean lint mod-tidy test bench install-golangci-lint
 
 test:
 	@echo "Running backend tests..."
@@ -40,10 +40,6 @@ lint: format install-golangci-lint
 mod-tidy:
 	@echo "Tidying go.mod and go.sum..."
 	go mod tidy
-
-docs:
-	@echo "Generating documentation..."
-	# godoc -http=:6060 # or use another doc tool
 
 bench:
 	@echo "Running benchmarks..."

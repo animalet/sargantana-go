@@ -85,8 +85,9 @@ func NewServerFromFlags(flagInitializers ...func(flagSet *flag.FlagSet) func() c
 		constructors = append(constructors, init(flagSet))
 	}
 
-	var controllers []controller.IController
 	_ = flagSet.Parse(os.Args[1:])
+
+	var controllers []controller.IController
 	for _, c := range constructors {
 		controllers = append(controllers, c())
 	}
