@@ -128,6 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, test]
     steps:
+
     - uses: actions/checkout@v4
 
     - name: Set up Go
@@ -152,3 +153,4 @@ jobs:
       with:
         name: sargantana-go-binary
         path: bin/sargantana-go
+
