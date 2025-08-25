@@ -1,13 +1,8 @@
 # Sargantana Go
+<img src="logo.png" alt="Sargantana Go Logo" width="500"/>
 
 ```
-   ____                              __                        ____      
-  / __/__ ________ ____ ______ ___  / /____ ____  ___ _       / __ \___  
- _\ \/ _ `/ __/ _ `/ _ `/ _ / _ `/ _ \/ __/ _ `/ _ \/ _ `/      / /_/ / _ \ 
-/___/\_,_/_/  \_, /\_,_/_//_/\_,_/_//_/\_,_/_//_/\_,_/      /____/\___/ 
-             /___/                                                      
-
-        🦎 Fast • Flexible • Full-Stack Go Web Framework
+      🦎 Fast • Flexible • Full-Stack Go Web Framework
 ```
 
 [![CI](https://github.com/animalet/sargantana-go/workflows/CI/badge.svg)](https://github.com/animalet/sargantana-go/actions/workflows/ci.yml)
@@ -21,6 +16,8 @@
 Sargantana Go is a performant web application framework built on top of [Gin](https://github.com/gin-gonic/gin) that
 provides simple solutions for common web development scenarios. It includes built-in support for OAuth2 authentication,
 session management, static file serving, load balancing, and database integration.
+
+I started this as a side project to improve my Go skills and to have a solid base for building web applications quickly. It is designed to be easy to use and extend, allowing developers to focus on building their applications rather than dealing with boilerplate code.
 
 ## Features
 
