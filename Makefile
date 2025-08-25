@@ -22,7 +22,7 @@ install-tools:
 install-golangci-lint:
 	@if ! command -v golangci-lint &> /dev/null; then \
 		echo "Installing golangci-lint..."; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v1.55.2; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v2.4.0; \
 	fi
 
 TOOLS_BIN_DIR := $(shell go env GOPATH)/bin
