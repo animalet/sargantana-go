@@ -19,7 +19,7 @@ test-coverage:
 
 check-coverage: install-go-test-coverage
 	go test ./... -coverprofile=./coverage.out -covermode=atomic -coverpkg=./...
-	$(GO_TEST_COVERAGE) --config=./.github/.testcoverage.yml
+	$(GO_TEST_COVERAGE) --config=./.testcoverage.yml
 
 install-goimports:
 	go install golang.org/x/tools/cmd/goimports@latest
