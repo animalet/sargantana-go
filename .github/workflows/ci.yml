@@ -9,6 +9,11 @@ on:
 env:
   GO_VERSION: '1.25.0'
 
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
 jobs:
   lint:
     name: Lint
@@ -35,6 +40,9 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     services:
       redis:
         image: redis
@@ -47,6 +55,8 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
