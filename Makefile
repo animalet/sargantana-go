@@ -59,5 +59,5 @@ all: ci build
 
 clean:
 	@echo "Cleaning up..."
-	rm -rf ./bin
+	go clean
 	rm -f coverage.out coverage.html
