@@ -4,7 +4,8 @@ profile: coverage.out
 threshold:
   #file: 100
   #package: 80
-  #total: 75
+  total: 75
 exclude:
   paths:
     - main\.go$
+
