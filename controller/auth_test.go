@@ -210,7 +210,11 @@ func TestLoginFunc(t *testing.T) {
 					},
 				}
 				session.Set("user", userObj)
-				session.Save()
+				err := session.Save()
+				if err != nil {
+					err = c.AbortWithError(http.StatusInternalServerError, err)
+					c.String(http.StatusInternalServerError, "Failed to save session: %v", err)
+				}
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -225,7 +229,11 @@ func TestLoginFunc(t *testing.T) {
 					},
 				}
 				session.Set("user", userObj)
-				session.Save()
+				err := session.Save()
+				if err != nil {
+					err = c.AbortWithError(http.StatusInternalServerError, err)
+					c.String(http.StatusInternalServerError, "Failed to save session: %v", err)
+				}
 			},
 			expectedStatus: http.StatusUnauthorized,
 		},

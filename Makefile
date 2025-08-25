@@ -5,19 +5,25 @@ FRONTEND_DIR := frontend
 PROJECT_NAME := $(shell basename $(CURDIR))
 
 # Tasks
-.PHONY: all format test clean lint mod-tidy docs test bench
+.PHONY: all format test clean lint mod-tidy docs test bench install-golangci-lint
 
 test:
 	@echo "Running backend tests..."
-	go test ./...
+	go test $(shell go list ./... | grep -v /main$$)
 
 test-coverage:
 	@echo "Running backend tests with coverage..."
-	go test -covermode=atomic -coverprofile=coverage.out ./...
+	go test -covermode=atomic -coverprofile=coverage.out $(shell go list ./... | grep -v /main$$)
 	go tool cover -html=coverage.out -o coverage.html
 
 install-tools:
 	go install golang.org/x/tools/cmd/goimports@latest
+
+install-golangci-lint:
+	@if ! command -v golangci-lint &> /dev/null; then \
+		echo "Installing golangci-lint..."; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v2.4.0; \
+	fi
 
 TOOLS_BIN_DIR := $(shell go env GOPATH)/bin
 GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
@@ -26,10 +32,10 @@ format: install-tools
 	@echo "Formatting code..."
 	go fmt ./... && $(GOIMPORTS) -w .
 
-lint: format
+lint: format install-golangci-lint
 	@echo "Linting code..."
 	go vet ./...
-	# golangci-lint run ./... # Uncomment if you use golangci-lint
+	golangci-lint run ./...
 
 mod-tidy:
 	@echo "Tidying go.mod and go.sum..."
@@ -43,8 +49,15 @@ bench:
 	@echo "Running benchmarks..."
 	go test -bench=. ./...
 
-all: mod-tidy format lint test
+build:
+	@echo "Building application..."
+	go build -v -o bin/sargantana-go ./main
+
+ci: mod-tidy format lint test
+
+all: ci build
 
 clean:
 	@echo "Cleaning up..."
-	rm -rf ./bin
+	go clean
+	rm -f coverage.out coverage.html

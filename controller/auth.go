@@ -187,7 +187,11 @@ func LoginFunc(c *gin.Context) {
 	if time.Now().After(userObject.(UserObject).User.ExpiresAt) {
 		userSession.Clear()
 		if err := userSession.Save(); err != nil {
-			c.AbortWithError(http.StatusInternalServerError, err)
+			c.AbortWithStatus(http.StatusInternalServerError)
+			_ = c.Error(gin.Error{
+				Err:  err,
+				Type: gin.ErrorTypePrivate,
+			})
 		} else {
 			c.AbortWithStatus(http.StatusUnauthorized)
 		}
@@ -201,7 +205,7 @@ func (a *Auth) Bind(server *gin.Engine, config config.Config, loginMiddleware gi
 	if a.callbackAddress == "" {
 		address := config.Address()
 		// Add http:// if not present
-		if strings.Index(address, "://") == -1 {
+		if !strings.Contains(address, "://") {
 			address = "http://" + address
 		}
 		u, err := url.Parse(address)
@@ -254,7 +258,7 @@ func (a *Auth) login(c *gin.Context) {
 
 func (a *Auth) callback(c *gin.Context) {
 	if user, err := gothic.CompleteUserAuth(c.Writer, c.Request); err != nil {
-		c.AbortWithError(http.StatusForbidden, err)
+		_ = c.AbortWithError(http.StatusForbidden, err)
 	} else {
 		a.success(c, user)
 	}
@@ -272,7 +276,7 @@ func (a *Auth) logout(c *gin.Context) {
 
 func (a *Auth) saveSession(c *gin.Context, session sessions.Session) {
 	if err := session.Save(); err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
+		_ = c.AbortWithError(http.StatusInternalServerError, err)
 	} else {
 		c.Redirect(http.StatusFound, "/")
 	}

@@ -206,7 +206,11 @@ func TestLoadBalancer_Forward(t *testing.T) {
 	// Create a mock backend server
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("backend response"))
+		_, err := w.Write([]byte("backend response"))
+		if err != nil {
+			http.Error(w, "Failed to write response", http.StatusInternalServerError)
+			return
+		}
 	}))
 	defer backend.Close()
 
@@ -311,7 +315,11 @@ func TestLoadBalancer_ForwardWithBody(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("received: " + string(body)))
+		_, err := w.Write([]byte("received: " + string(body)))
+		if err != nil {
+			http.Error(w, "Failed to write response", http.StatusInternalServerError)
+			return
+		}
 	}))
 	defer backend.Close()
 

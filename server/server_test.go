@@ -57,9 +57,10 @@ func TestNewServer(t *testing.T) {
 			}
 
 			expectedAddress := tt.host + ":" + string(rune(tt.port/1000+48)) + string(rune((tt.port%1000)/100+48)) + string(rune((tt.port%100)/10+48)) + string(rune(tt.port%10+48))
-			if tt.port == 8080 {
+			switch tt.port {
+			case 8080:
 				expectedAddress = tt.host + ":8080"
-			} else if tt.port == 9000 {
+			case 9000:
 				expectedAddress = tt.host + ":9000"
 			}
 
@@ -205,8 +206,13 @@ func TestServer_Start(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Set up environment
-	os.Setenv("SESSION_SECRET", "test-secret")
-	defer os.Unsetenv("SESSION_SECRET")
+	err := os.Setenv("SESSION_SECRET", "test-secret")
+	if err != nil {
+		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
+	}
+	defer func() {
+		_ = os.Unsetenv("SESSION_SECRET")
+	}()
 
 	tests := []struct {
 		name        string
@@ -247,7 +253,10 @@ func TestServer_Start(t *testing.T) {
 			}
 
 			// Cleanup
-			server.Shutdown()
+			err = server.Shutdown() // Force cleanup
+			if err != nil {
+				t.Errorf("Shutdown() returned error during timeout: %v", err)
+			}
 		})
 	}
 }
@@ -256,16 +265,21 @@ func TestServer_StartAndWaitForSignal(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Set up environment
-	os.Setenv("SESSION_SECRET", "test-secret")
-	defer os.Unsetenv("SESSION_SECRET")
+	err := os.Setenv("SESSION_SECRET", "test-secret")
+	if err != nil {
+		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
+	}
+	defer func() {
+		_ = os.Unsetenv("SESSION_SECRET")
+	}()
 
 	server := NewServer("localhost", 0, "", "", true, "test-session")
-	controller := &mockController{name: "test"}
+	mockController := &mockController{name: "test"}
 
 	// Start server in goroutine
 	errorChan := make(chan error, 1)
 	go func() {
-		err := server.StartAndWaitForSignal(controller)
+		err := server.StartAndWaitForSignal(mockController)
 		errorChan <- err
 	}()
 
@@ -277,7 +291,10 @@ func TestServer_StartAndWaitForSignal(t *testing.T) {
 		server.shutdownChannel <- os.Interrupt
 	} else {
 		// Force shutdown if channel not initialized
-		server.Shutdown()
+		err := server.Shutdown() // Force cleanup
+		if err != nil {
+			t.Errorf("Shutdown() returned error during timeout: %v", err)
+		}
 	}
 
 	// Wait for completion with timeout
@@ -288,7 +305,10 @@ func TestServer_StartAndWaitForSignal(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Error("StartAndWaitForSignal() timed out")
-		server.Shutdown() // Force cleanup
+		err := server.Shutdown() // Force cleanup
+		if err != nil {
+			t.Errorf("Shutdown() returned error during timeout: %v", err)
+		}
 	}
 }
 
@@ -296,14 +316,19 @@ func TestServer_Shutdown(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Set up environment
-	os.Setenv("SESSION_SECRET", "test-secret")
-	defer os.Unsetenv("SESSION_SECRET")
+	err := os.Setenv("SESSION_SECRET", "test-secret")
+	if err != nil {
+		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
+	}
+	defer func() {
+		_ = os.Unsetenv("SESSION_SECRET")
+	}()
 
 	server := NewServer("localhost", 0, "", "", false, "test-session")
-	controller := &mockController{name: "test"}
+	mockController := &mockController{name: "test"}
 
 	// Start server
-	err := server.Start(controller)
+	err = server.Start(mockController)
 	if err != nil {
 		t.Fatalf("Failed to start server: %v", err)
 	}
@@ -315,7 +340,7 @@ func TestServer_Shutdown(t *testing.T) {
 	}
 
 	// Verify controller was closed
-	if !controller.closed {
+	if !mockController.closed {
 		t.Error("Controller Close() was not called during shutdown")
 	}
 }
@@ -324,8 +349,13 @@ func TestServer_Bootstrap(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Set up environment
-	os.Setenv("SESSION_SECRET", "test-secret")
-	defer os.Unsetenv("SESSION_SECRET")
+	err := os.Setenv("SESSION_SECRET", "test-secret")
+	if err != nil {
+		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
+	}
+	defer func() {
+		_ = os.Unsetenv("SESSION_SECRET")
+	}()
 
 	tempDir := t.TempDir()
 	server := NewServer("localhost", 0, "", tempDir, true, "test-session")
@@ -335,7 +365,7 @@ func TestServer_Bootstrap(t *testing.T) {
 		&mockController{name: "controller2"},
 	}
 
-	err := server.bootstrap(controllers...)
+	err = server.bootstrap(controllers...)
 	if err != nil {
 		t.Errorf("bootstrap() returned error: %v", err)
 	}
@@ -349,15 +379,23 @@ func TestServer_Bootstrap(t *testing.T) {
 	}
 
 	// Cleanup
-	server.Shutdown()
+	err = server.Shutdown() // Force cleanup
+	if err != nil {
+		t.Errorf("Shutdown() returned error during timeout: %v", err)
+	}
 }
 
 func TestServer_SessionStore(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Set up environment
-	os.Setenv("SESSION_SECRET", "test-secret")
-	defer os.Unsetenv("SESSION_SECRET")
+	err := os.Setenv("SESSION_SECRET", "test-secret")
+	if err != nil {
+		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
+	}
+	defer func() {
+		_ = os.Unsetenv("SESSION_SECRET")
+	}()
 
 	tests := []struct {
 		name  string
@@ -393,7 +431,10 @@ func TestServer_SessionStore(t *testing.T) {
 			}
 
 			// Cleanup
-			server.Shutdown()
+			err = server.Shutdown() // Force cleanup
+			if err != nil {
+				t.Errorf("Shutdown() returned error during timeout: %v", err)
+			}
 		})
 	}
 }
@@ -457,7 +498,11 @@ func (s *sessionTestController) Bind(engine *gin.Engine, cfg config.Config, logi
 	engine.GET("/session-test", func(c *gin.Context) {
 		session := sessions.Default(c)
 		session.Set("test_key", "test_value")
-		session.Save()
+		err := session.Save()
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Failed to save session: %v", err)
+			return
+		}
 		c.String(http.StatusOK, "Session set")
 	})
 }

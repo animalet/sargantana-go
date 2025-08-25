@@ -57,7 +57,7 @@ func NewServerFromFlags(flagInitializers ...func(flagSet *flag.FlagSet) func() c
 	}
 
 	var controllers []controller.IController
-	flagSet.Parse(os.Args[1:])
+	_ = flagSet.Parse(os.Args[1:])
 	for _, c := range constructors {
 		controllers = append(controllers, c())
 	}
@@ -122,11 +122,11 @@ func (s *Server) loadSecrets() error {
 		name := file.Name()
 		content, err := os.ReadFile(filepath.Join(s.config.SecretsDir(), name))
 		if err != nil {
-			return fmt.Errorf("error reading secret file %s: %v\n", name, err)
+			return fmt.Errorf("error reading secret file %s: %v", name, err)
 		}
 		err = os.Setenv(strings.ToUpper(name), strings.TrimSpace(string(content)))
 		if err != nil {
-			return fmt.Errorf("error setting environment variable %s: %v\n", strings.ToUpper(name), err)
+			return fmt.Errorf("error setting environment variable %s: %v", strings.ToUpper(name), err)
 		} else {
 			count += 1
 			if s.config.Debug() {
@@ -172,7 +172,6 @@ func (s *Server) bootstrap(appControllers ...controller.IController) error {
 	}
 	engine.Use(gin.Logger(), gin.Recovery())
 	engine.Use(sessions.Sessions(s.config.SessionName(), sessionStore))
-
 	for _, c := range appControllers {
 		c.Bind(engine, *s.config, controller.LoginFunc)
 		s.addShutdownHook(c.Close)
@@ -185,6 +184,7 @@ func (s *Server) bootstrap(appControllers ...controller.IController) error {
 
 	log.Println("Starting server on " + s.config.Address())
 	s.listenAndServe()
+
 	return nil
 }
 

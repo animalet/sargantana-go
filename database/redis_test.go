@@ -107,7 +107,10 @@ func TestRedisPool_Dial(t *testing.T) {
 	if err == nil {
 		// If somehow it succeeds, close the connection
 		if conn != nil {
-			conn.Close()
+			err = conn.Close()
+			if err != nil {
+				t.Errorf("Failed to close connection: %v", err)
+			}
 		}
 	}
 	// We expect an error for invalid address, but the important thing
@@ -120,11 +123,20 @@ func TestRedisPool_Integration(t *testing.T) {
 	}
 
 	pool := NewRedisPool("localhost:6379")
-	defer pool.Close()
-
+	defer func() {
+		err := pool.Close()
+		if err != nil {
+			t.Errorf("Failed to close Redis pool: %v", err)
+		}
+	}()
 	// Try to get a connection
 	conn := pool.Get()
-	defer conn.Close()
+	defer func() {
+		err := pool.Close()
+		if err != nil {
+			t.Errorf("Failed to close Redis pool: %v", err)
+		}
+	}()
 
 	// Test basic Redis operation (will fail if Redis not available)
 	_, err := conn.Do("PING")
