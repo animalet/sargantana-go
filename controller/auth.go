@@ -87,14 +87,14 @@ type ProductionProviderFactory struct{}
 func (f *ProductionProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
 	var providers []goth.Provider
 
-	// Use twitterv2 instead of twitter if you only have access to the Essential API Level
+	// Essential API Level
 	if v := os.Getenv("TWITTER_KEY"); v != "" {
 		providers = append(providers, twitterv2.New(os.Getenv("TWITTER_KEY"), os.Getenv("TWITTER_SECRET"), fmt.Sprintf(callbackURLTemplate, "twitterv2")))
 	}
-	// If you'd like to use authenticate instead of authorize in TwitterV2 provider, use this instead.
-	//if v := os.Getenv("TWITTER_KEY"); v != "" {
-	//    providers = append(providers, twitterv2.NewAuthenticate(os.Getenv("TWITTER_KEY"), os.Getenv("TWITTER_SECRET"), fmt.Sprintf(callbackURLTemplate, "twitterv2")))
-	//}
+	// Use twitterv2.NewAuthenticate instead of twitterv2.New for Elevated API Level
+	if v := os.Getenv("TWITTER_KEY"); v != "" {
+		providers = append(providers, twitterv2.NewAuthenticate(os.Getenv("TWITTER_KEY"), os.Getenv("TWITTER_SECRET"), fmt.Sprintf(callbackURLTemplate, "twitterv2")))
+	}
 	if v := os.Getenv("TIKTOK_KEY"); v != "" {
 		providers = append(providers, tiktok.New(os.Getenv("TIKTOK_KEY"), os.Getenv("TIKTOK_SECRET"), fmt.Sprintf(callbackURLTemplate, "tiktok")))
 	}
@@ -174,10 +174,9 @@ func (f *ProductionProviderFactory) CreateProviders(callbackURLTemplate string) 
 		providers = append(providers, kakao.New(os.Getenv("KAKAO_KEY"), os.Getenv("KAKAO_SECRET"), fmt.Sprintf(callbackURLTemplate, "kakao")))
 	}
 
-	// Pointed https://localhost.com to http://localhost:3000/auth/yahoo/callback
-	// Yahoo only accepts urls that starts with https
+	// Yahoo only accepts urls that starts with https, this would likely fail if TLS is not supported
 	if v := os.Getenv("YAHOO_KEY"); v != "" {
-		providers = append(providers, yahoo.New(os.Getenv("YAHOO_KEY"), os.Getenv("YAHOO_SECRET"), "https://localhost.com"))
+		providers = append(providers, yahoo.New(os.Getenv("YAHOO_KEY"), os.Getenv("YAHOO_SECRET"), fmt.Sprintf(callbackURLTemplate, "yahoo")))
 	}
 	if v := os.Getenv("TYPETALK_KEY"); v != "" {
 		providers = append(providers, typetalk.New(os.Getenv("TYPETALK_KEY"), os.Getenv("TYPETALK_SECRET"), fmt.Sprintf(callbackURLTemplate, "typetalk"), "my"))
