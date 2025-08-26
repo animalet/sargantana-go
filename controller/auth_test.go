@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/gob"
 	"flag"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +16,10 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/facebook"
+	"github.com/markbates/goth/providers/github"
+	"github.com/markbates/goth/providers/google"
+	"github.com/markbates/goth/providers/twitter"
 )
 
 func init() {
@@ -707,4 +712,69 @@ func TestAuth_MockOAuthUserEndpoint(t *testing.T) {
 			t.Errorf("Expected response to contain user ID, got: %s", w2.Body.String())
 		}
 	})
+}
+
+// mockProviderFactory creates mock OAuth providers for testing
+type mockProviderFactory struct{}
+
+// CreateProviders creates mock OAuth providers
+func (f *mockProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
+	mockServerURL := os.Getenv("OAUTH_MOCK_SERVER_URL")
+	if mockServerURL == "" {
+		mockServerURL = "http://localhost:8080"
+	}
+
+	var providers []goth.Provider
+
+	// Mock Google Provider using custom endpoints
+	if os.Getenv("GOOGLE_KEY") != "" {
+		googleProvider := google.New(
+			os.Getenv("GOOGLE_KEY"),
+			os.Getenv("GOOGLE_SECRET"),
+			fmt.Sprintf(callbackURLTemplate, "google"),
+			mockServerURL+"/default/authorize", // Custom auth URL
+			mockServerURL+"/default/token",     // Custom token URL
+			mockServerURL+"/default/userinfo",  // Custom user info URL
+		)
+		providers = append(providers, googleProvider)
+	}
+
+	// Mock GitHub Provider using standard constructor
+	if os.Getenv("GITHUB_KEY") != "" {
+		githubProvider := github.New(
+			os.Getenv("GITHUB_KEY"),
+			os.Getenv("GITHUB_SECRET"),
+			fmt.Sprintf(callbackURLTemplate, "github"),
+			"read:user", "user:email",
+		)
+		providers = append(providers, githubProvider)
+	}
+
+	// Mock Facebook Provider
+	if os.Getenv("FACEBOOK_KEY") != "" {
+		facebookProvider := facebook.New(
+			os.Getenv("FACEBOOK_KEY"),
+			os.Getenv("FACEBOOK_SECRET"),
+			fmt.Sprintf(callbackURLTemplate, "facebook"),
+			"email", "public_profile",
+		)
+		providers = append(providers, facebookProvider)
+	}
+
+	// Mock Twitter Provider
+	if os.Getenv("TWITTER_KEY") != "" {
+		twitterProvider := twitter.New(
+			os.Getenv("TWITTER_KEY"),
+			os.Getenv("TWITTER_SECRET"),
+			fmt.Sprintf(callbackURLTemplate, "twitter"),
+		)
+		providers = append(providers, twitterProvider)
+	}
+
+	return providers
+}
+
+// NewMockProviderFactory returns a mock provider factory for testing
+func NewMockProviderFactory() ProviderFactory {
+	return &mockProviderFactory{}
 }

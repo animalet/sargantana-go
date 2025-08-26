@@ -230,9 +230,6 @@ func TestNewNeo4jDriverFromEnv_WithInvalidEnvVars(t *testing.T) {
 
 // TestNeo4jDriver_Integration is an integration test that requires a running Neo4j instance
 func TestNeo4jDriver_Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
 
 	options := &Neo4jOptions{
 		Uri:      "bolt://localhost:7687",
@@ -297,9 +294,6 @@ func TestNeo4jDriver_Integration(t *testing.T) {
 
 // TestNeo4jDriverFromEnv_Integration is an integration test using environment variables
 func TestNeo4jDriverFromEnv_Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
 
 	_ = os.Setenv("NEO4J_URI", "bolt://localhost:7687")
 	_ = os.Setenv("NEO4J_USERNAME", "neo4j")
@@ -338,9 +332,6 @@ func TestNeo4jDriverFromEnv_Integration(t *testing.T) {
 
 // Test cleanup function behavior
 func TestCleanupFunction(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
 
 	options := &Neo4jOptions{
 		Uri:      getEnvOrDefault("NEO4J_URI", "bolt://localhost:7687"),
