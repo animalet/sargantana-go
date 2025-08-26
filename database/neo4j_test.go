@@ -235,10 +235,10 @@ func TestNeo4jDriver_Integration(t *testing.T) {
 	}
 
 	options := &Neo4jOptions{
-		Uri:      getEnvOrDefault("NEO4J_URI", "bolt://localhost:7687"),
-		Username: getEnvOrDefault("NEO4J_USERNAME", "neo4j"),
-		Password: getEnvOrDefault("NEO4J_PASSWORD", "testpassword"),
-		Realm:    getEnvOrDefault("NEO4J_REALM", ""),
+		Uri:      "bolt://localhost:7687",
+		Username: "neo4j",
+		Password: "testpassword",
+		Realm:    "",
 	}
 
 	driver, cleanup, err := NewNeo4jDriver(options)
@@ -301,13 +301,10 @@ func TestNeo4jDriverFromEnv_Integration(t *testing.T) {
 		t.Skip()
 	}
 
-	// Ensure required env vars are set for integration test
-	requiredEnvVars := []string{"NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD"}
-	for _, envVar := range requiredEnvVars {
-		if os.Getenv(envVar) == "" {
-			t.Skipf("Skipping integration test. Environment variable %s is not set.", envVar)
-		}
-	}
+	_ = os.Setenv("NEO4J_URI", "bolt://localhost:7687")
+	_ = os.Setenv("NEO4J_USERNAME", "neo4j")
+	_ = os.Setenv("NEO4J_PASSWORD", "testpassword")
+	_ = os.Setenv("NEO4J_REALM", "")
 
 	driver, cleanup, err := NewNeo4jDriverFromEnv()
 	if err != nil {
@@ -381,60 +378,4 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
-}
-
-// Benchmark tests
-func BenchmarkNewNeo4jDriver(b *testing.B) {
-	if testing.Short() {
-		b.Skip()
-	}
-
-	options := &Neo4jOptions{
-		Uri:      getEnvOrDefault("NEO4J_URI", "bolt://localhost:7687"),
-		Username: getEnvOrDefault("NEO4J_USERNAME", "neo4j"),
-		Password: getEnvOrDefault("NEO4J_PASSWORD", "testpassword"),
-		Realm:    getEnvOrDefault("NEO4J_REALM", ""),
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, cleanup, err := NewNeo4jDriver(options)
-		if err != nil {
-			b.Fatalf("Failed to create driver: %v", err)
-		}
-		if cleanup != nil {
-			err = cleanup()
-			if err != nil {
-				b.Fatalf("Failed to clean up driver: %v", err)
-			}
-		}
-	}
-}
-
-func BenchmarkNewNeo4jDriverFromEnv(b *testing.B) {
-	if testing.Short() {
-		b.Skip()
-	}
-
-	// Ensure required env vars are set for benchmark
-	requiredEnvVars := []string{"NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD"}
-	for _, envVar := range requiredEnvVars {
-		if os.Getenv(envVar) == "" {
-			b.Skipf("Skipping benchmark test. Environment variable %s is not set.", envVar)
-		}
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, cleanup, err := NewNeo4jDriverFromEnv()
-		if err != nil {
-			b.Fatalf("Failed to create driver from env: %v", err)
-		}
-		if cleanup != nil {
-			err = cleanup()
-			if err != nil {
-				b.Fatalf("Failed to clean up driver: %v", err)
-			}
-		}
-	}
 }

@@ -16,6 +16,17 @@ jobs:
     permissions:
       contents: write
     services:
+      oauth2-mock:
+        image: ghcr.io/navikt/mock-oauth2-server:1.0.0
+        ports:
+          - 8080:8080
+        env:
+          SERVER_PORT: 8080
+        options: >-
+          --health-cmd "curl -f http://localhost:8080/isalive || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
       redis:
         image: redis
         ports:
@@ -54,6 +65,17 @@ jobs:
           NEO4J_URI: bolt://localhost:7687
           NEO4J_USERNAME: neo4j
           NEO4J_PASSWORD: testpassword
+          # OAuth Mock Server Configuration
+          GOOGLE_KEY: mock-google-client-id
+          GOOGLE_SECRET: mock-google-client-secret
+          GITHUB_KEY: mock-github-client-id
+          GITHUB_SECRET: mock-github-client-secret
+          FACEBOOK_KEY: mock-facebook-client-id
+          FACEBOOK_SECRET: mock-facebook-client-secret
+          TWITTER_KEY: mock-twitter-client-id
+          TWITTER_SECRET: mock-twitter-client-secret
+          # Point OAuth providers to mock server
+          OAUTH_MOCK_SERVER_URL: http://localhost:8080
 
       - name: Check test coverage
         uses: vladopajic/go-test-coverage@v2

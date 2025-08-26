@@ -96,6 +96,15 @@ func providers(callbackEndpoint string) {
 	gob.Register(UserObject{})
 	callbackURLTemplate := callbackEndpoint + "/auth/%s/callback"
 
+	// Check if we're in mock mode for testing
+	if isMockMode() {
+		mockProviders := setupMockProviders(callbackURLTemplate)
+		if len(mockProviders) > 0 {
+			goth.UseProviders(mockProviders...)
+			return
+		}
+	}
+
 	goth.UseProviders(
 		// Use twitterv2 instead of twitter if you only have access to the Essential API Level
 		twitterv2.New(os.Getenv("TWITTER_KEY"), os.Getenv("TWITTER_SECRET"), fmt.Sprintf(callbackURLTemplate, "twitterv2")),
