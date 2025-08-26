@@ -48,8 +48,10 @@ type serverFlags struct {
 	showVersion *bool
 }
 
+type ControllerFlagInitializer func(flagSet *flag.FlagSet) func() controller.IController
+
 // parseServerFlags creates and parses all server flags, returning the flagset and parsed values
-func parseServerFlags(versionInfo string, flagInitializers ...func(flagSet *flag.FlagSet) func() controller.IController) (*serverFlags, []func() controller.IController) {
+func parseServerFlags(versionInfo string, flagInitializers ...ControllerFlagInitializer) (*serverFlags, []func() controller.IController) {
 	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
 	// Define all server flags
@@ -115,7 +117,7 @@ func NewServer(host string, port int, redis, secretsDir string, debug bool, sess
 // Returns:
 //   - *Server: The configured server instance
 //   - []controller.IController: List of initialized controllers
-func NewServerFromFlags(flagInitializers ...func(flagSet *flag.FlagSet) func() controller.IController) (*Server, []controller.IController) {
+func NewServerFromFlags(flagInitializers ...ControllerFlagInitializer) (*Server, []controller.IController) {
 	return newServerFromFlagsInternal("unknown", flagInitializers...)
 }
 
@@ -131,12 +133,12 @@ func NewServerFromFlags(flagInitializers ...func(flagSet *flag.FlagSet) func() c
 // Returns:
 //   - *Server: The configured server instance
 //   - []controller.IController: List of initialized controllers
-func NewServerFromFlagsWithVersion(versionInfo string, flagInitializers ...func(flagSet *flag.FlagSet) func() controller.IController) (*Server, []controller.IController) {
+func NewServerFromFlagsWithVersion(versionInfo string, flagInitializers ...ControllerFlagInitializer) (*Server, []controller.IController) {
 	return newServerFromFlagsInternal(versionInfo, flagInitializers...)
 }
 
 // newServerFromFlagsInternal is the internal implementation that both exported functions use
-func newServerFromFlagsInternal(versionInfo string, flagInitializers ...func(flagSet *flag.FlagSet) func() controller.IController) (*Server, []controller.IController) {
+func newServerFromFlagsInternal(versionInfo string, flagInitializers ...ControllerFlagInitializer) (*Server, []controller.IController) {
 	flags, constructors := parseServerFlags(versionInfo, flagInitializers...)
 
 	// Create controller instances
