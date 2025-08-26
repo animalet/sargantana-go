@@ -597,14 +597,17 @@ make test-coverage
 # Run linting
 make lint
 
-# Run security checks
-make security
-
 # Format code
 make format
 
 # Run all CI checks locally
 make ci
+
+# Clean build artifacts
+make clean
+
+# Build the basic server binary
+make build
 ```
 
 ### Project Structure
