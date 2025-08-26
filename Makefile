@@ -6,8 +6,13 @@ GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
 GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
 GO_TEST_COVERAGE := $(TOOLS_BIN_DIR)/go-test-coverage
 
+# Build variables
+BINARY_NAME := sargantana-go
+VERSION ?= dev
+LDFLAGS := -s -w -X main.version=$(VERSION)
+
 # Tasks
-.PHONY: all format test clean lint mod-tidy test bench install-golangci-lint
+.PHONY: all format test clean lint deps test bench install-golangci-lint build build-all test-coverage check-coverage install-goimports install-go-test-coverage ci clean-dist
 
 test:
 	@echo "Running backend tests..."
@@ -42,7 +47,7 @@ lint: format install-golangci-lint
 	go vet ./...
 	$(GOLANGCI_LINT) run ./...
 
-mod-tidy:
+deps:
 	@echo "Tidying go.mod and go.sum..."
 	go mod tidy
 	go mod verify
@@ -54,13 +59,32 @@ bench:
 
 build:
 	@echo "Building application..."
-	go build -v -o bin/sargantana-go ./main
+	go build -v -ldflags="$(LDFLAGS)" -o bin/$(BINARY_NAME) ./main
 
-ci: mod-tidy format lint test-coverage
+# Build for all platforms
+build-all: clean-dist
+	@echo "Building for all platforms..."
+	@mkdir -p dist
+	@echo "Building for Linux AMD64..."
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o dist/$(BINARY_NAME)-linux-amd64 ./main
+	@echo "Building for macOS AMD64..."
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o dist/$(BINARY_NAME)-macos-amd64 ./main
+	@echo "Building for macOS ARM64..."
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o dist/$(BINARY_NAME)-macos-arm64 ./main
+	@echo "Building for Windows AMD64..."
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o dist/$(BINARY_NAME)-windows-amd64.exe ./main
+	@echo "All builds completed successfully!"
+	@ls -la dist/
+
+ci: deps format lint test-coverage
 
 all: ci build
 
-clean:
+clean: clean-dist
 	@echo "Cleaning up..."
 	go clean
 	rm -f coverage.out coverage.html
+
+clean-dist:
+	@echo "Cleaning dist directory..."
+	rm -rf dist/
