@@ -1,23 +1,31 @@
 # Makefile
 
 # Variables
-FRONTEND_DIR := frontend
-PROJECT_NAME := $(shell basename $(CURDIR))
+TOOLS_BIN_DIR := $(shell go env GOPATH)/bin
+GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
+GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
+GO_TEST_COVERAGE := $(TOOLS_BIN_DIR)/go-test-coverage
 
 # Tasks
-.PHONY: all format test clean lint mod-tidy docs test bench install-golangci-lint
+.PHONY: all format test clean lint mod-tidy test bench install-golangci-lint
 
 test:
 	@echo "Running backend tests..."
-	go test $(shell go list ./... | grep -v /main$$)
+	go test ./...
 
 test-coverage:
 	@echo "Running backend tests with coverage..."
-	go test -covermode=atomic -coverprofile=coverage.out $(shell go list ./... | grep -v /main$$)
-	go tool cover -html=coverage.out -o coverage.html
+	go test -covermode=atomic -coverprofile=coverage.out ./...
 
-install-tools:
+check-coverage: install-go-test-coverage
+	go test ./... -coverprofile=./coverage.out -covermode=atomic -coverpkg=./...
+	$(GO_TEST_COVERAGE) --config=./.testcoverage.yml
+
+install-goimports:
 	go install golang.org/x/tools/cmd/goimports@latest
+
+install-go-test-coverage:
+	go install github.com/vladopajic/go-test-coverage/v2@latest
 
 install-golangci-lint:
 	@if ! command -v golangci-lint &> /dev/null; then \
@@ -25,25 +33,20 @@ install-golangci-lint:
 		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v2.4.0; \
 	fi
 
-TOOLS_BIN_DIR := $(shell go env GOPATH)/bin
-GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
-
-format: install-tools
+format: install-goimports
 	@echo "Formatting code..."
 	go fmt ./... && $(GOIMPORTS) -w .
 
 lint: format install-golangci-lint
 	@echo "Linting code..."
 	go vet ./...
-	golangci-lint run ./...
+	$(GOLANGCI_LINT) run ./...
 
 mod-tidy:
 	@echo "Tidying go.mod and go.sum..."
 	go mod tidy
-
-docs:
-	@echo "Generating documentation..."
-	# godoc -http=:6060 # or use another doc tool
+	go mod verify
+	go mod download
 
 bench:
 	@echo "Running benchmarks..."
@@ -53,7 +56,7 @@ build:
 	@echo "Building application..."
 	go build -v -o bin/sargantana-go ./main
 
-ci: mod-tidy format lint test
+ci: mod-tidy format lint test check-coverage
 
 all: ci build
 

@@ -6,9 +6,10 @@
 ```
 
 [![CI](https://github.com/animalet/sargantana-go/workflows/CI/badge.svg)](https://github.com/animalet/sargantana-go/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/animalet/sargantana-go/branch/main/graph/badge.svg)](https://codecov.io/gh/animalet/sargantana-go)
+[![coverage](https://raw.githubusercontent.com/animalet/sargantana-go/badges/.badges/main/coverage.svg)](https://github.com/animalet/sargantana-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/animalet/sargantana-go)](https://goreportcard.com/report/github.com/animalet/sargantana-go)
 [![Go Reference](https://pkg.go.dev/badge/github.com/animalet/sargantana-go.svg)](https://pkg.go.dev/github.com/animalet/sargantana-go)
+[![Release](https://img.shields.io/github/v/release/animalet/sargantana-go?include_prereleases&label=release&color=blue)](https://github.com/animalet/sargantana-go/releases/latest)
 [![License](https://img.shields.io/github/license/animalet/sargantana-go)](LICENSE)
 
 ## What is this?
@@ -18,6 +19,11 @@ provides simple solutions for common web development scenarios. It includes buil
 session management, static file serving, load balancing, and database integration.
 
 I started this as a side project to improve my Go skills and to have a solid base for building web applications quickly. It is designed to be easy to use and extend, allowing developers to focus on building their applications rather than dealing with boilerplate code.
+
+## Disclaimer
+This project is currently in active development and may not be suitable for production use. While I have implemented
+basic functionality and tested it in development environments, there are no guarantees regarding its stability,
+security, or performance yet. Use at your own risk.
 
 ## Features
 
@@ -45,6 +51,17 @@ go get github.com/animalet/sargantana-go
 ```
 
 ### Basic Usage
+
+#### Use a binary
+
+```bash
+go build -o sargantana-go main/main.go
+```
+
+Run it!
+```bash
+./sargantana-go -host localhost -port 8080 -frontend ./public -templates ./templates -debug
+```
 
 #### Create a simple web application configured via command line flags
 
