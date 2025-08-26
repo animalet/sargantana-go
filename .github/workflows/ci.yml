@@ -10,30 +10,8 @@ env:
   GO_VERSION: '1.25.0'
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            go-
-
-      - name: Run lint via Make
-        run: make lint
-
-  test:
-    name: Test
+  pipeline:
+    name: Pipeline
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -57,16 +35,8 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            go-
-
-      - name: Run tests with coverage
-        run: make test-coverage
+      - name: Run ci build via Make
+        run: make ci
 
       - name: Check test coverage
         uses: vladopajic/go-test-coverage@v2
