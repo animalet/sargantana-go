@@ -1,8 +1,6 @@
 package main
 
 import (
-	"flag"
-
 	"github.com/animalet/sargantana-go/controller"
 	"github.com/animalet/sargantana-go/server"
 )
@@ -14,7 +12,7 @@ var (
 
 func main() {
 	// Create a set of controllers that will be initialized from command line arguments (flags)
-	controllerInitializers := []func(*flag.FlagSet) func() controller.IController{
+	controllerInitializers := []server.ControllerFlagInitializer{
 		controller.NewStaticFromFlags,
 		controller.NewAuthFromFlags,
 		controller.NewLoadBalancerFromFlags,

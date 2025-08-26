@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/gomodule/redigo/redis"
@@ -52,7 +53,7 @@ func TestNewCookieStore(t *testing.T) {
 
 func TestNewRedisSessionStore(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping Redis session store test in short mode")
+		t.Skip()
 	}
 
 	tests := []struct {
@@ -60,7 +61,6 @@ func TestNewRedisSessionStore(t *testing.T) {
 		isReleaseMode bool
 		secret        []byte
 		poolFunc      func() *redis.Pool
-		expectPanic   bool
 	}{
 		{
 			name:          "valid pool development",
@@ -73,7 +73,6 @@ func TestNewRedisSessionStore(t *testing.T) {
 					},
 				}
 			},
-			expectPanic: false,
 		},
 		{
 			name:          "valid pool production",
@@ -86,7 +85,6 @@ func TestNewRedisSessionStore(t *testing.T) {
 					},
 				}
 			},
-			expectPanic: false,
 		},
 	}
 
@@ -94,11 +92,7 @@ func TestNewRedisSessionStore(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			defer func() {
 				if r := recover(); r != nil {
-					if !tt.expectPanic {
-						t.Errorf("Unexpected panic: %v", r)
-					}
-				} else if tt.expectPanic {
-					t.Error("Expected panic but didn't get one")
+					t.Errorf("Unexpected panic: %v", r)
 				}
 			}()
 
@@ -110,7 +104,11 @@ func TestNewRedisSessionStore(t *testing.T) {
 				}
 			}()
 
-			store := NewRedisSessionStore(tt.isReleaseMode, tt.secret, pool)
+			store, err := NewRedisSessionStore(tt.isReleaseMode, tt.secret, pool)
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
 
 			if store == nil {
 				t.Fatal("NewRedisSessionStore returned nil")
@@ -119,6 +117,121 @@ func TestNewRedisSessionStore(t *testing.T) {
 			// Verify that gothic.Store was set
 			if gothic.Store == nil {
 				t.Error("gothic.Store was not set")
+			}
+		})
+	}
+}
+
+func TestNewRedisSessionStore_WithConnectionError(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	// Create a pool that will fail on connection test
+	pool := &redis.Pool{
+		Dial: func() (redis.Conn, error) {
+			return &mockRedisConnWithError{}, nil
+		},
+	}
+	defer func() {
+		err := pool.Close()
+		if err != nil {
+			t.Error("Failed to close Redis pool:", err)
+		}
+	}()
+
+	// This should still create the store but connection errors will appear later
+	store, err := NewRedisSessionStore(false, []byte("test-secret"), pool)
+	if err == nil {
+		t.Error("Expected error due to connection issues, but got none")
+	}
+
+	if store != nil {
+		t.Error("NewRedisSessionStore should return nil store on connection error")
+	}
+
+	// Verify that gothic.Store was set despite connection issues
+	if gothic.Store == nil {
+		t.Error("gothic.Store was not set")
+	}
+}
+
+func TestNewRedisSessionStore_WithInvalidSecret(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	pool := &redis.Pool{
+		Dial: func() (redis.Conn, error) {
+			return &mockRedisConn{}, nil
+		},
+	}
+	defer func() {
+		err := pool.Close()
+		if err != nil {
+			t.Error("Failed to close Redis pool:", err)
+		}
+	}()
+
+	// Test with empty secret
+	store, err := NewRedisSessionStore(false, []byte{}, pool)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	if store == nil {
+		t.Fatal("NewRedisSessionStore returned nil")
+	}
+}
+
+func TestRedisSessionStore_AuthenticationBehavior(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	tests := []struct {
+		name         string
+		mockResponse interface{}
+		mockError    error
+	}{
+		{
+			name:         "successful auth",
+			mockResponse: "OK",
+			mockError:    nil,
+		},
+		{
+			name:         "auth error",
+			mockResponse: nil,
+			mockError:    errors.New("AUTH failed"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := &redis.Pool{
+				Dial: func() (redis.Conn, error) {
+					return &mockRedisConnWithAuth{
+						authResponse: tt.mockResponse,
+						authError:    tt.mockError,
+					}, nil
+				},
+			}
+			defer func() {
+				err := pool.Close()
+				if err != nil {
+					t.Error("Failed to close Redis pool:", err)
+				}
+			}()
+
+			store, err := NewRedisSessionStore(false, []byte("test-secret"), pool)
+			if tt.mockError != nil && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if tt.mockError != nil && store != nil {
+				t.Error("Expected error but store was created")
+			}
+			if tt.mockError == nil && store == nil {
+				t.Error("Expected store to be created but got nil")
 			}
 		})
 	}
@@ -220,4 +333,29 @@ func (m *mockRedisConn) Flush() error {
 
 func (m *mockRedisConn) Receive() (interface{}, error) {
 	return nil, nil
+}
+
+// Additional mock Redis connection with auth support
+type mockRedisConnWithAuth struct {
+	mockRedisConn
+	authResponse interface{}
+	authError    error
+}
+
+func (m *mockRedisConnWithAuth) Do(commandName string, args ...interface{}) (interface{}, error) {
+	switch commandName {
+	case "AUTH", "PING":
+		return m.authResponse, m.authError
+	default:
+		return m.mockRedisConn.Do(commandName, args...)
+	}
+}
+
+// Mock Redis connection that always errors
+type mockRedisConnWithError struct {
+	mockRedisConn
+}
+
+func (m *mockRedisConnWithError) Do(commandName string, args ...interface{}) (interface{}, error) {
+	return nil, errors.New("connection error")
 }

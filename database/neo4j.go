@@ -39,11 +39,11 @@ type Neo4jOptions struct {
 //	  Password: "password",
 //	})
 //	defer cleanup()
-func NewNeo4jDriver(options *Neo4jOptions) (neo4j.DriverWithContext, func()) {
+func NewNeo4jDriver(options *Neo4jOptions) (neo4j.DriverWithContext, func() error, error) {
 	auth := neo4j.BasicAuth(options.Username, options.Password, options.Realm)
 	driver, err := neo4j.NewDriverWithContext(options.Uri, auth)
 	if err != nil {
-		log.Fatalf("Failed to create Neo4j driver: %v", err)
+		return nil, nil, err
 	}
 
 	timeout, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
@@ -59,19 +59,20 @@ func NewNeo4jDriver(options *Neo4jOptions) (neo4j.DriverWithContext, func()) {
 
 	err = driver.VerifyConnectivity(timeout)
 	if err != nil {
-		log.Fatalf("Failed to connect to Neo4j: %v", err)
+		return nil, nil, err
 	}
 
 	log.Printf("Connected to Neo4j at %s", options.Uri)
 
-	closeFunc := func() {
+	closeFunc := func() error {
 		err := driver.Close(timeout)
 		if err != nil {
-			log.Printf("Failed to close Neo4j driver: %v", err)
+			return err
 		}
+		return nil
 	}
 
-	return driver, closeFunc
+	return driver, closeFunc, nil
 }
 
 // NewNeo4jDriverFromEnv creates a new Neo4j driver using environment variables for configuration.
@@ -92,7 +93,7 @@ func NewNeo4jDriver(options *Neo4jOptions) (neo4j.DriverWithContext, func()) {
 //
 // The function will log fatal errors and exit if required environment variables are missing
 // or if connection establishment fails.
-func NewNeo4jDriverFromEnv() (neo4j.DriverWithContext, func()) {
+func NewNeo4jDriverFromEnv() (neo4j.DriverWithContext, func() error, error) {
 	return NewNeo4jDriver(&Neo4jOptions{
 		Uri:      os.Getenv("NEO4J_URI"),
 		Username: os.Getenv("NEO4J_USERNAME"),

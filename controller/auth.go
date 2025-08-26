@@ -226,17 +226,12 @@ func LoginFunc(c *gin.Context) {
 		return
 	}
 
-	if time.Now().After(userObject.(UserObject).User.ExpiresAt) {
+	u, ok := userObject.(UserObject)
+
+	if !ok || time.Now().After(u.User.ExpiresAt) {
 		userSession.Clear()
-		if err := userSession.Save(); err != nil {
-			c.AbortWithStatus(http.StatusInternalServerError)
-			_ = c.Error(gin.Error{
-				Err:  err,
-				Type: gin.ErrorTypePrivate,
-			})
-		} else {
-			c.AbortWithStatus(http.StatusUnauthorized)
-		}
+		saveSession(c, userSession)
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
@@ -268,16 +263,22 @@ func (a *Auth) Bind(server *gin.Engine, config config.Config, loginMiddleware gi
 		Use(func(c *gin.Context) {
 			// Hack to make gothic work with gin
 			q := c.Request.URL.Query()
-			q.Add("provider", c.Param("provider"))
+			param := c.Param("provider")
+			if param == "" {
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+			q.Add("provider", param)
 			c.Request.URL.RawQuery = q.Encode()
 			c.Next()
 		}).
 		GET("/:provider", a.login).
 		GET("/:provider/callback", a.callback).
-		GET("/:provider/logout", a.logout).
-		GET("/user", loginMiddleware, func(c *gin.Context) {
-			c.JSON(http.StatusOK, sessions.Default(c).Get("user").(UserObject).Id)
-		})
+		GET("/:provider/logout", a.logout)
+
+	server.GET("/auth/user", loginMiddleware, func(c *gin.Context) {
+		c.JSON(http.StatusOK, sessions.Default(c).Get("user").(UserObject).Id)
+	})
 }
 
 func (a *Auth) Close() error {
@@ -287,7 +288,8 @@ func (a *Auth) Close() error {
 func (a *Auth) success(c *gin.Context, user goth.User) {
 	session := sessions.Default(c)
 	session.Set("user", a.userFactory(user))
-	a.saveSession(c, session)
+	saveSession(c, session)
+	c.Redirect(http.StatusFound, "/")
 }
 
 func (a *Auth) login(c *gin.Context) {
@@ -313,14 +315,13 @@ func (a *Auth) logout(c *gin.Context) {
 	}
 	session := sessions.Default(c)
 	session.Clear()
-	a.saveSession(c, session)
+	saveSession(c, session)
+	c.Redirect(http.StatusFound, "/")
 }
 
-func (a *Auth) saveSession(c *gin.Context, session sessions.Session) {
+func saveSession(c *gin.Context, session sessions.Session) {
 	if err := session.Save(); err != nil {
 		_ = c.AbortWithError(http.StatusInternalServerError, err)
-	} else {
-		c.Redirect(http.StatusFound, "/")
 	}
 }
 

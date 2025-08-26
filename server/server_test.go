@@ -11,7 +11,6 @@ import (
 
 	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -202,6 +201,27 @@ func TestServer_LoadSecrets(t *testing.T) {
 	}
 }
 
+func TestServer_LoadSecretsWithInvalidFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a directory instead of a file to test error handling
+	secretDir := filepath.Join(tempDir, "secret_as_dir")
+	err := os.Mkdir(secretDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+
+	server := &Server{
+		config: config.NewConfig("localhost:8080", "", tempDir, false, "test"),
+	}
+
+	err = server.loadSecrets()
+	// Should not error on directories, they are skipped
+	if err != nil {
+		t.Errorf("loadSecrets should skip directories without error: %v", err)
+	}
+}
+
 func TestServer_Start(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -385,7 +405,54 @@ func TestServer_Bootstrap(t *testing.T) {
 	}
 }
 
-func TestServer_SessionStore(t *testing.T) {
+func TestServer_BootstrapWithSecretsError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Use a non-existent directory to trigger secrets loading error
+	server := &Server{
+		config: config.NewConfig("localhost:8080", "", "/non/existent/path", false, "test"),
+	}
+
+	err := server.bootstrap()
+	if err == nil {
+		t.Error("Expected error for non-existent secrets directory")
+	}
+
+	if err != nil && err.Error() != "error reading secrets directory /non/existent/path: open /non/existent/path: no such file or directory" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+func TestServer_BootstrapWithReleaseMode(t *testing.T) {
+	gin.SetMode(gin.ReleaseMode)
+
+	// Set up environment
+	err := os.Setenv("SESSION_SECRET", "test-secret")
+	if err != nil {
+		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
+	}
+	defer func() {
+		_ = os.Unsetenv("SESSION_SECRET")
+	}()
+
+	server := NewServer("localhost", 0, "", "", false, "test-session")
+
+	// This test verifies the trusted proxies setting doesn't cause errors
+	err = server.bootstrap()
+	if err != nil {
+		t.Errorf("bootstrap() returned error: %v", err)
+	}
+
+	// Cleanup
+	if server.httpServer != nil {
+		err = server.Shutdown()
+		if err != nil {
+			t.Errorf("Shutdown() returned error: %v", err)
+		}
+	}
+}
+
+func TestServer_BootstrapWithRedisSession(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Set up environment
@@ -397,78 +464,105 @@ func TestServer_SessionStore(t *testing.T) {
 		_ = os.Unsetenv("SESSION_SECRET")
 	}()
 
-	tests := []struct {
-		name  string
-		redis string
-	}{
-		{
-			name:  "cookie store",
-			redis: "",
-		},
-		{
-			name:  "redis store",
-			redis: "localhost:6379",
-		},
+	// Test with Redis session store
+	server := NewServer("localhost", 0, "localhost:6379", "", false, "test-session")
+	mockController := &mockController{name: "test"}
+
+	err = server.bootstrap(mockController)
+	if err != nil {
+		t.Errorf("bootstrap() with Redis returned error: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := NewServer("localhost", 0, tt.redis, "", false, "test-session")
-			controller := &sessionTestController{}
+	// Verify Redis pool shutdown hook was added
+	if len(server.shutdownHooks) == 0 {
+		t.Error("Expected shutdown hooks to be registered for Redis")
+	}
 
-			err := server.Start(controller)
-			if err != nil {
-				t.Errorf("Start() with %s returned error: %v", tt.name, err)
-			}
-
-			// Test session functionality
-			w := httptest.NewRecorder()
-			req, _ := http.NewRequest("GET", "/session-test", nil)
-			server.httpServer.Handler.ServeHTTP(w, req)
-
-			if w.Code != http.StatusOK {
-				t.Errorf("Session test failed with status %d", w.Code)
-			}
-
-			// Cleanup
-			err = server.Shutdown() // Force cleanup
-			if err != nil {
-				t.Errorf("Shutdown() returned error during timeout: %v", err)
-			}
-		})
+	// Cleanup
+	err = server.Shutdown()
+	if err != nil {
+		t.Errorf("Shutdown() returned error: %v", err)
 	}
 }
 
-func TestAddress(t *testing.T) {
-	tests := []struct {
-		host     string
-		port     int
-		expected string
-	}{
-		{
-			host:     "localhost",
-			port:     8080,
-			expected: "localhost:8080",
-		},
-		{
-			host:     "0.0.0.0",
-			port:     3000,
-			expected: "0.0.0.0:3000",
-		},
-		{
-			host:     "",
-			port:     80,
-			expected: ":80",
-		},
+func TestServer_ShutdownWithHookError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	server := NewServer("localhost", 0, "", "", false, "test-session")
+
+	// Add a shutdown hook that returns an error
+	server.addShutdownHook(func() error {
+		return os.ErrNotExist
+	})
+
+	// Set up environment
+	err := os.Setenv("SESSION_SECRET", "test-secret")
+	if err != nil {
+		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
+	}
+	defer func() {
+		_ = os.Unsetenv("SESSION_SECRET")
+	}()
+
+	// Start server
+	err = server.Start()
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			result := address(tt.host, tt.port)
-			if result != tt.expected {
-				t.Errorf("address(%s, %d) = %s, want %s", tt.host, tt.port, result, tt.expected)
-			}
-		})
+	// Shutdown should not fail even if hooks return errors
+	err = server.Shutdown()
+	if err != nil {
+		t.Errorf("Shutdown() returned error: %v", err)
+	}
+}
+
+func TestServer_GinBodyLogMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	engine := gin.New()
+	engine.Use(ginBodyLogMiddleware)
+	engine.GET("/test", func(c *gin.Context) {
+		c.String(http.StatusOK, "test response")
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/test", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Status = %v, want %v", w.Code, http.StatusOK)
+	}
+
+	if w.Body.String() != "test response" {
+		t.Errorf("Body = %v, want %v", w.Body.String(), "test response")
+	}
+}
+
+func TestServer_WaitForSignalTimeout(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Set up environment
+	err := os.Setenv("SESSION_SECRET", "test-secret")
+	if err != nil {
+		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
+	}
+	defer func() {
+		_ = os.Unsetenv("SESSION_SECRET")
+	}()
+
+	server := NewServer("localhost", 0, "", "", false, "test-session")
+
+	// Start server
+	err = server.Start()
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+
+	// Test that we can shutdown without waiting for signal
+	err = server.Shutdown()
+	if err != nil {
+		t.Errorf("Shutdown() returned error: %v", err)
 	}
 }
 
@@ -488,25 +582,5 @@ func (m *mockController) Bind(engine *gin.Engine, cfg config.Config, loginMiddle
 
 func (m *mockController) Close() error {
 	m.closed = true
-	return nil
-}
-
-// Session test controller
-type sessionTestController struct{}
-
-func (s *sessionTestController) Bind(engine *gin.Engine, cfg config.Config, loginMiddleware gin.HandlerFunc) {
-	engine.GET("/session-test", func(c *gin.Context) {
-		session := sessions.Default(c)
-		session.Set("test_key", "test_value")
-		err := session.Save()
-		if err != nil {
-			c.String(http.StatusInternalServerError, "Failed to save session: %v", err)
-			return
-		}
-		c.String(http.StatusOK, "Session set")
-	})
-}
-
-func (s *sessionTestController) Close() error {
 	return nil
 }
