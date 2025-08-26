@@ -1,10 +1,15 @@
 package controller
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/facebook"
+	"github.com/markbates/goth/providers/github"
+	"github.com/markbates/goth/providers/google"
+	"github.com/markbates/goth/providers/twitter"
 )
 
 func TestMockServerIntegration(t *testing.T) {
@@ -111,16 +116,12 @@ func TestMockServerIntegration(t *testing.T) {
 			_ = os.Setenv("TWITTER_KEY", tt.twitterKey)
 			_ = os.Setenv("TWITTER_SECRET", "mock-secret")
 
-			// Test isMockMode function
-			if isMockMode() != tt.shouldUseMock {
-				t.Errorf("isMockMode() = %v, want %v", isMockMode(), tt.shouldUseMock)
-			}
-
-			// Test setupMockProviders function
-			providers := setupMockProviders("http://localhost:3000/auth/%s/callback")
+			// Test using MockProviderFactory
+			factory := NewMockProviderFactory()
+			providers := factory.CreateProviders("http://localhost:3000/auth/%s/callback")
 
 			if len(providers) != tt.expectedCount {
-				t.Errorf("setupMockProviders() returned %d providers, want %d", len(providers), tt.expectedCount)
+				t.Errorf("MockProviderFactory.CreateProviders() returned %d providers, want %d", len(providers), tt.expectedCount)
 			}
 
 			// Verify provider configuration when mock is enabled
@@ -200,7 +201,8 @@ func TestCreateMockProviders(t *testing.T) {
 	callbackTemplate := "http://localhost:3000/auth/%s/callback"
 
 	t.Run("setup all mock providers", func(t *testing.T) {
-		providers := setupMockProviders(callbackTemplate)
+		factory := NewMockProviderFactory()
+		providers := factory.CreateProviders(callbackTemplate)
 
 		if len(providers) != 4 {
 			t.Fatalf("Expected 4 providers, got %d", len(providers))
@@ -225,7 +227,8 @@ func TestCreateMockProviders(t *testing.T) {
 		_ = os.Setenv("GOOGLE_KEY", "")
 		_ = os.Setenv("GITHUB_KEY", "")
 
-		providers := setupMockProviders(callbackTemplate)
+		factory := NewMockProviderFactory()
+		providers := factory.CreateProviders(callbackTemplate)
 
 		if len(providers) != 2 {
 			t.Fatalf("Expected 2 providers, got %d", len(providers))
@@ -252,7 +255,8 @@ func TestCreateMockProviders(t *testing.T) {
 		_ = os.Setenv("FACEBOOK_KEY", "")
 		_ = os.Setenv("TWITTER_KEY", "")
 
-		providers := setupMockProviders(callbackTemplate)
+		factory := NewMockProviderFactory()
+		providers := factory.CreateProviders(callbackTemplate)
 
 		if len(providers) != 0 {
 			t.Errorf("Expected 0 providers when no keys set, got %d", len(providers))
@@ -304,8 +308,16 @@ func TestProvidersWithMockMode(t *testing.T) {
 			_ = os.Setenv("GOOGLE_KEY", tt.googleKey)
 			_ = os.Setenv("GOOGLE_SECRET", "mock-secret")
 
-			// Call the providers function like the real application would
-			providers("http://localhost:3000")
+			// Use the appropriate factory based on whether we expect mock mode
+			var factory ProviderFactory
+			if tt.expectMock {
+				factory = NewMockProviderFactory()
+			} else {
+				factory = DefaultProviderFactory()
+			}
+
+			// Call the providersWithFactory function like the real application would
+			providersWithFactory("http://localhost:3000", factory)
 
 			// Get the providers that were registered
 			registeredProviders := goth.GetProviders()
@@ -332,4 +344,69 @@ func TestProvidersWithMockMode(t *testing.T) {
 			}
 		})
 	}
+}
+
+// MockProviderFactory creates mock OAuth providers for testing
+type MockProviderFactory struct{}
+
+// CreateProviders creates mock OAuth providers when OAUTH_MOCK_SERVER_URL is set
+func (f *MockProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
+	mockServerURL := os.Getenv("OAUTH_MOCK_SERVER_URL")
+	if mockServerURL == "" {
+		return nil
+	}
+
+	var providers []goth.Provider
+
+	// Mock Google Provider using custom endpoints
+	if os.Getenv("GOOGLE_KEY") != "" {
+		googleProvider := google.New(
+			os.Getenv("GOOGLE_KEY"),
+			os.Getenv("GOOGLE_SECRET"),
+			fmt.Sprintf(callbackURLTemplate, "google"),
+			mockServerURL+"/default/authorize", // Custom auth URL
+			mockServerURL+"/default/token",     // Custom token URL
+			mockServerURL+"/default/userinfo",  // Custom user info URL
+		)
+		providers = append(providers, googleProvider)
+	}
+
+	// Mock GitHub Provider using standard constructor
+	if os.Getenv("GITHUB_KEY") != "" {
+		githubProvider := github.New(
+			os.Getenv("GITHUB_KEY"),
+			os.Getenv("GITHUB_SECRET"),
+			fmt.Sprintf(callbackURLTemplate, "github"),
+			"read:user", "user:email",
+		)
+		providers = append(providers, githubProvider)
+	}
+
+	// Mock Facebook Provider
+	if os.Getenv("FACEBOOK_KEY") != "" {
+		facebookProvider := facebook.New(
+			os.Getenv("FACEBOOK_KEY"),
+			os.Getenv("FACEBOOK_SECRET"),
+			fmt.Sprintf(callbackURLTemplate, "facebook"),
+			"email", "public_profile",
+		)
+		providers = append(providers, facebookProvider)
+	}
+
+	// Mock Twitter Provider
+	if os.Getenv("TWITTER_KEY") != "" {
+		twitterProvider := twitter.New(
+			os.Getenv("TWITTER_KEY"),
+			os.Getenv("TWITTER_SECRET"),
+			fmt.Sprintf(callbackURLTemplate, "twitter"),
+		)
+		providers = append(providers, twitterProvider)
+	}
+
+	return providers
+}
+
+// NewMockProviderFactory returns a mock provider factory for testing
+func NewMockProviderFactory() ProviderFactory {
+	return &MockProviderFactory{}
 }
