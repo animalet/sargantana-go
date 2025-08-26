@@ -44,24 +44,95 @@ security, or performance yet. Use at your own risk.
 - Go 1.25 or later
 - Make (for development)
 
-### Installation
+### Binary Distribution
+
+Pre-built binaries are available for multiple platforms. Download the appropriate binary for your operating system from the [releases page](https://github.com/animalet/sargantana-go/releases/latest).
+
+#### Available Platforms
+
+- **Linux AMD64**: `sargantana-go-linux-amd64`
+- **macOS AMD64**: `sargantana-go-macos-amd64` (Intel-based Macs)
+- **macOS ARM64**: `sargantana-go-macos-arm64` (Apple Silicon Macs)
+- **Windows AMD64**: `sargantana-go-windows-amd64.exe`
+
+#### Quick Start with Binary
+
+1. Download the binary for your platform from the releases page
+2. Make it executable (Linux/macOS only):
+   ```bash
+   chmod +x sargantana-go-*
+   ```
+3. Run it:
+   ```bash
+   # Linux/macOS
+   ./sargantana-go-linux-amd64 -host localhost -port 8080 -frontend ./public -templates ./templates -debug
+   
+   # Windows
+   sargantana-go-windows-amd64.exe -host localhost -port 8080 -frontend ./public -templates ./templates -debug
+   ```
+
+### Compilation Instructions
+
+If you prefer to compile from source or need to build for a different platform, you can compile the binaries yourself.
+
+#### Prerequisites for Compilation
+
+- Go 1.25 or later
+- Git (to clone the repository)
+- Make (optional, for using the Makefile)
+
+#### Clone and Build
+
+```bash
+# Clone the repository
+git clone https://github.com/animalet/sargantana-go.git
+cd sargantana-go
+
+# Build for your current platform
+go build -o sargantana-go ./main
+
+# Or use the Makefile
+make build
+```
+
+#### Cross-Platform Compilation
+
+Build binaries for all supported platforms:
+
+```bash
+# Using the Makefile (recommended)
+make build-all
+
+# Manual cross-compilation examples:
+# Linux AMD64
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-linux-amd64 ./main
+
+# macOS AMD64 (Intel)
+GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-macos-amd64 ./main
+
+# macOS ARM64 (Apple Silicon)
+GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-macos-arm64 ./main
+
+# Windows AMD64
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-windows-amd64.exe ./main
+```
+
+The compiled binaries will be placed in the `dist/` directory when using `make build-all`, or in the current directory when building manually.
+
+#### Build Flags Explained
+
+- `CGO_ENABLED=0`: Disables CGO for static linking (creates standalone binaries)
+- `-ldflags="-s -w"`: Strips debug information to reduce binary size
+  - `-s`: Omit symbol table and debug information
+  - `-w`: Omit DWARF debug information
+
+### Installation from Source
 
 ```bash
 go get github.com/animalet/sargantana-go
 ```
 
-### Basic Usage
-
-#### Use a binary
-
-```bash
-go build -o sargantana-go main/main.go
-```
-
-Run it!
-```bash
-./sargantana-go -host localhost -port 8080 -frontend ./public -templates ./templates -debug
-```
+### Basic usage
 
 #### Create a simple web application configured via command line flags
 
