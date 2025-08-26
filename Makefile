@@ -56,7 +56,7 @@ build:
 	@echo "Building application..."
 	go build -v -o bin/sargantana-go ./main
 
-ci: mod-tidy format lint test
+ci: mod-tidy format lint test-coverage
 
 all: ci build
 
