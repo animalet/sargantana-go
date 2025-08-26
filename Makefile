@@ -89,10 +89,9 @@ test:
 
 test-coverage:
 	@echo "Running backend tests with coverage..."
-	go test -covermode=atomic -coverprofile=coverage.out ./...
+	go test ./... -covermode=atomic -coverprofile=coverage.out
 
-check-coverage: install-go-test-coverage
-	go test ./... -coverprofile=./coverage.out -covermode=atomic -coverpkg=./...
+check-coverage: test-coverage install-go-test-coverage
 	$(GO_TEST_COVERAGE) --config=./.testcoverage.yml
 
 bench:

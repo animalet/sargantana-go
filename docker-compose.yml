@@ -7,36 +7,6 @@ secrets:
     file: .secrets/SESSION_SECRET
 
 services:
-  server:
-    depends_on:
-      - neo4j
-      - valkey
-    build:
-      no_cache: true
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
-      #environment:
-      #NEO4J_USER: neo4j
-      #NEO4J_PASSWORD: password
-      #NEO4J_URI: neo4j://neo4j:7687
-    command:
-      - "--debug"
-      - "--host"
-      - "0.0.0.0"
-      - "--secrets"
-      - "/run/secrets"
-      - "--redis"
-      - "redis:6379"
-      - "--cookiename"
-      - "go-fast-service"
-      - "--frontend"
-      - "/app/frontend"
-    secrets:
-      - GOOGLE_KEY
-      - GOOGLE_SECRET
-      - SESSION_SECRET
   neo4j:
     # The Docker image to use for the container
     image: neo4j:5.15-community
