@@ -131,7 +131,7 @@ build-all: clean-dist
 	@ls -la dist/
 
 # CI pipeline
-ci: deps format lint test-coverage
+ci: deps lint test-coverage
 
 # Cleanup
 clean: clean-dist
