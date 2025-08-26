@@ -9,28 +9,6 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-func TestNeo4jOptions(t *testing.T) {
-	options := &Neo4jOptions{
-		Uri:      "bolt://localhost:7687",
-		Username: "neo4j",
-		Password: "password",
-		Realm:    "neo4j",
-	}
-
-	if options.Uri != "bolt://localhost:7687" {
-		t.Errorf("Expected Uri to be 'bolt://localhost:7687', got %s", options.Uri)
-	}
-	if options.Username != "neo4j" {
-		t.Errorf("Expected Username to be 'neo4j', got %s", options.Username)
-	}
-	if options.Password != "password" {
-		t.Errorf("Expected Password to be 'password', got %s", options.Password)
-	}
-	if options.Realm != "neo4j" {
-		t.Errorf("Expected Realm to be 'neo4j', got %s", options.Realm)
-	}
-}
-
 func TestNewNeo4jDriver_InvalidUri(t *testing.T) {
 	options := &Neo4jOptions{
 		Uri:      "invalid://invalid:7687",
@@ -68,7 +46,7 @@ func TestNewNeo4jDriver_EmptyUri(t *testing.T) {
 	options := &Neo4jOptions{
 		Uri:      "",
 		Username: "neo4j",
-		Password: "password",
+		Password: "testpassword",
 		Realm:    "",
 	}
 
@@ -198,7 +176,7 @@ func TestNewNeo4jDriverFromEnv_WithInvalidEnvVars(t *testing.T) {
 	// Set invalid env vars
 	_ = os.Setenv("NEO4J_URI", "invalid://localhost:7687")
 	_ = os.Setenv("NEO4J_USERNAME", "neo4j")
-	_ = os.Setenv("NEO4J_PASSWORD", "password")
+	_ = os.Setenv("NEO4J_PASSWORD", "wrongpassword")
 	_ = os.Setenv("NEO4J_REALM", "neo4j")
 
 	defer func() {
@@ -251,7 +229,6 @@ func TestNewNeo4jDriverFromEnv_WithInvalidEnvVars(t *testing.T) {
 }
 
 // TestNeo4jDriver_Integration is an integration test that requires a running Neo4j instance
-// This test is skipped by default and only runs when NEO4J_TEST_INTEGRATION=true
 func TestNeo4jDriver_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
@@ -260,7 +237,7 @@ func TestNeo4jDriver_Integration(t *testing.T) {
 	options := &Neo4jOptions{
 		Uri:      getEnvOrDefault("NEO4J_URI", "bolt://localhost:7687"),
 		Username: getEnvOrDefault("NEO4J_USERNAME", "neo4j"),
-		Password: getEnvOrDefault("NEO4J_PASSWORD", "password"),
+		Password: getEnvOrDefault("NEO4J_PASSWORD", "testpassword"),
 		Realm:    getEnvOrDefault("NEO4J_REALM", ""),
 	}
 
@@ -371,7 +348,7 @@ func TestCleanupFunction(t *testing.T) {
 	options := &Neo4jOptions{
 		Uri:      getEnvOrDefault("NEO4J_URI", "bolt://localhost:7687"),
 		Username: getEnvOrDefault("NEO4J_USERNAME", "neo4j"),
-		Password: getEnvOrDefault("NEO4J_PASSWORD", "password"),
+		Password: getEnvOrDefault("NEO4J_PASSWORD", "testpassword"),
 		Realm:    getEnvOrDefault("NEO4J_REALM", ""),
 	}
 
@@ -415,7 +392,7 @@ func BenchmarkNewNeo4jDriver(b *testing.B) {
 	options := &Neo4jOptions{
 		Uri:      getEnvOrDefault("NEO4J_URI", "bolt://localhost:7687"),
 		Username: getEnvOrDefault("NEO4J_USERNAME", "neo4j"),
-		Password: getEnvOrDefault("NEO4J_PASSWORD", "password"),
+		Password: getEnvOrDefault("NEO4J_PASSWORD", "testpassword"),
 		Realm:    getEnvOrDefault("NEO4J_REALM", ""),
 	}
 
