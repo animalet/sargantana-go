@@ -55,8 +55,14 @@ jobs:
           CGO_ENABLED: 0
         run: |
           mkdir -p dist
+          
+          # Get version info from git
+          VERSION="${{ github.event.inputs.version }}"
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
           BINARY_NAME="sargantana-go-${{ matrix.suffix }}${{ matrix.ext }}"
-          go build -ldflags="-s -w" -o "dist/${BINARY_NAME}" ./main
+          go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" -o "dist/${BINARY_NAME}" ./main
           echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
 
       - name: Upload artifact

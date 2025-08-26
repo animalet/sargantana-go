@@ -8,8 +8,25 @@ GO_TEST_COVERAGE := $(TOOLS_BIN_DIR)/go-test-coverage
 
 # Build variables
 BINARY_NAME := sargantana-go
-VERSION ?= dev
-LDFLAGS := -s -w -X main.version=$(VERSION)
+
+# Automatically detect version from git
+VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# If we're not on a tagged commit, append the commit hash and mark as dirty if needed
+ifneq ($(shell git describe --tags --exact-match 2>/dev/null),)
+    # We're on a tagged commit, use the tag as-is
+    BUILD_VERSION := $(VERSION)
+else
+    # Not on a tagged commit, append commit info
+    BUILD_VERSION := $(VERSION)-$(COMMIT)
+    ifneq ($(shell git status --porcelain 2>/dev/null),)
+        BUILD_VERSION := $(BUILD_VERSION)-dirty
+    endif
+endif
+
+LDFLAGS := -s -w -X main.version=$(BUILD_VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 
 # Install variables
 PREFIX ?= /usr/local

@@ -37,6 +37,13 @@ type Server struct {
 	shutdownChannel chan os.Signal
 }
 
+// VersionInfo holds version information for the application
+type VersionInfo struct {
+	Version string
+	Commit  string
+	Date    string
+}
+
 // NewServer creates a new Server instance with the specified configuration parameters.
 // It initializes the server with basic configuration but does not start it.
 //
@@ -79,6 +86,7 @@ func NewServerFromFlags(flagInitializers ...func(flagSet *flag.FlagSet) func() c
 	port := flagSet.Int("port", 8080, "port to listen on")
 	redis := flagSet.String("redis", "", "Use the specified Redis address as a session store. It expects <host>[:<port>] format and only TCP is currently supported. Defaults to cookie based session storage")
 	sessionName := flagSet.String("cookiename", "sargantana-go", "Session cookie name. Be aware that this name will be used regardless of the session storage type (cookies or Redis)")
+	showVersion := flagSet.Bool("version", false, "Show version information")
 
 	var constructors []func() controller.IController
 	for _, init := range flagInitializers {
@@ -86,6 +94,70 @@ func NewServerFromFlags(flagInitializers ...func(flagSet *flag.FlagSet) func() c
 	}
 
 	_ = flagSet.Parse(os.Args[1:])
+
+	// Handle version flag after parsing
+	if *showVersion {
+		// We need to call back to main package to get version info
+		// This is a bit of a hack, but necessary due to the architecture
+		fmt.Printf("Sargantana Go\n")
+		fmt.Printf("For detailed version information, use: go version -m <binary>\n")
+		os.Exit(0)
+	}
+
+	var controllers []controller.IController
+	for _, c := range constructors {
+		controllers = append(controllers, c())
+	}
+
+	return NewServer(
+		*host, *port,
+		*redis,
+		*secretsDir,
+		*debug,
+		*sessionName), controllers
+}
+
+// NewServerFromFlagsWithVersion creates a new Server instance and controllers from command-line flags.
+// This is the primary way to initialize a Sargantana Go application with flag-based configuration.
+// It registers all controller flags, parses command line arguments, and creates both the server
+// and controller instances.
+//
+// Parameters:
+//   - versionInfo: Version information to display with --version flag
+//   - flagInitializers: Variable number of controller factory functions that register their flags
+//
+// Returns:
+//   - *Server: The configured server instance
+//   - []controller.IController: List of initialized controllers
+func NewServerFromFlagsWithVersion(versionInfo *VersionInfo, flagInitializers ...func(flagSet *flag.FlagSet) func() controller.IController) (*Server, []controller.IController) {
+	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	debug := flagSet.Bool("debug", false, "Enable debug mode")
+	secretsDir := flagSet.String("secrets", "", "Path to the secrets directory")
+	host := flagSet.String("host", "localhost", "Host to listen on")
+	port := flagSet.Int("port", 8080, "port to listen on")
+	redis := flagSet.String("redis", "", "Use the specified Redis address as a session store. It expects <host>[:<port>] format and only TCP is currently supported. Defaults to cookie based session storage")
+	sessionName := flagSet.String("cookiename", "sargantana-go", "Session cookie name. Be aware that this name will be used regardless of the session storage type (cookies or Redis)")
+	showVersion := flagSet.Bool("version", false, "Show version information")
+
+	var constructors []func() controller.IController
+	for _, init := range flagInitializers {
+		constructors = append(constructors, init(flagSet))
+	}
+
+	_ = flagSet.Parse(os.Args[1:])
+
+	// Handle version flag after parsing
+	if *showVersion {
+		if versionInfo != nil {
+			fmt.Printf("Sargantana Go %s\n", versionInfo.Version)
+			fmt.Printf("Commit: %s\n", versionInfo.Commit)
+			fmt.Printf("Built: %s\n", versionInfo.Date)
+		} else {
+			fmt.Printf("Sargantana Go\n")
+			fmt.Printf("Version information not available\n")
+		}
+		os.Exit(0)
+	}
 
 	var controllers []controller.IController
 	for _, c := range constructors {
