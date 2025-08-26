@@ -251,7 +251,10 @@ func (s *Server) bootstrap(appControllers ...controller.IController) error {
 		log.Println("Using Redis for session storage")
 		pool := database.NewRedisPool(s.config.RedisSessionStore())
 		s.addShutdownHook(func() error { return pool.Close() })
-		sessionStore = session.NewRedisSessionStore(isReleaseMode, sessionSecret, pool)
+		sessionStore, err = session.NewRedisSessionStore(isReleaseMode, sessionSecret, pool)
+		if err != nil {
+			return fmt.Errorf("error creating Redis session store: %v", err)
+		}
 	}
 
 	if isReleaseMode {

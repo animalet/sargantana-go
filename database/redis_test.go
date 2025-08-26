@@ -8,6 +8,10 @@ import (
 )
 
 func TestNewRedisPool(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	tests := []struct {
 		name    string
 		address string
@@ -55,6 +59,10 @@ func TestNewRedisPool(t *testing.T) {
 }
 
 func TestRedisPool_TestOnBorrow(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	pool := NewRedisPool("localhost:6379")
 
 	tests := []struct {
@@ -119,7 +127,7 @@ func TestRedisPool_Dial(t *testing.T) {
 
 func TestRedisPool_Integration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
+		t.Skip()
 	}
 
 	pool := NewRedisPool("localhost:6379")

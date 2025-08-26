@@ -324,3 +324,140 @@ func TestAuth_UserRoute_NoAuth(t *testing.T) {
 		t.Errorf("Expected 403 Forbidden, got %d", w.Code)
 	}
 }
+
+func TestAuth_AuthRouteHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	auth := NewAuth("http://localhost:8080")
+	engine := gin.New()
+	store := cookie.NewStore([]byte("secret"))
+	engine.Use(sessions.Sessions("test", store))
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+
+	auth.Bind(engine, *cfg, LoginFunc)
+
+	// Test auth route without provider
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/auth/", nil)
+	engine.ServeHTTP(w, req)
+
+	// Should return 404 since no provider specified
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected 404 for missing provider, got %d", w.Code)
+	}
+}
+
+func TestAuth_CallbackRouteHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	auth := NewAuth("http://localhost:8080")
+	engine := gin.New()
+	store := cookie.NewStore([]byte("secret"))
+	engine.Use(sessions.Sessions("test", store))
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+
+	auth.Bind(engine, *cfg, LoginFunc)
+
+	// Test callback route without provider
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/auth//callback", nil)
+	engine.ServeHTTP(w, req)
+
+	// Should return 404 since no provider specified
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected 404 for missing provider callback, got %d", w.Code)
+	}
+}
+
+func TestAuth_LogoutRouteHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	auth := NewAuth("http://localhost:8080")
+	engine := gin.New()
+	store := cookie.NewStore([]byte("secret"))
+	engine.Use(sessions.Sessions("test", store))
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+
+	auth.Bind(engine, *cfg, LoginFunc)
+
+	// Test logout route
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/auth/github/logout", nil)
+	engine.ServeHTTP(w, req)
+
+	// Should redirect since no session exists
+	if w.Code != http.StatusFound {
+		t.Errorf("Expected 302 redirect for logout, got %d", w.Code)
+	}
+}
+
+func TestLoginFunc_WithNonUserObject(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	engine := gin.New()
+	store := cookie.NewStore([]byte("secret"))
+	engine.Use(sessions.Sessions("test", store))
+
+	engine.GET("/test", func(c *gin.Context) {
+		session := sessions.Default(c)
+		// Set a non-UserObject value
+		session.Set("user", "invalid-user-object")
+		err := session.Save()
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Failed to save session: %v", err)
+			return
+		}
+	}, LoginFunc, func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/test", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for invalid user object, got %d", w.Code)
+	}
+}
+
+func TestAuth_SetCallbackFromConfig(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name           string
+		configAddress  string
+		expectedPrefix string
+	}{
+		{
+			name:           "localhost address",
+			configAddress:  "localhost:8080",
+			expectedPrefix: "http://localhost:8080",
+		},
+		{
+			name:           "0.0.0.0 address",
+			configAddress:  "0.0.0.0:9000",
+			expectedPrefix: "http://0.0.0.0:9000",
+		},
+		{
+			name:           "custom host",
+			configAddress:  "myhost:3000",
+			expectedPrefix: "http://myhost:3000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			auth := NewAuth("")
+			engine := gin.New()
+			store := cookie.NewStore([]byte("secret"))
+			engine.Use(sessions.Sessions("test", store))
+			cfg := config.NewConfig(tt.configAddress, "", "", false, "test-session")
+
+			auth.Bind(engine, *cfg, LoginFunc)
+
+			if auth.callbackAddress != tt.expectedPrefix {
+				t.Errorf("callbackAddress = %v, want %v", auth.callbackAddress, tt.expectedPrefix)
+			}
+		})
+	}
+}

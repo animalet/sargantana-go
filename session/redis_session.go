@@ -1,7 +1,6 @@
 package session
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/gin-contrib/sessions"
@@ -27,15 +26,15 @@ import (
 //   - SameSite: Lax mode (balanced security and functionality)
 //
 // The function will log fatal errors and exit if Redis store creation fails.
-func NewRedisSessionStore(isReleaseMode bool, secret []byte, pool *redis.Pool) sessions.Store {
+func NewRedisSessionStore(isReleaseMode bool, secret []byte, pool *redis.Pool) (sessions.Store, error) {
 	store, err := redissessions.NewStoreWithPool(pool, secret)
 	if err != nil {
-		log.Fatalf("Failed to create session store: %v", err)
+		return nil, err
 	}
 
 	rediStore, err := redissessions.GetRedisStore(store)
 	if err != nil {
-		log.Fatalf("Failed to get redis store: %v", err)
+		return nil, err
 	}
 
 	rediStore.Options.Path = "/"
@@ -45,5 +44,5 @@ func NewRedisSessionStore(isReleaseMode bool, secret []byte, pool *redis.Pool) s
 	rediStore.Options.SameSite = http.SameSiteLaxMode
 
 	gothic.Store = rediStore
-	return store
+	return store, nil
 }
