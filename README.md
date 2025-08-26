@@ -41,7 +41,7 @@ security, or performance yet. Use at your own risk.
 
 ### Prerequisites
 
-- Go 1.23 or later
+- Go 1.25 or later
 - Make (for development)
 
 ### Installation
@@ -90,7 +90,7 @@ func main() {
     if err != nil {
         panic(err)
     }
-}
+}º
 ```
 
 #### Create a simple web application with programmatic configuration
