@@ -41,7 +41,7 @@ security, or performance yet. Use at your own risk.
 
 ### Prerequisites
 
-- Go 1.25.0 or later
+- Go 1.23 or later
 - Make (for development)
 
 ### Installation
@@ -175,10 +175,10 @@ func main() {
 
 ```bash
 # Basic server on localhost:8080
-go run main.go
+go run main/main.go
 
 # With custom configuration
-go run main.go \
+go run main/main.go \
   -host 0.0.0.0 \
   -port 3000 \
   -frontend ./public \
@@ -217,7 +217,7 @@ GOOGLE_KEY=your-google-client-id
 GOOGLE_SECRET=your-google-client-secret
 
 GITHUB_KEY=your-github-client-id
-GOOGLE_SECRET=your-github-client-secret
+GITHUB_SECRET=your-github-client-secret
 
 TWITTER_KEY=your-twitter-api-key
 TWITTER_SECRET=your-twitter-api-secret
@@ -232,14 +232,14 @@ You can also use Docker secrets by placing secret files in a directory and using
 ```bash
 # Directory structure
 secrets/
-├── session_secret
-├── google_key
-├── google_secret
-├── github_key
-└── github_secret
+├── SESSION_SECRET
+├── GOOGLE_KEY
+├── GOOGLE_SECRET
+├── GITHUB_KEY
+└── GITHUB_SECRET
 
 # Run with secrets
-go run main.go -secrets ./secrets
+go run main/main.go -secrets ./secrets
 ```
 
 ## Controllers
@@ -255,7 +255,7 @@ Serves static files and HTML templates:
 static := controller.NewStatic("./public", "./templates")
 
 // With flags
-go run main.go -frontend./public -templates./templates
+go run main/main.go -frontend ./public -templates ./templates
 ```
 
 Features:
@@ -318,8 +318,8 @@ lb := controller.NewLoadBalancer(endpoints, "api", true)
 
 // With flags
 go run main.go \
--lb http: //api1:8080 \
--lb http: //api2:8080 \
+-lb http://api1:8080 \
+-lb http://api2:8080 \
 -lbpath api \
 -lbauth
 ```
@@ -338,14 +338,14 @@ Features:
 
 ```bash
 # Uses secure cookies for session storage
-go run main.go -cookiename myapp
+go run main/main.go -cookiename myapp
 ```
 
 ### Redis Sessions
 
 ```bash
 # Use Redis for distributed session storage
-go run main.go -redis localhost:6379
+go run main/main.go -redis localhost:6379
 ```
 
 ### Session Usage in Handlers
@@ -436,13 +436,24 @@ conn.Do("SET", "key", "value")
 ```go
 import "github.com/animalet/sargantana-go/database"
 
+// Option 1: Using environment variables (recommended)
 // Configure via environment variables:
 // NEO4J_URI=bolt://localhost:7687
 // NEO4J_USERNAME=neo4j  
 // NEO4J_PASSWORD=password
+// NEO4J_REALM=          (optional)
 
-driver := database.NewNeo4jDriver()
-defer driver.Close()
+driver, cleanup := database.NewNeo4jDriverFromEnv()
+defer cleanup()
+
+// Option 2: Using explicit configuration
+driver, cleanup := database.NewNeo4jDriver(&database.Neo4jOptions{
+    Uri:      "bolt://localhost:7687",
+    Username: "neo4j",
+    Password: "password",
+    Realm:    "", // optional
+})
+defer cleanup()
 ```
 
 ## Examples
@@ -548,7 +559,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o sargantana-go main.go
+RUN go build -o sargantana-go main/main.go
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
@@ -563,7 +574,7 @@ CMD ["./sargantana-go"]
 
 ### Prerequisites
 
-- Go 1.25.0 or later
+- Go 1.25 or later
 - Make
 
 ### Installation
@@ -605,9 +616,7 @@ sargantana-go/
 ├── controller/     # Built-in controllers (auth, static, load balancer)
 ├── config/         # Configuration management
 ├── session/        # Session storage implementations
-├── database/       # Database integrations (Redis, Neo4j)
-├── frontend/       # Example frontend assets
-├── templates/      # Example HTML templates
+├── database/       # Database integrations (Redis, Neo4j, etc.)
 └── Makefile        # Development commands
 ```
 
