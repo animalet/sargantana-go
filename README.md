@@ -1,4 +1,5 @@
 # Sargantana Go
+
 <img src="logo.png" alt="Sargantana Go Logo" width="500"/>
 
 ```
@@ -15,12 +16,16 @@
 ## What is this?
 
 Sargantana Go is a performant web application framework built on top of [Gin](https://github.com/gin-gonic/gin) that
-provides simple solutions for common web development scenarios. It includes built-in support for OAuth2 authentication,
+provides simple solutions for common web development scenarios. It includes built-in support for multi-provider
+authentication,
 session management, static file serving, load balancing, and database integration.
 
-I started this as a side project to improve my Go skills and to have a solid base for building web applications quickly. It is designed to be easy to use and extend, allowing developers to focus on building their applications rather than dealing with boilerplate code.
+I started this as a side project to improve my Go skills and to have a solid base for building web applications quickly.
+It is designed to be easy to use and extend, allowing developers to focus on building their applications rather than
+dealing with boilerplate code.
 
 ## Disclaimer
+
 This project is currently in active development and may not be suitable for production use. While I have implemented
 basic functionality and tested it in development environments, there are no guarantees regarding its stability,
 security, or performance yet. Use at your own risk.
@@ -28,7 +33,7 @@ security, or performance yet. Use at your own risk.
 ## Features
 
 - **Web Server**: High-performance HTTP server using [Gin](https://github.com/gin-gonic/gin)
-- **OAuth2 Authentication**: Multi-provider OAuth2 support via [Goth](https://github.com/markbates/goth) with 50+
+- **Authentication**: Multi-provider authentication support via [Goth](https://github.com/markbates/goth) with 50+
   providers
 - **Session Management**: Flexible session storage with Redis or cookie-based options
 - **Static File Serving**: Built-in static file and template serving capabilities
@@ -46,7 +51,8 @@ security, or performance yet. Use at your own risk.
 
 ### Binary Distribution
 
-Pre-built binaries are available for multiple platforms. Download the appropriate binary for your operating system from the [releases page](https://github.com/animalet/sargantana-go/releases/latest).
+Pre-built binaries are available for multiple platforms. Download the appropriate binary for your operating system from
+the [releases page](https://github.com/animalet/sargantana-go/releases/latest).
 
 #### Available Platforms
 
@@ -71,61 +77,6 @@ Pre-built binaries are available for multiple platforms. Download the appropriat
    sargantana-go-windows-amd64.exe -host localhost -port 8080 -frontend ./public -templates ./templates -debug
    ```
 
-### Compilation Instructions
-
-If you prefer to compile from source or need to build for a different platform, you can compile the binaries yourself.
-
-#### Prerequisites for Compilation
-
-- Go 1.25 or later
-- Git (to clone the repository)
-- Make (optional, for using the Makefile)
-
-#### Clone and Build
-
-```bash
-# Clone the repository
-git clone https://github.com/animalet/sargantana-go.git
-cd sargantana-go
-
-# Build for your current platform
-go build -o sargantana-go ./main
-
-# Or use the Makefile
-make build
-```
-
-#### Cross-Platform Compilation
-
-Build binaries for all supported platforms:
-
-```bash
-# Using the Makefile (recommended)
-make build-all
-
-# Manual cross-compilation examples:
-# Linux AMD64
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-linux-amd64 ./main
-
-# macOS AMD64 (Intel)
-GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-macos-amd64 ./main
-
-# macOS ARM64 (Apple Silicon)
-GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-macos-arm64 ./main
-
-# Windows AMD64
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-windows-amd64.exe ./main
-```
-
-The compiled binaries will be placed in the `dist/` directory when using `make build-all`, or in the current directory when building manually.
-
-#### Build Flags Explained
-
-- `CGO_ENABLED=0`: Disables CGO for static linking (creates standalone binaries)
-- `-ldflags="-s -w"`: Strips debug information to reduce binary size
-  - `-s`: Omit symbol table and debug information
-  - `-w`: Omit DWARF debug information
-
 ### Installation from Source
 
 ```bash
@@ -140,28 +91,27 @@ go get github.com/animalet/sargantana-go
 package main
 
 import (
-    "flag"
     "github.com/animalet/sargantana-go/controller"
     "github.com/animalet/sargantana-go/server"
 )
 
 func main() {
     // Define controllers you want to use
-    controllerInitializers := []func(*flag.FlagSet) func() controller.IController{
+    controllerInitializers := []server.ControllerFlagInitializer{
         controller.NewStaticFromFlags,       // Static file serving
-        controller.NewAuthFromFlags,         // OAuth2 authentication
+        controller.NewAuthFromFlags,         // Authentication
         controller.NewLoadBalancerFromFlags, // Load balancing
     }
 
     // Create server and controllers from command line flags
-    sargantana, controllers := server.NewServerFromFlags(controllerInitializers...)
+    sargantana, controllers := server.NewServerFromFlagsWithVersion("dev", controllerInitializers...)
 
     // Start server and wait for shutdown signal
     err := sargantana.StartAndWaitForSignal(controllers...)
     if err != nil {
         panic(err)
     }
-}º
+}
 ```
 
 #### Create a simple web application with programmatic configuration
@@ -255,6 +205,23 @@ go run main/main.go \
   -frontend ./public \
   -templates ./views \
   -debug
+
+# With authentication providers
+export GOOGLE_KEY="your-google-client-id" # or use add them as secret in /run/secrets (see http://docs.docker.com/compose/how-tos/use-secrets/)
+export GOOGLE_SECRET="your-google-client-secret"
+go run main/main.go -debug
+
+# With Redis session storage
+go run main/main.go -redis localhost:6379
+
+# Full production-like setup
+go run main/main.go \
+  -host 0.0.0.0 \
+  -port 8080 \
+  -redis redis:6379 \
+  -secrets /run/secrets \
+  -frontend ./public \
+  -templates ./templates
 ```
 
 ## Configuration
@@ -277,13 +244,13 @@ go run main/main.go \
 
 ### Environment Variables
 
-Set these environment variables for OAuth2 providers:
+Set these environment variables for authentication providers:
 
 ```bash
 # Session security
 SESSION_SECRET=your-session-secret-key
 
-# OAuth2 Providers (choose the ones you need)
+# Authentication Providers (choose the ones you need)
 GOOGLE_KEY=your-google-client-id
 GOOGLE_SECRET=your-google-client-secret
 
@@ -338,7 +305,7 @@ Features:
 
 ### Auth Controller
 
-Provides OAuth2 authentication with 50+ providers:
+Provides authentication with 50+ providers:
 
 ```go
 // Programmatic usage  
@@ -348,7 +315,7 @@ auth := controller.NewAuth("http://localhost:8080")
 go run main.go
 ```
 
-**Supported OAuth2 Providers:**
+**Supported Authentication Providers:**
 
 - Google, GitHub, Facebook, Twitter/X
 - Microsoft, Apple, Amazon, Discord
@@ -356,9 +323,12 @@ go run main.go
 - Auth0, Okta, Azure AD
 - And 35+ more providers
 
+For the complete list of supported providers, configuration details, and provider IDs, see
+the [Authentication Providers Documentation](docs/authentication-providers.md).
+
 **Authentication Flow:**
 
-1. Visit `/auth/{provider}` to start OAuth flow
+1. Visit `/auth/{provider}` to start authentication flow
 2. User redirects to provider for authentication
 3. Provider redirects back to `/auth/{provider}/callback`
 4. User session is created automatically
@@ -519,10 +489,10 @@ defer cleanup()
 
 // Option 2: Using explicit configuration
 driver, cleanup := database.NewNeo4jDriver(&database.Neo4jOptions{
-    Uri:      "bolt://localhost:7687",
-    Username: "neo4j",
-    Password: "password",
-    Realm:    "", // optional
+Uri:      "bolt://localhost:7687",
+Username: "neo4j",
+Password: "password",
+Realm:    "", // optional
 })
 defer cleanup()
 ```
@@ -532,32 +502,54 @@ defer cleanup()
 ### Simple Blog Application
 
 ```go
-func main() {
-controllers := []func (*flag.FlagSet) func () controller.IController{
-controller.NewStaticFromFlags,
-controller.NewAuthFromFlags,
-NewBlogControllerFromFlags,
-}
+package main
 
-server, controllerInstances := server.NewServerFromFlags(controllers...)
-server.StartAndWaitForSignal(controllerInstances...)
+import (
+    "flag"
+    "github.com/animalet/sargantana-go/controller"
+    "github.com/animalet/sargantana-go/server"
+    "github.com/gin-gonic/gin"
+    "github.com/animalet/sargantana-go/config"
+)
+
+func main() {
+    controllers := []server.ControllerFlagInitializer{
+        controller.NewStaticFromFlags,
+        controller.NewAuthFromFlags,
+        NewBlogControllerFromFlags,
+    }
+
+    sargantana, controllerInstances := server.NewServerFromFlagsWithVersion("1.0.0", controllers...)
+    sargantana.StartAndWaitForSignal(controllerInstances...)
 }
 
 type BlogController struct{}
 
 func (b *BlogController) Bind(engine *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
-api := engine.Group("/api")
-{
-api.GET("/posts", b.getPosts)
-api.POST("/posts", loginMiddleware, b.createPost)
-api.DELETE("/posts/:id", loginMiddleware, b.deletePost)
-}
+    api := engine.Group("/api")
+    {
+        api.GET("/posts", b.getPosts)
+        api.POST("/posts", loginMiddleware, b.createPost)
+        api.DELETE("/posts/:id", loginMiddleware, b.deletePost)
+    }
 }
 
 func (b *BlogController) Close() error { return nil }
 
-func NewBlogControllerFromFlags(flagSet *flag.FlagSet) func () controller.IController {
-return func () controller.IController { return &BlogController{} }
+func NewBlogControllerFromFlags(flagSet *flag.FlagSet) func() controller.IController {
+    return func() controller.IController { return &BlogController{} }
+}
+
+func (b *BlogController) getPosts(c *gin.Context) {
+    // Implementation here
+}
+
+func (b *BlogController) createPost(c *gin.Context) {
+    // Implementation here
+}
+
+func (b *BlogController) deletePost(c *gin.Context) {
+    // Implementation here
 }
 ```
 
@@ -569,13 +561,14 @@ go run backend.go -port 8081 &
 go run backend.go -port 8082 &
 
 # Start API gateway with load balancing
-go run main.go \
+go run main/main.go \
   -port 8080 \
   -lb http://localhost:8081 \
   -lb http://localhost:8082 \
   -lbpath api \
   -lbauth
 ```
+
 
 ## Production Deployment
 
@@ -643,72 +636,25 @@ CMD ["./sargantana-go"]
 
 ## Development
 
-### Prerequisites
+For detailed development setup, compilation instructions, and workflows, see
+the [Development Guide](docs/development.md).
 
-- Go 1.25 or later
-- Make
+For testing setup, running tests locally, and understanding the test infrastructure, see
+the [Testing Guide](docs/testing.md).
 
-### Installation
+### Quick Start for Developers
 
 ```bash
+# Clone and setup
 git clone https://github.com/animalet/sargantana-go.git
 cd sargantana-go
-make all
-```
 
-### Development Commands
+# Start test services
+docker-compose up -d
 
-```bash
 # Run tests
 make test
 
-# Run tests with coverage
-make test-coverage
-
-# Run linting
-make lint
-
-# Format code
-make format
-
-# Run all CI checks locally
-make ci
-
-# Clean build artifacts
-make clean
-
-# Build the basic server binary
+# Build the project
 make build
 ```
-
-### Project Structure
-
-```
-sargantana-go/
-├── main/           # Main application entry point
-├── server/         # Core server implementation
-├── controller/     # Built-in controllers (auth, static, load balancer)
-├── config/         # Configuration management
-├── session/        # Session storage implementations
-├── database/       # Database integrations (Redis, Neo4j, etc.)
-└── Makefile        # Development commands
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-- 📖 [Documentation](https://pkg.go.dev/github.com/animalet/sargantana-go)
-- 🐛 [Bug Reports](https://github.com/animalet/sargantana-go/issues)
-- 💡 [Feature Requests](https://github.com/animalet/sargantana-go/issues)
-- 💬 [Discussions](https://github.com/animalet/sargantana-go/discussions)
