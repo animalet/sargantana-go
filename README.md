@@ -77,62 +77,6 @@ the [releases page](https://github.com/animalet/sargantana-go/releases/latest).
    sargantana-go-windows-amd64.exe -host localhost -port 8080 -frontend ./public -templates ./templates -debug
    ```
 
-### Compilation Instructions
-
-If you prefer to compile from source or need to build for a different platform, you can compile the binaries yourself.
-
-#### Prerequisites for Compilation
-
-- Go 1.25 or later
-- Git (to clone the repository)
-- Make (optional, for using the Makefile)
-
-#### Clone and Build
-
-```bash
-# Clone the repository
-git clone https://github.com/animalet/sargantana-go.git
-cd sargantana-go
-
-# Build for your current platform
-go build -o sargantana-go ./main
-
-# Or use the Makefile
-make build
-```
-
-#### Cross-Platform Compilation
-
-Build binaries for all supported platforms:
-
-```bash
-# Using the Makefile (recommended)
-make build-all
-
-# Manual cross-compilation examples:
-# Linux AMD64
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-linux-amd64 ./main
-
-# macOS AMD64 (Intel)
-GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-macos-amd64 ./main
-
-# macOS ARM64 (Apple Silicon)
-GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-macos-arm64 ./main
-
-# Windows AMD64
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-windows-amd64.exe ./main
-```
-
-The compiled binaries will be placed in the `dist/` directory when using `make build-all`, or in the current directory
-when building manually.
-
-#### Build Flags Explained
-
-- `CGO_ENABLED=0`: Disables CGO for static linking (creates standalone binaries)
-- `-ldflags="-s -w"`: Strips debug information to reduce binary size
-    - `-s`: Omit symbol table and debug information
-    - `-w`: Omit DWARF debug information
-
 ### Installation from Source
 
 ```bash
@@ -147,28 +91,27 @@ go get github.com/animalet/sargantana-go
 package main
 
 import (
-    "flag"
     "github.com/animalet/sargantana-go/controller"
     "github.com/animalet/sargantana-go/server"
 )
 
 func main() {
     // Define controllers you want to use
-    controllerInitializers := []func(*flag.FlagSet) func() controller.IController{
+    controllerInitializers := []server.ControllerFlagInitializer{
         controller.NewStaticFromFlags,       // Static file serving
         controller.NewAuthFromFlags,         // Authentication
         controller.NewLoadBalancerFromFlags, // Load balancing
     }
 
     // Create server and controllers from command line flags
-    sargantana, controllers := server.NewServerFromFlags(controllerInitializers...)
+    sargantana, controllers := server.NewServerFromFlagsWithVersion("dev", controllerInitializers...)
 
     // Start server and wait for shutdown signal
     err := sargantana.StartAndWaitForSignal(controllers...)
     if err != nil {
         panic(err)
     }
-}º
+}
 ```
 
 #### Create a simple web application with programmatic configuration
@@ -262,6 +205,23 @@ go run main/main.go \
   -frontend ./public \
   -templates ./views \
   -debug
+
+# With authentication providers
+export GOOGLE_KEY="your-google-client-id" # or use add them as secret in /run/secrets (see http://docs.docker.com/compose/how-tos/use-secrets/)
+export GOOGLE_SECRET="your-google-client-secret"
+go run main/main.go -debug
+
+# With Redis session storage
+go run main/main.go -redis localhost:6379
+
+# Full production-like setup
+go run main/main.go \
+  -host 0.0.0.0 \
+  -port 8080 \
+  -redis redis:6379 \
+  -secrets /run/secrets \
+  -frontend ./public \
+  -templates ./templates
 ```
 
 ## Configuration
@@ -333,7 +293,7 @@ Serves static files and HTML templates:
 static := controller.NewStatic("./public", "./templates")
 
 // With flags
-go run main/main.go -frontend./public -templates./templates
+go run main/main.go -frontend ./public -templates ./templates
 ```
 
 Features:
@@ -399,8 +359,8 @@ lb := controller.NewLoadBalancer(endpoints, "api", true)
 
 // With flags
 go run main.go \
--lb http: //api1:8080 \
--lb http: //api2:8080 \
+-lb http://api1:8080 \
+-lb http://api2:8080 \
 -lbpath api \
 -lbauth
 ```
@@ -542,32 +502,54 @@ defer cleanup()
 ### Simple Blog Application
 
 ```go
-func main() {
-controllers := []func (*flag.FlagSet) func () controller.IController{
-controller.NewStaticFromFlags,
-controller.NewAuthFromFlags,
-NewBlogControllerFromFlags,
-}
+package main
 
-server, controllerInstances := server.NewServerFromFlags(controllers...)
-server.StartAndWaitForSignal(controllerInstances...)
+import (
+    "flag"
+    "github.com/animalet/sargantana-go/controller"
+    "github.com/animalet/sargantana-go/server"
+    "github.com/gin-gonic/gin"
+    "github.com/animalet/sargantana-go/config"
+)
+
+func main() {
+    controllers := []server.ControllerFlagInitializer{
+        controller.NewStaticFromFlags,
+        controller.NewAuthFromFlags,
+        NewBlogControllerFromFlags,
+    }
+
+    sargantana, controllerInstances := server.NewServerFromFlagsWithVersion("1.0.0", controllers...)
+    sargantana.StartAndWaitForSignal(controllerInstances...)
 }
 
 type BlogController struct{}
 
 func (b *BlogController) Bind(engine *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
-api := engine.Group("/api")
-{
-api.GET("/posts", b.getPosts)
-api.POST("/posts", loginMiddleware, b.createPost)
-api.DELETE("/posts/:id", loginMiddleware, b.deletePost)
-}
+    api := engine.Group("/api")
+    {
+        api.GET("/posts", b.getPosts)
+        api.POST("/posts", loginMiddleware, b.createPost)
+        api.DELETE("/posts/:id", loginMiddleware, b.deletePost)
+    }
 }
 
 func (b *BlogController) Close() error { return nil }
 
-func NewBlogControllerFromFlags(flagSet *flag.FlagSet) func () controller.IController {
-return func () controller.IController { return &BlogController{} }
+func NewBlogControllerFromFlags(flagSet *flag.FlagSet) func() controller.IController {
+    return func() controller.IController { return &BlogController{} }
+}
+
+func (b *BlogController) getPosts(c *gin.Context) {
+    // Implementation here
+}
+
+func (b *BlogController) createPost(c *gin.Context) {
+    // Implementation here
+}
+
+func (b *BlogController) deletePost(c *gin.Context) {
+    // Implementation here
 }
 ```
 
@@ -579,13 +561,14 @@ go run backend.go -port 8081 &
 go run backend.go -port 8082 &
 
 # Start API gateway with load balancing
-go run main.go \
+go run main/main.go \
   -port 8080 \
   -lb http://localhost:8081 \
   -lb http://localhost:8082 \
   -lbpath api \
   -lbauth
 ```
+
 
 ## Production Deployment
 
@@ -653,90 +636,25 @@ CMD ["./sargantana-go"]
 
 ## Development
 
-### Prerequisites
+For detailed development setup, compilation instructions, and workflows, see
+the [Development Guide](docs/development.md).
 
-- Go 1.25 or later
-- Make
-- Docker and Docker Compose (required for running tests locally)
+For testing setup, running tests locally, and understanding the test infrastructure, see
+the [Testing Guide](docs/testing.md).
 
-### Installation
+### Quick Start for Developers
 
 ```bash
+# Clone and setup
 git clone https://github.com/animalet/sargantana-go.git
 cd sargantana-go
-make all
-```
 
-### Testing with Docker Compose
-
-Some tests require external services like databases and authentication providers. A `docker-compose.yml` file is provided to set up the required test infrastructure locally.
-
-The docker-compose setup includes:
-- **Neo4j** (port 7687): Graph database for database integration tests
-- **Valkey/Redis** (port 6379): In-memory database for session storage tests  
-- **Mock OAuth2 Server** (port 8080): Mock authentication provider for auth controller tests
-
-#### Starting Test Services
-
-```bash
-# Start all test services in the background
+# Start test services
 docker-compose up -d
 
-# Run tests with the required services
+# Run tests
 make test
 
-# Stop and clean up test services
-docker-compose down
-```
-
-#### Running Tests Without Docker
-
-While the docker-compose setup is recommended for local development, some tests can run without it by using in-memory alternatives or by skipping integration tests. However, the following test categories require docker-compose:
-
-- Database integration tests (Neo4j, Redis)
-- Authentication controller tests with real OAuth flows
-- Session management tests with Redis backend
-
-### Development Commands
-
-```bash
-# Run tests (requires docker-compose services)
-make test
-
-# Run tests with coverage
-make test-coverage
-
-# Run linting
-make lint
-
-# Format code
-make format
-
-# Run all CI checks locally (requires docker-compose)
-make ci
-
-# Clean build artifacts
-make clean
-
-# Build the basic server binary
+# Build the project
 make build
 ```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-- 📖 [Documentation](https://pkg.go.dev/github.com/animalet/sargantana-go)
-- 🐛 [Bug Reports](https://github.com/animalet/sargantana-go/issues)
-- 💡 [Feature Requests](https://github.com/animalet/sargantana-go/issues)
-- 💬 [Discussions](https://github.com/animalet/sargantana-go/discussions)
