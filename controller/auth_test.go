@@ -481,17 +481,17 @@ func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 		if val := os.Getenv(env); val != "" {
 			originalEnvs[env] = val
 		}
-		os.Unsetenv(env)
+		_ = os.Unsetenv(env)
 	}
 
 	// Cleanup function
 	defer func() {
 		// Restore original environment
 		for _, env := range envVars {
-			os.Unsetenv(env)
+			_ = os.Unsetenv(env)
 		}
 		for env, val := range originalEnvs {
-			os.Setenv(env, val)
+			_ = os.Setenv(env, val)
 		}
 	}()
 
@@ -559,7 +559,7 @@ func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 
 	// Set all test environment variables
 	for env, val := range testValues {
-		os.Setenv(env, val)
+		_ = os.Setenv(env, val)
 	}
 
 	factory := &ProductionProviderFactory{}
