@@ -5,6 +5,7 @@ import (
 	"flag"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -21,32 +22,32 @@ func init() {
 
 func TestNewAuth(t *testing.T) {
 	tests := []struct {
-		name            string
-		callbackAddress string
+		name             string
+		callbackEndpoint string
 	}{
 		{
-			name:            "empty callback",
-			callbackAddress: "",
+			name:             "empty callback",
+			callbackEndpoint: "",
 		},
 		{
-			name:            "with callback",
-			callbackAddress: "https://example.com",
+			name:             "with callback",
+			callbackEndpoint: "https://example.com",
 		},
 		{
-			name:            "localhost callback",
-			callbackAddress: "http://localhost:8080",
+			name:             "localhost callback",
+			callbackEndpoint: "http://localhost:8080",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			auth := NewAuth(tt.callbackAddress)
+			auth := NewAuth(tt.callbackEndpoint)
 
 			if auth == nil {
 				t.Fatal("NewAuth returned nil")
 			}
-			if auth.callbackAddress != tt.callbackAddress {
-				t.Errorf("callbackAddress = %v, want %v", auth.callbackAddress, tt.callbackAddress)
+			if auth.callbackEndpoint != tt.callbackEndpoint {
+				t.Errorf("callbackEndpoint = %v, want %v", auth.callbackEndpoint, tt.callbackEndpoint)
 			}
 		})
 	}
@@ -82,61 +83,8 @@ func TestNewAuthFromFlags(t *testing.T) {
 
 			controller := factory().(*Auth)
 
-			if controller.callbackAddress != tt.expected {
-				t.Errorf("callbackAddress = %v, want %v", controller.callbackAddress, tt.expected)
-			}
-		})
-	}
-}
-
-func TestAuth_Bind(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	tests := []struct {
-		name             string
-		callbackAddress  string
-		configAddress    string
-		expectedCallback string
-	}{
-		{
-			name:             "empty callback with localhost config",
-			callbackAddress:  "",
-			configAddress:    "localhost:8080",
-			expectedCallback: "http://localhost:8080",
-		},
-		{
-			name:             "empty callback with 0.0.0.0 config",
-			callbackAddress:  "",
-			configAddress:    "0.0.0.0:8080",
-			expectedCallback: "http://localhost:8080",
-		},
-		{
-			name:             "predefined callback",
-			callbackAddress:  "https://example.com",
-			configAddress:    "localhost:8080",
-			expectedCallback: "https://example.com",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			auth := NewAuth(tt.callbackAddress)
-			engine := gin.New()
-			cfg := config.NewConfig(tt.configAddress, "", "", false, "test-session")
-
-			// Add session middleware
-			store := cookie.NewStore([]byte("secret"))
-			engine.Use(sessions.Sessions("test", store))
-
-			auth.Bind(engine, *cfg, LoginFunc)
-
-			// For 0.0.0.0 case, the actual behavior sets it to 0.0.0.0, not localhost
-			if tt.configAddress == "0.0.0.0:8080" {
-				tt.expectedCallback = "http://0.0.0.0:8080"
-			}
-
-			if auth.callbackAddress != tt.expectedCallback {
-				t.Errorf("callbackAddress = %v, want %v", auth.callbackAddress, tt.expectedCallback)
+			if controller.callbackEndpoint != tt.expected {
+				t.Errorf("callbackEndpoint = %v, want %v", controller.callbackEndpoint, tt.expected)
 			}
 		})
 	}
@@ -436,7 +384,7 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 		{
 			name:           "0.0.0.0 address",
 			configAddress:  "0.0.0.0:9000",
-			expectedPrefix: "http://0.0.0.0:9000",
+			expectedPrefix: "http://localhost:9000",
 		},
 		{
 			name:           "custom host",
@@ -455,9 +403,143 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 
 			auth.Bind(engine, *cfg, LoginFunc)
 
-			if auth.callbackAddress != tt.expectedPrefix {
-				t.Errorf("callbackAddress = %v, want %v", auth.callbackAddress, tt.expectedPrefix)
+			if auth.callbackEndpoint != tt.expectedPrefix {
+				t.Errorf("callbackEndpoint = %v, want %v", auth.callbackEndpoint, tt.expectedPrefix)
 			}
 		})
+	}
+}
+
+func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
+	// Set test values for all environment variables
+	testValues := map[string]string{
+		"TWITTER_KEY": "test-twitter-key", "TWITTER_SECRET": "test-twitter-secret",
+		"TIKTOK_KEY": "test-tiktok-key", "TIKTOK_SECRET": "test-tiktok-secret",
+		"FACEBOOK_KEY": "test-facebook-key", "FACEBOOK_SECRET": "test-facebook-secret",
+		"FITBIT_KEY": "test-fitbit-key", "FITBIT_SECRET": "test-fitbit-secret",
+		"GOOGLE_KEY": "test-google-key", "GOOGLE_SECRET": "test-google-secret",
+		"GITHUB_KEY": "test-github-key", "GITHUB_SECRET": "test-github-secret",
+		"SPOTIFY_KEY": "test-spotify-key", "SPOTIFY_SECRET": "test-spotify-secret",
+		"LINKEDIN_KEY": "test-linkedin-key", "LINKEDIN_SECRET": "test-linkedin-secret",
+		"LINE_KEY": "test-line-key", "LINE_SECRET": "test-line-secret",
+		"LASTFM_KEY": "test-lastfm-key", "LASTFM_SECRET": "test-lastfm-secret",
+		"TWITCH_KEY": "test-twitch-key", "TWITCH_SECRET": "test-twitch-secret",
+		"DROPBOX_KEY": "test-dropbox-key", "DROPBOX_SECRET": "test-dropbox-secret",
+		"DIGITALOCEAN_KEY": "test-do-key", "DIGITALOCEAN_SECRET": "test-do-secret",
+		"BITBUCKET_KEY": "test-bitbucket-key", "BITBUCKET_SECRET": "test-bitbucket-secret",
+		"INSTAGRAM_KEY": "test-instagram-key", "INSTAGRAM_SECRET": "test-instagram-secret",
+		"INTERCOM_KEY": "test-intercom-key", "INTERCOM_SECRET": "test-intercom-secret",
+		"BOX_KEY": "test-box-key", "BOX_SECRET": "test-box-secret",
+		"SALESFORCE_KEY": "test-salesforce-key", "SALESFORCE_SECRET": "test-salesforce-secret",
+		"SEATALK_KEY": "test-seatalk-key", "SEATALK_SECRET": "test-seatalk-secret",
+		"AMAZON_KEY": "test-amazon-key", "AMAZON_SECRET": "test-amazon-secret",
+		"YAMMER_KEY": "test-yammer-key", "YAMMER_SECRET": "test-yammer-secret",
+		"ONEDRIVE_KEY": "test-onedrive-key", "ONEDRIVE_SECRET": "test-onedrive-secret",
+		"AZUREAD_KEY": "test-azuread-key", "AZUREAD_SECRET": "test-azuread-secret",
+		"MICROSOFTONLINE_KEY": "test-msonline-key", "MICROSOFTONLINE_SECRET": "test-msonline-secret",
+		"BATTLENET_KEY": "test-battlenet-key", "BATTLENET_SECRET": "test-battlenet-secret",
+		"EVEONLINE_KEY": "test-eve-key", "EVEONLINE_SECRET": "test-eve-secret",
+		"KAKAO_KEY": "test-kakao-key", "KAKAO_SECRET": "test-kakao-secret",
+		"YAHOO_KEY": "test-yahoo-key", "YAHOO_SECRET": "test-yahoo-secret",
+		"TYPETALK_KEY": "test-typetalk-key", "TYPETALK_SECRET": "test-typetalk-secret",
+		"SLACK_KEY": "test-slack-key", "SLACK_SECRET": "test-slack-secret",
+		"STRIPE_KEY": "test-stripe-key", "STRIPE_SECRET": "test-stripe-secret",
+		"WEPAY_KEY": "test-wepay-key", "WEPAY_SECRET": "test-wepay-secret",
+		"PAYPAL_KEY": "test-paypal-key", "PAYPAL_SECRET": "test-paypal-secret",
+		"STEAM_KEY":  "test-steam-key",
+		"HEROKU_KEY": "test-heroku-key", "HEROKU_SECRET": "test-heroku-secret",
+		"UBER_KEY": "test-uber-key", "UBER_SECRET": "test-uber-secret",
+		"SOUNDCLOUD_KEY": "test-soundcloud-key", "SOUNDCLOUD_SECRET": "test-soundcloud-secret",
+		"GITLAB_KEY": "test-gitlab-key", "GITLAB_SECRET": "test-gitlab-secret",
+		"DAILYMOTION_KEY": "test-dailymotion-key", "DAILYMOTION_SECRET": "test-dailymotion-secret",
+		"DEEZER_KEY": "test-deezer-key", "DEEZER_SECRET": "test-deezer-secret",
+		"DISCORD_KEY": "test-discord-key", "DISCORD_SECRET": "test-discord-secret",
+		"MEETUP_KEY": "test-meetup-key", "MEETUP_SECRET": "test-meetup-secret",
+		"AUTH0_KEY": "test-auth0-key", "AUTH0_SECRET": "test-auth0-secret", "AUTH0_DOMAIN": "test.auth0.com",
+		"XERO_KEY": "test-xero-key", "XERO_SECRET": "test-xero-secret",
+		"VK_KEY": "test-vk-key", "VK_SECRET": "test-vk-secret",
+		"NAVER_KEY": "test-naver-key", "NAVER_SECRET": "test-naver-secret",
+		"YANDEX_KEY": "test-yandex-key", "YANDEX_SECRET": "test-yandex-secret",
+		"NEXTCLOUD_KEY": "test-nextcloud-key", "NEXTCLOUD_SECRET": "test-nextcloud-secret", "NEXTCLOUD_URL": "https://test.nextcloud.com",
+		"GITEA_KEY": "test-gitea-key", "GITEA_SECRET": "test-gitea-secret",
+		"SHOPIFY_KEY": "test-shopify-key", "SHOPIFY_SECRET": "test-shopify-secret",
+		"APPLE_KEY": "test-apple-key", "APPLE_SECRET": "test-apple-secret",
+		"STRAVA_KEY": "test-strava-key", "STRAVA_SECRET": "test-strava-secret",
+		"OKTA_ID": "test-okta-id", "OKTA_SECRET": "test-okta-secret", "OKTA_ORG_URL": "https://test.okta.com",
+		"MASTODON_KEY": "test-mastodon-key", "MASTODON_SECRET": "test-mastodon-secret",
+		"WECOM_CORP_ID": "test-wecom-corp", "WECOM_SECRET": "test-wecom-secret", "WECOM_AGENT_ID": "test-wecom-agent",
+		"ZOOM_KEY": "test-zoom-key", "ZOOM_SECRET": "test-zoom-secret",
+		"PATREON_KEY": "test-patreon-key", "PATREON_SECRET": "test-patreon-secret",
+		"OPENID_CONNECT_KEY": "test-oidc-key", "OPENID_CONNECT_SECRET": "test-oidc-secret", "OPENID_CONNECT_DISCOVERY_URL": "https://test.example.com/.well-known/openid_configuration",
+	}
+
+	defer func() {
+		for k := range testValues {
+			_ = os.Unsetenv(k)
+		}
+	}()
+
+	// Set all test environment variables
+	for env, val := range testValues {
+		_ = os.Setenv(env, val)
+	}
+
+	factory := &ProductionProviderFactory{}
+	providers := factory.CreateProviders("https://test.example.com/auth/%s/callback")
+
+	// Verify that providers were created
+	// We expect at least 50 providers (all the ones we set environment variables for)
+	if len(providers) < 50 {
+		t.Errorf("Expected at least 50 providers, got %d", len(providers))
+	}
+
+	// Verify some specific providers are present by checking their names
+	providerNames := make(map[string]bool)
+	actualProviders := make([]string, 0, len(providers))
+	for _, provider := range providers {
+		name := provider.Name()
+		providerNames[name] = true
+		actualProviders = append(actualProviders, name)
+	}
+
+	// Log all actual providers for debugging
+	t.Logf("Actual providers created: %v", actualProviders)
+
+	expectedProviders := []string{
+		"twitterv2", "tiktok", "facebook", "fitbit", "google", "github",
+		"spotify", "linkedin", "line", "lastfm", "twitch", "dropbox",
+		"digitalocean", "bitbucket", "instagram", "intercom", "box",
+		"salesforce", "seatalk", "amazon", "yammer", "onedrive",
+		"azuread", "microsoftonline", "battlenet", "eveonline", "kakao",
+		"yahoo", "typetalk", "slack", "stripe", "wepay", "paypal",
+		"steam", "heroku", "uber", "soundcloud", "gitlab", "dailymotion",
+		"deezer", "discord", "meetup", "auth0", "xero", "vk", "naver",
+		"yandex", "nextcloud", "gitea", "shopify", "apple", "strava",
+		"okta", "mastodon", "wecom", "zoom", "patreon",
+		// Note: openid-connect is excluded as it may fail to initialize with test URLs
+	}
+
+	var missingProviders []string
+	for _, expected := range expectedProviders {
+		if !providerNames[expected] {
+			missingProviders = append(missingProviders, expected)
+		}
+	}
+
+	if len(missingProviders) > 0 {
+		t.Errorf("Missing expected providers: %v", missingProviders)
+	}
+
+	t.Logf("Successfully created %d OAuth providers", len(providers))
+}
+
+func TestProductionProviderFactory_CreateProviders_NoEnvironmentVars(t *testing.T) {
+	// Test with no environment variables set
+	factory := &ProductionProviderFactory{}
+	providers := factory.CreateProviders("https://test.example.com/auth/%s/callback")
+
+	// Should return empty slice when no environment variables are set
+	if len(providers) != 0 {
+		t.Errorf("Expected 0 providers when no env vars set, got %d", len(providers))
 	}
 }

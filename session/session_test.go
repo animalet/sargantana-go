@@ -52,9 +52,6 @@ func TestNewCookieStore(t *testing.T) {
 }
 
 func TestNewRedisSessionStore(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
 
 	tests := []struct {
 		name          string
@@ -123,9 +120,6 @@ func TestNewRedisSessionStore(t *testing.T) {
 }
 
 func TestNewRedisSessionStore_WithConnectionError(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
 
 	// Create a pool that will fail on connection test
 	pool := &redis.Pool{
@@ -157,9 +151,6 @@ func TestNewRedisSessionStore_WithConnectionError(t *testing.T) {
 }
 
 func TestNewRedisSessionStore_WithInvalidSecret(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
 
 	pool := &redis.Pool{
 		Dial: func() (redis.Conn, error) {
@@ -185,9 +176,6 @@ func TestNewRedisSessionStore_WithInvalidSecret(t *testing.T) {
 }
 
 func TestRedisSessionStore_AuthenticationBehavior(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
 
 	tests := []struct {
 		name         string

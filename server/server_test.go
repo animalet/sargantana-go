@@ -2,16 +2,20 @@ package server
 
 import (
 	"flag"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
 	"github.com/gin-gonic/gin"
+	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/openidConnect"
 )
 
 func TestNewServer(t *testing.T) {
@@ -583,4 +587,87 @@ func (m *mockController) Bind(engine *gin.Engine, cfg config.Config, loginMiddle
 func (m *mockController) Close() error {
 	m.closed = true
 	return nil
+}
+
+type MockProviderFactory struct {
+}
+
+func TestAuth_IntegrationTest(t *testing.T) {
+	// Set up environment
+	err := os.Setenv("SESSION_SECRET", "test-secret")
+	if err != nil {
+		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
+	}
+	defer func() {
+		_ = os.Unsetenv("SESSION_SECRET")
+	}()
+
+	callbackEndpoint := "http://localhost:8081"
+	auth := controller.NewAuthWithFactory(callbackEndpoint, &MockProviderFactory{})
+	s := NewServer("localhost", 8081, "", "", true, "test-session")
+	err = s.Start(auth)
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/auth/openid-connect", nil)
+	s.httpServer.Handler.ServeHTTP(w, req)
+
+	// Assert that the user is redirected to the mock server's auth URL
+	if w.Code != http.StatusTemporaryRedirect {
+		t.Errorf("Expected status 307 Found, got %d", w.Code)
+	}
+
+	location := w.Header().Get("Location")
+	cookie := w.Header().Get("Set-Cookie")
+
+	// Mock OAuth2 Server Sign-in in non interactive mode
+	req, _ = http.NewRequest("GET", location, nil)
+	cl := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Don't follow redirects
+			return http.ErrUseLastResponse
+		},
+	}
+	res, err := cl.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to perform OAuth2 callback: %v", err)
+	}
+	if res.StatusCode != http.StatusFound {
+		t.Fatalf("Expected status 302 Found after OAuth2 callback, got %d", res.StatusCode)
+	}
+
+	location = strings.Replace(res.Header.Get("Location"), callbackEndpoint, "", 1)
+	req, err = http.NewRequest("GET", location, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request to callback URL: %v", err)
+	}
+	req.Header.Set("Cookie", cookie)
+
+	w = httptest.NewRecorder()
+	s.httpServer.Handler.ServeHTTP(w, req)
+	if w.Code != http.StatusFound {
+		t.Errorf("Expected status 302 OK, got %d", w.Code)
+	}
+}
+
+func (m *MockProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
+	// OpenID Connect is based on OpenID Connect Auto Discovery URL (https://openid.net/specs/openid-connect-discovery-1_0-17.html)
+	// because the OpenID Connect provider initialize itself in the New(), it can return an error which should be handled or ignored
+	// ignore the error for now
+	openidConnect, _ := openidConnect.New(
+		"sargantana",
+		"someSecret",
+		fmt.Sprintf(callbackURLTemplate, "openid-connect"),
+		"http://localhost:8080/default/.well-known/openid-configuration",
+		"email", "profile",
+	)
+	if openidConnect != nil {
+		goth.UseProviders(openidConnect)
+	}
+
+	return []goth.Provider{
+		openidConnect,
+	}
 }
