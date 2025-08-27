@@ -1,11 +1,11 @@
-# OAuth Providers Configuration
+# Authentication Providers Configuration
 
-This document lists all supported OAuth providers and their required environment variables for authentication in
+This document lists all supported authentication providers and their required environment variables for authentication in
 Sargantana-Go.
 
 ## Overview
 
-Sargantana-Go supports **50+ OAuth providers** through the [Goth library](https://github.com/markbates/goth). Each
+Sargantana-Go supports **50+ authentication providers** through the [Goth library](https://github.com/markbates/goth). Each
 provider requires specific environment variables to be configured for authentication to work.
 
 ## Configuration
@@ -120,7 +120,7 @@ per https://openid.net/specs/openid-connect-discovery-1_0-17.html).
 
 ## Usage
 
-1. Choose the OAuth providers you want to support
+1. Choose the authentication providers you want to support
 2. Register your application with each provider to get the required credentials
 3. Set the environment variables for each provider
 4. The providers will be automatically enabled when their primary key is detected
@@ -128,15 +128,15 @@ per https://openid.net/specs/openid-connect-discovery-1_0-17.html).
 ## Example Configuration
 
 ```bash
-# Google OAuth
+# Google Authentication
 export GOOGLE_KEY="your-google-client-id"
 export GOOGLE_SECRET="your-google-client-secret"
 
-# GitHub OAuth
+# GitHub Authentication
 export GITHUB_KEY="your-github-client-id"
 export GITHUB_SECRET="your-github-client-secret"
 
-# Auth0 OAuth (requires domain)
+# Auth0 Authentication (requires domain)
 export AUTH0_KEY="your-auth0-client-id"
 export AUTH0_SECRET="your-auth0-client-secret"
 export AUTH0_DOMAIN="your-tenant.auth0.com"
@@ -152,11 +152,11 @@ Once configured, each provider will be available at:
 
 ## Testing with Mock Providers
 
-For testing purposes, you can use mock OAuth providers by setting:
+For testing purposes, you can use mock authentication providers by setting:
 
 ```bash
 export OAUTH_MOCK_SERVER_URL="http://localhost:8080"
 ```
 
-When this is set, the system will use mock providers instead of real OAuth endpoints. This requires building with the
+When this is set, the system will use mock providers instead of real authentication endpoints. This requires building with the
 test tag: `go test -tags=test`.

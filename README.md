@@ -1,4 +1,5 @@
 # Sargantana Go
+
 <img src="logo.png" alt="Sargantana Go Logo" width="500"/>
 
 ```
@@ -15,12 +16,16 @@
 ## What is this?
 
 Sargantana Go is a performant web application framework built on top of [Gin](https://github.com/gin-gonic/gin) that
-provides simple solutions for common web development scenarios. It includes built-in support for OAuth2 authentication,
+provides simple solutions for common web development scenarios. It includes built-in support for multi-provider
+authentication,
 session management, static file serving, load balancing, and database integration.
 
-I started this as a side project to improve my Go skills and to have a solid base for building web applications quickly. It is designed to be easy to use and extend, allowing developers to focus on building their applications rather than dealing with boilerplate code.
+I started this as a side project to improve my Go skills and to have a solid base for building web applications quickly.
+It is designed to be easy to use and extend, allowing developers to focus on building their applications rather than
+dealing with boilerplate code.
 
 ## Disclaimer
+
 This project is currently in active development and may not be suitable for production use. While I have implemented
 basic functionality and tested it in development environments, there are no guarantees regarding its stability,
 security, or performance yet. Use at your own risk.
@@ -28,7 +33,7 @@ security, or performance yet. Use at your own risk.
 ## Features
 
 - **Web Server**: High-performance HTTP server using [Gin](https://github.com/gin-gonic/gin)
-- **OAuth2 Authentication**: Multi-provider OAuth2 support via [Goth](https://github.com/markbates/goth) with 50+
+- **Authentication**: Multi-provider authentication support via [Goth](https://github.com/markbates/goth) with 50+
   providers
 - **Session Management**: Flexible session storage with Redis or cookie-based options
 - **Static File Serving**: Built-in static file and template serving capabilities
@@ -46,7 +51,8 @@ security, or performance yet. Use at your own risk.
 
 ### Binary Distribution
 
-Pre-built binaries are available for multiple platforms. Download the appropriate binary for your operating system from the [releases page](https://github.com/animalet/sargantana-go/releases/latest).
+Pre-built binaries are available for multiple platforms. Download the appropriate binary for your operating system from
+the [releases page](https://github.com/animalet/sargantana-go/releases/latest).
 
 #### Available Platforms
 
@@ -117,14 +123,15 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-g
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-windows-amd64.exe ./main
 ```
 
-The compiled binaries will be placed in the `dist/` directory when using `make build-all`, or in the current directory when building manually.
+The compiled binaries will be placed in the `dist/` directory when using `make build-all`, or in the current directory
+when building manually.
 
 #### Build Flags Explained
 
 - `CGO_ENABLED=0`: Disables CGO for static linking (creates standalone binaries)
 - `-ldflags="-s -w"`: Strips debug information to reduce binary size
-  - `-s`: Omit symbol table and debug information
-  - `-w`: Omit DWARF debug information
+    - `-s`: Omit symbol table and debug information
+    - `-w`: Omit DWARF debug information
 
 ### Installation from Source
 
@@ -149,7 +156,7 @@ func main() {
     // Define controllers you want to use
     controllerInitializers := []func(*flag.FlagSet) func() controller.IController{
         controller.NewStaticFromFlags,       // Static file serving
-        controller.NewAuthFromFlags,         // OAuth2 authentication
+        controller.NewAuthFromFlags,         // Authentication
         controller.NewLoadBalancerFromFlags, // Load balancing
     }
 
@@ -277,13 +284,13 @@ go run main/main.go \
 
 ### Environment Variables
 
-Set these environment variables for OAuth2 providers:
+Set these environment variables for authentication providers:
 
 ```bash
 # Session security
 SESSION_SECRET=your-session-secret-key
 
-# OAuth2 Providers (choose the ones you need)
+# Authentication Providers (choose the ones you need)
 GOOGLE_KEY=your-google-client-id
 GOOGLE_SECRET=your-google-client-secret
 
@@ -326,7 +333,7 @@ Serves static files and HTML templates:
 static := controller.NewStatic("./public", "./templates")
 
 // With flags
-go run main/main.go -frontend ./public -templates ./templates
+go run main/main.go -frontend./public -templates./templates
 ```
 
 Features:
@@ -338,7 +345,7 @@ Features:
 
 ### Auth Controller
 
-Provides OAuth2 authentication with 50+ providers:
+Provides authentication with 50+ providers:
 
 ```go
 // Programmatic usage  
@@ -348,7 +355,7 @@ auth := controller.NewAuth("http://localhost:8080")
 go run main.go
 ```
 
-**Supported OAuth2 Providers:**
+**Supported Authentication Providers:**
 
 - Google, GitHub, Facebook, Twitter/X
 - Microsoft, Apple, Amazon, Discord
@@ -356,11 +363,12 @@ go run main.go
 - Auth0, Okta, Azure AD
 - And 35+ more providers
 
-For the complete list of supported providers, configuration details, and provider IDs, see the [OAuth Providers Documentation](docs/oauth-providers.md).
+For the complete list of supported providers, configuration details, and provider IDs, see
+the [Authentication Providers Documentation](docs/authentication-providers.md).
 
 **Authentication Flow:**
 
-1. Visit `/auth/{provider}` to start OAuth flow
+1. Visit `/auth/{provider}` to start authentication flow
 2. User redirects to provider for authentication
 3. Provider redirects back to `/auth/{provider}/callback`
 4. User session is created automatically
@@ -391,8 +399,8 @@ lb := controller.NewLoadBalancer(endpoints, "api", true)
 
 // With flags
 go run main.go \
--lb http://api1:8080 \
--lb http://api2:8080 \
+-lb http: //api1:8080 \
+-lb http: //api2:8080 \
 -lbpath api \
 -lbauth
 ```
@@ -521,10 +529,10 @@ defer cleanup()
 
 // Option 2: Using explicit configuration
 driver, cleanup := database.NewNeo4jDriver(&database.Neo4jOptions{
-    Uri:      "bolt://localhost:7687",
-    Username: "neo4j",
-    Password: "password",
-    Realm:    "", // optional
+Uri:      "bolt://localhost:7687",
+Username: "neo4j",
+Password: "password",
+Realm:    "", // optional
 })
 defer cleanup()
 ```
