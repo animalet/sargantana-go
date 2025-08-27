@@ -657,6 +657,7 @@ CMD ["./sargantana-go"]
 
 - Go 1.25 or later
 - Make
+- Docker and Docker Compose (required for running tests locally)
 
 ### Installation
 
@@ -666,10 +667,40 @@ cd sargantana-go
 make all
 ```
 
+### Testing with Docker Compose
+
+Some tests require external services like databases and authentication providers. A `docker-compose.yml` file is provided to set up the required test infrastructure locally.
+
+The docker-compose setup includes:
+- **Neo4j** (port 7687): Graph database for database integration tests
+- **Valkey/Redis** (port 6379): In-memory database for session storage tests  
+- **Mock OAuth2 Server** (port 8080): Mock authentication provider for auth controller tests
+
+#### Starting Test Services
+
+```bash
+# Start all test services in the background
+docker-compose up -d
+
+# Run tests with the required services
+make test
+
+# Stop and clean up test services
+docker-compose down
+```
+
+#### Running Tests Without Docker
+
+While the docker-compose setup is recommended for local development, some tests can run without it by using in-memory alternatives or by skipping integration tests. However, the following test categories require docker-compose:
+
+- Database integration tests (Neo4j, Redis)
+- Authentication controller tests with real OAuth flows
+- Session management tests with Redis backend
+
 ### Development Commands
 
 ```bash
-# Run tests
+# Run tests (requires docker-compose services)
 make test
 
 # Run tests with coverage
@@ -681,7 +712,7 @@ make lint
 # Format code
 make format
 
-# Run all CI checks locally
+# Run all CI checks locally (requires docker-compose)
 make ci
 
 # Clean build artifacts
@@ -689,19 +720,6 @@ make clean
 
 # Build the basic server binary
 make build
-```
-
-### Project Structure
-
-```
-sargantana-go/
-├── main/           # Main application entry point
-├── server/         # Core server implementation
-├── controller/     # Built-in controllers (auth, static, load balancer)
-├── config/         # Configuration management
-├── session/        # Session storage implementations
-├── database/       # Database integrations (Redis, Neo4j, etc.)
-└── Makefile        # Development commands
 ```
 
 ## Contributing
