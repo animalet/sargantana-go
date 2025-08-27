@@ -5,6 +5,7 @@ import (
 	"flag"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -406,5 +407,217 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 				t.Errorf("callbackEndpoint = %v, want %v", auth.callbackEndpoint, tt.expectedPrefix)
 			}
 		})
+	}
+}
+
+func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
+	// Save original environment
+	originalEnvs := make(map[string]string)
+
+	// List of all environment variables used by providers
+	envVars := []string{
+		"TWITTER_KEY", "TWITTER_SECRET",
+		"TIKTOK_KEY", "TIKTOK_SECRET",
+		"FACEBOOK_KEY", "FACEBOOK_SECRET",
+		"FITBIT_KEY", "FITBIT_SECRET",
+		"GOOGLE_KEY", "GOOGLE_SECRET",
+		"GITHUB_KEY", "GITHUB_SECRET",
+		"SPOTIFY_KEY", "SPOTIFY_SECRET",
+		"LINKEDIN_KEY", "LINKEDIN_SECRET",
+		"LINE_KEY", "LINE_SECRET",
+		"LASTFM_KEY", "LASTFM_SECRET",
+		"TWITCH_KEY", "TWITCH_SECRET",
+		"DROPBOX_KEY", "DROPBOX_SECRET",
+		"DIGITALOCEAN_KEY", "DIGITALOCEAN_SECRET",
+		"BITBUCKET_KEY", "BITBUCKET_SECRET",
+		"INSTAGRAM_KEY", "INSTAGRAM_SECRET",
+		"INTERCOM_KEY", "INTERCOM_SECRET",
+		"BOX_KEY", "BOX_SECRET",
+		"SALESFORCE_KEY", "SALESFORCE_SECRET",
+		"SEATALK_KEY", "SEATALK_SECRET",
+		"AMAZON_KEY", "AMAZON_SECRET",
+		"YAMMER_KEY", "YAMMER_SECRET",
+		"ONEDRIVE_KEY", "ONEDRIVE_SECRET",
+		"AZUREAD_KEY", "AZUREAD_SECRET",
+		"MICROSOFTONLINE_KEY", "MICROSOFTONLINE_SECRET",
+		"BATTLENET_KEY", "BATTLENET_SECRET",
+		"EVEONLINE_KEY", "EVEONLINE_SECRET",
+		"KAKAO_KEY", "KAKAO_SECRET",
+		"YAHOO_KEY", "YAHOO_SECRET",
+		"TYPETALK_KEY", "TYPETALK_SECRET",
+		"SLACK_KEY", "SLACK_SECRET",
+		"STRIPE_KEY", "STRIPE_SECRET",
+		"WEPAY_KEY", "WEPAY_SECRET",
+		"PAYPAL_KEY", "PAYPAL_SECRET",
+		"STEAM_KEY",
+		"HEROKU_KEY", "HEROKU_SECRET",
+		"UBER_KEY", "UBER_SECRET",
+		"SOUNDCLOUD_KEY", "SOUNDCLOUD_SECRET",
+		"GITLAB_KEY", "GITLAB_SECRET",
+		"DAILYMOTION_KEY", "DAILYMOTION_SECRET",
+		"DEEZER_KEY", "DEEZER_SECRET",
+		"DISCORD_KEY", "DISCORD_SECRET",
+		"MEETUP_KEY", "MEETUP_SECRET",
+		"AUTH0_KEY", "AUTH0_SECRET", "AUTH0_DOMAIN",
+		"XERO_KEY", "XERO_SECRET",
+		"VK_KEY", "VK_SECRET",
+		"NAVER_KEY", "NAVER_SECRET",
+		"YANDEX_KEY", "YANDEX_SECRET",
+		"NEXTCLOUD_KEY", "NEXTCLOUD_SECRET", "NEXTCLOUD_URL",
+		"GITEA_KEY", "GITEA_SECRET",
+		"SHOPIFY_KEY", "SHOPIFY_SECRET",
+		"APPLE_KEY", "APPLE_SECRET",
+		"STRAVA_KEY", "STRAVA_SECRET",
+		"OKTA_ID", "OKTA_SECRET", "OKTA_ORG_URL",
+		"MASTODON_KEY", "MASTODON_SECRET",
+		"WECOM_CORP_ID", "WECOM_SECRET", "WECOM_AGENT_ID",
+		"ZOOM_KEY", "ZOOM_SECRET",
+		"PATREON_KEY", "PATREON_SECRET",
+		"OPENID_CONNECT_KEY", "OPENID_CONNECT_SECRET", "OPENID_CONNECT_DISCOVERY_URL",
+	}
+
+	// Save and clear existing environment variables
+	for _, env := range envVars {
+		if val := os.Getenv(env); val != "" {
+			originalEnvs[env] = val
+		}
+		os.Unsetenv(env)
+	}
+
+	// Cleanup function
+	defer func() {
+		// Restore original environment
+		for _, env := range envVars {
+			os.Unsetenv(env)
+		}
+		for env, val := range originalEnvs {
+			os.Setenv(env, val)
+		}
+	}()
+
+	// Set test values for all environment variables
+	testValues := map[string]string{
+		"TWITTER_KEY": "test-twitter-key", "TWITTER_SECRET": "test-twitter-secret",
+		"TIKTOK_KEY": "test-tiktok-key", "TIKTOK_SECRET": "test-tiktok-secret",
+		"FACEBOOK_KEY": "test-facebook-key", "FACEBOOK_SECRET": "test-facebook-secret",
+		"FITBIT_KEY": "test-fitbit-key", "FITBIT_SECRET": "test-fitbit-secret",
+		"GOOGLE_KEY": "test-google-key", "GOOGLE_SECRET": "test-google-secret",
+		"GITHUB_KEY": "test-github-key", "GITHUB_SECRET": "test-github-secret",
+		"SPOTIFY_KEY": "test-spotify-key", "SPOTIFY_SECRET": "test-spotify-secret",
+		"LINKEDIN_KEY": "test-linkedin-key", "LINKEDIN_SECRET": "test-linkedin-secret",
+		"LINE_KEY": "test-line-key", "LINE_SECRET": "test-line-secret",
+		"LASTFM_KEY": "test-lastfm-key", "LASTFM_SECRET": "test-lastfm-secret",
+		"TWITCH_KEY": "test-twitch-key", "TWITCH_SECRET": "test-twitch-secret",
+		"DROPBOX_KEY": "test-dropbox-key", "DROPBOX_SECRET": "test-dropbox-secret",
+		"DIGITALOCEAN_KEY": "test-do-key", "DIGITALOCEAN_SECRET": "test-do-secret",
+		"BITBUCKET_KEY": "test-bitbucket-key", "BITBUCKET_SECRET": "test-bitbucket-secret",
+		"INSTAGRAM_KEY": "test-instagram-key", "INSTAGRAM_SECRET": "test-instagram-secret",
+		"INTERCOM_KEY": "test-intercom-key", "INTERCOM_SECRET": "test-intercom-secret",
+		"BOX_KEY": "test-box-key", "BOX_SECRET": "test-box-secret",
+		"SALESFORCE_KEY": "test-salesforce-key", "SALESFORCE_SECRET": "test-salesforce-secret",
+		"SEATALK_KEY": "test-seatalk-key", "SEATALK_SECRET": "test-seatalk-secret",
+		"AMAZON_KEY": "test-amazon-key", "AMAZON_SECRET": "test-amazon-secret",
+		"YAMMER_KEY": "test-yammer-key", "YAMMER_SECRET": "test-yammer-secret",
+		"ONEDRIVE_KEY": "test-onedrive-key", "ONEDRIVE_SECRET": "test-onedrive-secret",
+		"AZUREAD_KEY": "test-azuread-key", "AZUREAD_SECRET": "test-azuread-secret",
+		"MICROSOFTONLINE_KEY": "test-msonline-key", "MICROSOFTONLINE_SECRET": "test-msonline-secret",
+		"BATTLENET_KEY": "test-battlenet-key", "BATTLENET_SECRET": "test-battlenet-secret",
+		"EVEONLINE_KEY": "test-eve-key", "EVEONLINE_SECRET": "test-eve-secret",
+		"KAKAO_KEY": "test-kakao-key", "KAKAO_SECRET": "test-kakao-secret",
+		"YAHOO_KEY": "test-yahoo-key", "YAHOO_SECRET": "test-yahoo-secret",
+		"TYPETALK_KEY": "test-typetalk-key", "TYPETALK_SECRET": "test-typetalk-secret",
+		"SLACK_KEY": "test-slack-key", "SLACK_SECRET": "test-slack-secret",
+		"STRIPE_KEY": "test-stripe-key", "STRIPE_SECRET": "test-stripe-secret",
+		"WEPAY_KEY": "test-wepay-key", "WEPAY_SECRET": "test-wepay-secret",
+		"PAYPAL_KEY": "test-paypal-key", "PAYPAL_SECRET": "test-paypal-secret",
+		"STEAM_KEY":  "test-steam-key",
+		"HEROKU_KEY": "test-heroku-key", "HEROKU_SECRET": "test-heroku-secret",
+		"UBER_KEY": "test-uber-key", "UBER_SECRET": "test-uber-secret",
+		"SOUNDCLOUD_KEY": "test-soundcloud-key", "SOUNDCLOUD_SECRET": "test-soundcloud-secret",
+		"GITLAB_KEY": "test-gitlab-key", "GITLAB_SECRET": "test-gitlab-secret",
+		"DAILYMOTION_KEY": "test-dailymotion-key", "DAILYMOTION_SECRET": "test-dailymotion-secret",
+		"DEEZER_KEY": "test-deezer-key", "DEEZER_SECRET": "test-deezer-secret",
+		"DISCORD_KEY": "test-discord-key", "DISCORD_SECRET": "test-discord-secret",
+		"MEETUP_KEY": "test-meetup-key", "MEETUP_SECRET": "test-meetup-secret",
+		"AUTH0_KEY": "test-auth0-key", "AUTH0_SECRET": "test-auth0-secret", "AUTH0_DOMAIN": "test.auth0.com",
+		"XERO_KEY": "test-xero-key", "XERO_SECRET": "test-xero-secret",
+		"VK_KEY": "test-vk-key", "VK_SECRET": "test-vk-secret",
+		"NAVER_KEY": "test-naver-key", "NAVER_SECRET": "test-naver-secret",
+		"YANDEX_KEY": "test-yandex-key", "YANDEX_SECRET": "test-yandex-secret",
+		"NEXTCLOUD_KEY": "test-nextcloud-key", "NEXTCLOUD_SECRET": "test-nextcloud-secret", "NEXTCLOUD_URL": "https://test.nextcloud.com",
+		"GITEA_KEY": "test-gitea-key", "GITEA_SECRET": "test-gitea-secret",
+		"SHOPIFY_KEY": "test-shopify-key", "SHOPIFY_SECRET": "test-shopify-secret",
+		"APPLE_KEY": "test-apple-key", "APPLE_SECRET": "test-apple-secret",
+		"STRAVA_KEY": "test-strava-key", "STRAVA_SECRET": "test-strava-secret",
+		"OKTA_ID": "test-okta-id", "OKTA_SECRET": "test-okta-secret", "OKTA_ORG_URL": "https://test.okta.com",
+		"MASTODON_KEY": "test-mastodon-key", "MASTODON_SECRET": "test-mastodon-secret",
+		"WECOM_CORP_ID": "test-wecom-corp", "WECOM_SECRET": "test-wecom-secret", "WECOM_AGENT_ID": "test-wecom-agent",
+		"ZOOM_KEY": "test-zoom-key", "ZOOM_SECRET": "test-zoom-secret",
+		"PATREON_KEY": "test-patreon-key", "PATREON_SECRET": "test-patreon-secret",
+		"OPENID_CONNECT_KEY": "test-oidc-key", "OPENID_CONNECT_SECRET": "test-oidc-secret", "OPENID_CONNECT_DISCOVERY_URL": "https://test.example.com/.well-known/openid_configuration",
+	}
+
+	// Set all test environment variables
+	for env, val := range testValues {
+		os.Setenv(env, val)
+	}
+
+	factory := &ProductionProviderFactory{}
+	providers := factory.CreateProviders("https://test.example.com/auth/%s/callback")
+
+	// Verify that providers were created
+	// We expect at least 50 providers (all the ones we set environment variables for)
+	if len(providers) < 50 {
+		t.Errorf("Expected at least 50 providers, got %d", len(providers))
+	}
+
+	// Verify some specific providers are present by checking their names
+	providerNames := make(map[string]bool)
+	actualProviders := make([]string, 0, len(providers))
+	for _, provider := range providers {
+		name := provider.Name()
+		providerNames[name] = true
+		actualProviders = append(actualProviders, name)
+	}
+
+	// Log all actual providers for debugging
+	t.Logf("Actual providers created: %v", actualProviders)
+
+	expectedProviders := []string{
+		"twitterv2", "tiktok", "facebook", "fitbit", "google", "github",
+		"spotify", "linkedin", "line", "lastfm", "twitch", "dropbox",
+		"digitalocean", "bitbucket", "instagram", "intercom", "box",
+		"salesforce", "seatalk", "amazon", "yammer", "onedrive",
+		"azuread", "microsoftonline", "battlenet", "eveonline", "kakao",
+		"yahoo", "typetalk", "slack", "stripe", "wepay", "paypal",
+		"steam", "heroku", "uber", "soundcloud", "gitlab", "dailymotion",
+		"deezer", "discord", "meetup", "auth0", "xero", "vk", "naver",
+		"yandex", "nextcloud", "gitea", "shopify", "apple", "strava",
+		"okta", "mastodon", "wecom", "zoom", "patreon",
+		// Note: openid-connect is excluded as it may fail to initialize with test URLs
+	}
+
+	var missingProviders []string
+	for _, expected := range expectedProviders {
+		if !providerNames[expected] {
+			missingProviders = append(missingProviders, expected)
+		}
+	}
+
+	if len(missingProviders) > 0 {
+		t.Errorf("Missing expected providers: %v", missingProviders)
+	}
+
+	t.Logf("Successfully created %d OAuth providers", len(providers))
+}
+
+func TestProductionProviderFactory_CreateProviders_NoEnvironmentVars(t *testing.T) {
+	// Test with no environment variables set
+	factory := &ProductionProviderFactory{}
+	providers := factory.CreateProviders("https://test.example.com/auth/%s/callback")
+
+	// Should return empty slice when no environment variables are set
+	if len(providers) != 0 {
+		t.Errorf("Expected 0 providers when no env vars set, got %d", len(providers))
 	}
 }
