@@ -356,6 +356,8 @@ go run main.go
 - Auth0, Okta, Azure AD
 - And 35+ more providers
 
+For the complete list of supported providers, configuration details, and provider IDs, see the [OAuth Providers Documentation](docs/oauth-providers.md).
+
 **Authentication Flow:**
 
 1. Visit `/auth/{provider}` to start OAuth flow
