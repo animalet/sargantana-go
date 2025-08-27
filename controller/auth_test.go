@@ -411,90 +411,6 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 }
 
 func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
-	// Save original environment
-	originalEnvs := make(map[string]string)
-
-	// List of all environment variables used by providers
-	envVars := []string{
-		"TWITTER_KEY", "TWITTER_SECRET",
-		"TIKTOK_KEY", "TIKTOK_SECRET",
-		"FACEBOOK_KEY", "FACEBOOK_SECRET",
-		"FITBIT_KEY", "FITBIT_SECRET",
-		"GOOGLE_KEY", "GOOGLE_SECRET",
-		"GITHUB_KEY", "GITHUB_SECRET",
-		"SPOTIFY_KEY", "SPOTIFY_SECRET",
-		"LINKEDIN_KEY", "LINKEDIN_SECRET",
-		"LINE_KEY", "LINE_SECRET",
-		"LASTFM_KEY", "LASTFM_SECRET",
-		"TWITCH_KEY", "TWITCH_SECRET",
-		"DROPBOX_KEY", "DROPBOX_SECRET",
-		"DIGITALOCEAN_KEY", "DIGITALOCEAN_SECRET",
-		"BITBUCKET_KEY", "BITBUCKET_SECRET",
-		"INSTAGRAM_KEY", "INSTAGRAM_SECRET",
-		"INTERCOM_KEY", "INTERCOM_SECRET",
-		"BOX_KEY", "BOX_SECRET",
-		"SALESFORCE_KEY", "SALESFORCE_SECRET",
-		"SEATALK_KEY", "SEATALK_SECRET",
-		"AMAZON_KEY", "AMAZON_SECRET",
-		"YAMMER_KEY", "YAMMER_SECRET",
-		"ONEDRIVE_KEY", "ONEDRIVE_SECRET",
-		"AZUREAD_KEY", "AZUREAD_SECRET",
-		"MICROSOFTONLINE_KEY", "MICROSOFTONLINE_SECRET",
-		"BATTLENET_KEY", "BATTLENET_SECRET",
-		"EVEONLINE_KEY", "EVEONLINE_SECRET",
-		"KAKAO_KEY", "KAKAO_SECRET",
-		"YAHOO_KEY", "YAHOO_SECRET",
-		"TYPETALK_KEY", "TYPETALK_SECRET",
-		"SLACK_KEY", "SLACK_SECRET",
-		"STRIPE_KEY", "STRIPE_SECRET",
-		"WEPAY_KEY", "WEPAY_SECRET",
-		"PAYPAL_KEY", "PAYPAL_SECRET",
-		"STEAM_KEY",
-		"HEROKU_KEY", "HEROKU_SECRET",
-		"UBER_KEY", "UBER_SECRET",
-		"SOUNDCLOUD_KEY", "SOUNDCLOUD_SECRET",
-		"GITLAB_KEY", "GITLAB_SECRET",
-		"DAILYMOTION_KEY", "DAILYMOTION_SECRET",
-		"DEEZER_KEY", "DEEZER_SECRET",
-		"DISCORD_KEY", "DISCORD_SECRET",
-		"MEETUP_KEY", "MEETUP_SECRET",
-		"AUTH0_KEY", "AUTH0_SECRET", "AUTH0_DOMAIN",
-		"XERO_KEY", "XERO_SECRET",
-		"VK_KEY", "VK_SECRET",
-		"NAVER_KEY", "NAVER_SECRET",
-		"YANDEX_KEY", "YANDEX_SECRET",
-		"NEXTCLOUD_KEY", "NEXTCLOUD_SECRET", "NEXTCLOUD_URL",
-		"GITEA_KEY", "GITEA_SECRET",
-		"SHOPIFY_KEY", "SHOPIFY_SECRET",
-		"APPLE_KEY", "APPLE_SECRET",
-		"STRAVA_KEY", "STRAVA_SECRET",
-		"OKTA_ID", "OKTA_SECRET", "OKTA_ORG_URL",
-		"MASTODON_KEY", "MASTODON_SECRET",
-		"WECOM_CORP_ID", "WECOM_SECRET", "WECOM_AGENT_ID",
-		"ZOOM_KEY", "ZOOM_SECRET",
-		"PATREON_KEY", "PATREON_SECRET",
-		"OPENID_CONNECT_KEY", "OPENID_CONNECT_SECRET", "OPENID_CONNECT_DISCOVERY_URL",
-	}
-
-	// Save and clear existing environment variables
-	for _, env := range envVars {
-		if val := os.Getenv(env); val != "" {
-			originalEnvs[env] = val
-		}
-		_ = os.Unsetenv(env)
-	}
-
-	// Cleanup function
-	defer func() {
-		// Restore original environment
-		for _, env := range envVars {
-			_ = os.Unsetenv(env)
-		}
-		for env, val := range originalEnvs {
-			_ = os.Setenv(env, val)
-		}
-	}()
-
 	// Set test values for all environment variables
 	testValues := map[string]string{
 		"TWITTER_KEY": "test-twitter-key", "TWITTER_SECRET": "test-twitter-secret",
@@ -556,6 +472,12 @@ func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 		"PATREON_KEY": "test-patreon-key", "PATREON_SECRET": "test-patreon-secret",
 		"OPENID_CONNECT_KEY": "test-oidc-key", "OPENID_CONNECT_SECRET": "test-oidc-secret", "OPENID_CONNECT_DISCOVERY_URL": "https://test.example.com/.well-known/openid_configuration",
 	}
+
+	defer func() {
+		for k := range testValues {
+			_ = os.Unsetenv(k)
+		}
+	}()
 
 	// Set all test environment variables
 	for env, val := range testValues {
