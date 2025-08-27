@@ -25,6 +25,7 @@ import (
 	"github.com/animalet/sargantana-go/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/markbates/goth/gothic"
 )
 
 // Server represents the main HTTP server instance for the Sargantana Go framework.
@@ -266,8 +267,19 @@ func (s *Server) bootstrap(appControllers ...controller.IController) error {
 	} else {
 		engine.Use(ginBodyLogMiddleware)
 	}
-	engine.Use(gin.Logger(), gin.Recovery())
-	engine.Use(sessions.Sessions(s.config.SessionName(), sessionStore))
+	gothic.Store = sessionStore
+	engine.Use(
+		gin.Logger(),
+		gin.Recovery(),
+		sessions.Sessions(s.config.SessionName(), sessionStore),
+	)
+
+	if isReleaseMode {
+		engine.Use(gin.ErrorLoggerT(gin.ErrorTypePrivate))
+	} else {
+		engine.Use(gin.ErrorLogger())
+	}
+
 	for _, c := range appControllers {
 		c.Bind(engine, *s.config, controller.LoginFunc)
 		s.addShutdownHook(c.Close)

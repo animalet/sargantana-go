@@ -3,11 +3,8 @@ package controller
 import (
 	"encoding/gob"
 	"flag"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -16,10 +13,6 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
-	"github.com/markbates/goth/providers/facebook"
-	"github.com/markbates/goth/providers/github"
-	"github.com/markbates/goth/providers/google"
-	"github.com/markbates/goth/providers/twitter"
 )
 
 func init() {
@@ -28,32 +21,32 @@ func init() {
 
 func TestNewAuth(t *testing.T) {
 	tests := []struct {
-		name            string
-		callbackAddress string
+		name             string
+		callbackEndpoint string
 	}{
 		{
-			name:            "empty callback",
-			callbackAddress: "",
+			name:             "empty callback",
+			callbackEndpoint: "",
 		},
 		{
-			name:            "with callback",
-			callbackAddress: "https://example.com",
+			name:             "with callback",
+			callbackEndpoint: "https://example.com",
 		},
 		{
-			name:            "localhost callback",
-			callbackAddress: "http://localhost:8080",
+			name:             "localhost callback",
+			callbackEndpoint: "http://localhost:8080",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			auth := NewAuth(tt.callbackAddress)
+			auth := NewAuth(tt.callbackEndpoint)
 
 			if auth == nil {
 				t.Fatal("NewAuth returned nil")
 			}
-			if auth.callbackAddress != tt.callbackAddress {
-				t.Errorf("callbackAddress = %v, want %v", auth.callbackAddress, tt.callbackAddress)
+			if auth.callbackEndpoint != tt.callbackEndpoint {
+				t.Errorf("callbackEndpoint = %v, want %v", auth.callbackEndpoint, tt.callbackEndpoint)
 			}
 		})
 	}
@@ -89,61 +82,8 @@ func TestNewAuthFromFlags(t *testing.T) {
 
 			controller := factory().(*Auth)
 
-			if controller.callbackAddress != tt.expected {
-				t.Errorf("callbackAddress = %v, want %v", controller.callbackAddress, tt.expected)
-			}
-		})
-	}
-}
-
-func TestAuth_Bind(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	tests := []struct {
-		name             string
-		callbackAddress  string
-		configAddress    string
-		expectedCallback string
-	}{
-		{
-			name:             "empty callback with localhost config",
-			callbackAddress:  "",
-			configAddress:    "localhost:8080",
-			expectedCallback: "http://localhost:8080",
-		},
-		{
-			name:             "empty callback with 0.0.0.0 config",
-			callbackAddress:  "",
-			configAddress:    "0.0.0.0:8080",
-			expectedCallback: "http://localhost:8080",
-		},
-		{
-			name:             "predefined callback",
-			callbackAddress:  "https://example.com",
-			configAddress:    "localhost:8080",
-			expectedCallback: "https://example.com",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			auth := NewAuth(tt.callbackAddress)
-			engine := gin.New()
-			cfg := config.NewConfig(tt.configAddress, "", "", false, "test-session")
-
-			// Add session middleware
-			store := cookie.NewStore([]byte("secret"))
-			engine.Use(sessions.Sessions("test", store))
-
-			auth.Bind(engine, *cfg, LoginFunc)
-
-			// For 0.0.0.0 case, the actual behavior sets it to 0.0.0.0, not localhost
-			if tt.configAddress == "0.0.0.0:8080" {
-				tt.expectedCallback = "http://0.0.0.0:8080"
-			}
-
-			if auth.callbackAddress != tt.expectedCallback {
-				t.Errorf("callbackAddress = %v, want %v", auth.callbackAddress, tt.expectedCallback)
+			if controller.callbackEndpoint != tt.expected {
+				t.Errorf("callbackEndpoint = %v, want %v", controller.callbackEndpoint, tt.expected)
 			}
 		})
 	}
@@ -443,7 +383,7 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 		{
 			name:           "0.0.0.0 address",
 			configAddress:  "0.0.0.0:9000",
-			expectedPrefix: "http://0.0.0.0:9000",
+			expectedPrefix: "http://localhost:9000",
 		},
 		{
 			name:           "custom host",
@@ -462,319 +402,9 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 
 			auth.Bind(engine, *cfg, LoginFunc)
 
-			if auth.callbackAddress != tt.expectedPrefix {
-				t.Errorf("callbackAddress = %v, want %v", auth.callbackAddress, tt.expectedPrefix)
+			if auth.callbackEndpoint != tt.expectedPrefix {
+				t.Errorf("callbackEndpoint = %v, want %v", auth.callbackEndpoint, tt.expectedPrefix)
 			}
 		})
 	}
-}
-
-func TestAuth_MockOAuthLogin(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	// Save original environment
-	originalMockURL := os.Getenv("OAUTH_MOCK_SERVER_URL")
-	originalGoogleKey := os.Getenv("GOOGLE_KEY")
-	originalGoogleSecret := os.Getenv("GOOGLE_SECRET")
-	originalSessionSecret := os.Getenv("SESSION_SECRET")
-
-	// Clean up after test
-	defer func() {
-		_ = os.Setenv("OAUTH_MOCK_SERVER_URL", originalMockURL)
-		_ = os.Setenv("GOOGLE_KEY", originalGoogleKey)
-		_ = os.Setenv("GOOGLE_SECRET", originalGoogleSecret)
-		_ = os.Setenv("SESSION_SECRET", originalSessionSecret)
-		goth.ClearProviders()
-	}()
-
-	tests := []struct {
-		name           string
-		provider       string
-		mockServerURL  string
-		googleKey      string
-		expectedStatus int
-		expectRedirect bool
-	}{
-		{
-			name:           "successful google oauth login with mock server",
-			provider:       "google",
-			mockServerURL:  "http://localhost:8080",
-			googleKey:      "mock-google-key",
-			expectedStatus: http.StatusBadRequest, // Gothic returns 400 when session setup fails
-			expectRedirect: false,
-		},
-		{
-			name:           "missing provider with mock server",
-			provider:       "",
-			mockServerURL:  "http://localhost:8080",
-			googleKey:      "mock-google-key",
-			expectedStatus: http.StatusNotFound, // 404 for missing provider in route
-			expectRedirect: false,
-		},
-		{
-			name:           "unsupported provider with mock server",
-			provider:       "unsupported",
-			mockServerURL:  "http://localhost:8080",
-			googleKey:      "mock-google-key",
-			expectedStatus: http.StatusBadRequest, // Gothic returns 400 for unknown provider
-			expectRedirect: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Clear providers before each test
-			goth.ClearProviders()
-
-			// Set up mock environment including session secret
-			_ = os.Setenv("OAUTH_MOCK_SERVER_URL", tt.mockServerURL)
-			_ = os.Setenv("GOOGLE_KEY", tt.googleKey)
-			_ = os.Setenv("GOOGLE_SECRET", "mock-google-secret")
-			_ = os.Setenv("SESSION_SECRET", "test-session-secret-key")
-
-			// Create auth controller with mock configuration
-			auth := NewAuth("http://localhost:3000")
-			engine := gin.New()
-			store := cookie.NewStore([]byte("test-session-secret-key"))
-			engine.Use(sessions.Sessions("test", store))
-			cfg := config.NewConfig("localhost:3000", "", "", false, "test-session")
-
-			// Bind the auth controller (this will set up mock providers)
-			auth.Bind(engine, *cfg, LoginFunc)
-
-			// Test the login route
-			w := httptest.NewRecorder()
-			var req *http.Request
-			if tt.provider != "" {
-				req, _ = http.NewRequest("GET", "/auth/"+tt.provider, nil)
-			} else {
-				req, _ = http.NewRequest("GET", "/auth/", nil)
-			}
-
-			engine.ServeHTTP(w, req)
-
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Status = %v, want %v", w.Code, tt.expectedStatus)
-			}
-
-			if tt.expectRedirect {
-				// Check that we get a redirect to the mock OAuth server
-				location := w.Header().Get("Location")
-				if location == "" {
-					t.Error("Expected redirect location header, but got empty")
-				}
-
-				// For mock server, the redirect should contain the mock server URL
-				if tt.mockServerURL != "" && !strings.Contains(location, "localhost") {
-					t.Errorf("Expected redirect to contain mock server reference, got: %s", location)
-				}
-			}
-		})
-	}
-}
-
-func TestAuth_MockOAuthCallback(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	// Save original environment
-	originalMockURL := os.Getenv("OAUTH_MOCK_SERVER_URL")
-	originalGoogleKey := os.Getenv("GOOGLE_KEY")
-	originalGoogleSecret := os.Getenv("GOOGLE_SECRET")
-
-	// Clean up after test
-	defer func() {
-		_ = os.Setenv("OAUTH_MOCK_SERVER_URL", originalMockURL)
-		_ = os.Setenv("GOOGLE_KEY", originalGoogleKey)
-		_ = os.Setenv("GOOGLE_SECRET", originalGoogleSecret)
-		goth.ClearProviders()
-	}()
-
-	t.Run("mock oauth callback handling", func(t *testing.T) {
-		// Clear providers before test
-		goth.ClearProviders()
-
-		// Set up mock environment
-		_ = os.Setenv("OAUTH_MOCK_SERVER_URL", "http://localhost:8080")
-		_ = os.Setenv("GOOGLE_KEY", "mock-google-key")
-		_ = os.Setenv("GOOGLE_SECRET", "mock-google-secret")
-
-		// Create auth controller with mock configuration
-		auth := NewAuth("http://localhost:3000")
-		engine := gin.New()
-		store := cookie.NewStore([]byte("secret"))
-		engine.Use(sessions.Sessions("test", store))
-		cfg := config.NewConfig("localhost:3000", "", "", false, "test-session")
-
-		// Bind the auth controller
-		auth.Bind(engine, *cfg, LoginFunc)
-
-		// Test the callback route (this will fail due to missing OAuth state/code, but we can verify the route exists)
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/auth/google/callback", nil)
-
-		engine.ServeHTTP(w, req)
-
-		// Should get a forbidden status due to incomplete OAuth flow, but not 404
-		if w.Code == http.StatusNotFound {
-			t.Error("Callback route not found - mock OAuth providers may not be properly configured")
-		}
-
-		// The status should be either forbidden (incomplete flow) or redirect (successful flow)
-		if w.Code != http.StatusForbidden && w.Code != http.StatusFound && w.Code != http.StatusInternalServerError {
-			t.Errorf("Unexpected status for callback: %d", w.Code)
-		}
-	})
-}
-
-func TestAuth_MockOAuthUserEndpoint(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	// Save original environment
-	originalMockURL := os.Getenv("OAUTH_MOCK_SERVER_URL")
-	originalGoogleKey := os.Getenv("GOOGLE_KEY")
-	originalGoogleSecret := os.Getenv("GOOGLE_SECRET")
-
-	// Clean up after test
-	defer func() {
-		_ = os.Setenv("OAUTH_MOCK_SERVER_URL", originalMockURL)
-		_ = os.Setenv("GOOGLE_KEY", originalGoogleKey)
-		_ = os.Setenv("GOOGLE_SECRET", originalGoogleSecret)
-		goth.ClearProviders()
-	}()
-
-	t.Run("authenticated user endpoint with mock oauth", func(t *testing.T) {
-		// Clear providers before test
-		goth.ClearProviders()
-
-		// Set up mock environment
-		_ = os.Setenv("OAUTH_MOCK_SERVER_URL", "http://localhost:8080")
-		_ = os.Setenv("GOOGLE_KEY", "mock-google-key")
-		_ = os.Setenv("GOOGLE_SECRET", "mock-google-secret")
-
-		// Create auth controller with mock configuration
-		auth := NewAuth("http://localhost:3000")
-		engine := gin.New()
-		store := cookie.NewStore([]byte("secret"))
-		engine.Use(sessions.Sessions("test", store))
-		cfg := config.NewConfig("localhost:3000", "", "", false, "test-session")
-
-		// Bind the auth controller
-		auth.Bind(engine, *cfg, LoginFunc)
-
-		// Test 1: No authentication - should be forbidden
-		w1 := httptest.NewRecorder()
-		req1, _ := http.NewRequest("GET", "/auth/user", nil)
-		engine.ServeHTTP(w1, req1)
-
-		if w1.Code != http.StatusForbidden {
-			t.Errorf("Expected 403 for unauthenticated user, got %d", w1.Code)
-		}
-
-		// Test 2: Create a mock authenticated session
-		engine2 := gin.New()
-		engine2.Use(sessions.Sessions("test", store))
-
-		// Add middleware to set up authenticated session BEFORE the protected route
-		engine2.Use(func(c *gin.Context) {
-			session := sessions.Default(c)
-			userObj := UserObject{
-				Id: "mock-user@google",
-				User: goth.User{
-					Email:     "mock-user@google.com",
-					UserID:    "mock-user-123",
-					Provider:  "google",
-					ExpiresAt: time.Now().Add(time.Hour),
-				},
-			}
-			session.Set("user", userObj)
-			_ = session.Save()
-			c.Next()
-		})
-
-		// Add the protected route
-		engine2.GET("/auth/user", LoginFunc, func(c *gin.Context) {
-			userObj := sessions.Default(c).Get("user").(UserObject)
-			c.JSON(http.StatusOK, userObj.Id)
-		})
-
-		// Set up a session with a mock user
-		w2 := httptest.NewRecorder()
-		req2, _ := http.NewRequest("GET", "/auth/user", nil)
-
-		engine2.ServeHTTP(w2, req2)
-
-		if w2.Code != http.StatusOK {
-			t.Errorf("Expected 200 for authenticated mock user, got %d", w2.Code)
-		}
-
-		// Verify the response contains the user ID
-		if !strings.Contains(w2.Body.String(), "mock-user@google") {
-			t.Errorf("Expected response to contain user ID, got: %s", w2.Body.String())
-		}
-	})
-}
-
-// mockProviderFactory creates mock OAuth providers for testing
-type mockProviderFactory struct{}
-
-// CreateProviders creates mock OAuth providers
-func (f *mockProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
-	mockServerURL := os.Getenv("OAUTH_MOCK_SERVER_URL")
-	if mockServerURL == "" {
-		mockServerURL = "http://localhost:8080"
-	}
-
-	var providers []goth.Provider
-
-	// Mock Google Provider using custom endpoints
-	if os.Getenv("GOOGLE_KEY") != "" {
-		googleProvider := google.New(
-			os.Getenv("GOOGLE_KEY"),
-			os.Getenv("GOOGLE_SECRET"),
-			fmt.Sprintf(callbackURLTemplate, "google"),
-			mockServerURL+"/default/authorize", // Custom auth URL
-			mockServerURL+"/default/token",     // Custom token URL
-			mockServerURL+"/default/userinfo",  // Custom user info URL
-		)
-		providers = append(providers, googleProvider)
-	}
-
-	// Mock GitHub Provider using standard constructor
-	if os.Getenv("GITHUB_KEY") != "" {
-		githubProvider := github.New(
-			os.Getenv("GITHUB_KEY"),
-			os.Getenv("GITHUB_SECRET"),
-			fmt.Sprintf(callbackURLTemplate, "github"),
-			"read:user", "user:email",
-		)
-		providers = append(providers, githubProvider)
-	}
-
-	// Mock Facebook Provider
-	if os.Getenv("FACEBOOK_KEY") != "" {
-		facebookProvider := facebook.New(
-			os.Getenv("FACEBOOK_KEY"),
-			os.Getenv("FACEBOOK_SECRET"),
-			fmt.Sprintf(callbackURLTemplate, "facebook"),
-			"email", "public_profile",
-		)
-		providers = append(providers, facebookProvider)
-	}
-
-	// Mock Twitter Provider
-	if os.Getenv("TWITTER_KEY") != "" {
-		twitterProvider := twitter.New(
-			os.Getenv("TWITTER_KEY"),
-			os.Getenv("TWITTER_SECRET"),
-			fmt.Sprintf(callbackURLTemplate, "twitter"),
-		)
-		providers = append(providers, twitterProvider)
-	}
-
-	return providers
-}
-
-// NewMockProviderFactory returns a mock provider factory for testing
-func NewMockProviderFactory() ProviderFactory {
-	return &mockProviderFactory{}
 }

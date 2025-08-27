@@ -49,6 +49,7 @@ import (
 	"github.com/markbates/goth/providers/nextcloud"
 	"github.com/markbates/goth/providers/okta"
 	"github.com/markbates/goth/providers/onedrive"
+	"github.com/markbates/goth/providers/openidConnect"
 	"github.com/markbates/goth/providers/patreon"
 	"github.com/markbates/goth/providers/paypal"
 	"github.com/markbates/goth/providers/salesforce"
@@ -92,9 +93,9 @@ func (f *ProductionProviderFactory) CreateProviders(callbackURLTemplate string) 
 		providers = append(providers, twitterv2.New(os.Getenv("TWITTER_KEY"), os.Getenv("TWITTER_SECRET"), fmt.Sprintf(callbackURLTemplate, "twitterv2")))
 	}
 	// Use twitterv2.NewAuthenticate instead of twitterv2.New for Elevated API Level
-	if v := os.Getenv("TWITTER_KEY"); v != "" {
-		providers = append(providers, twitterv2.NewAuthenticate(os.Getenv("TWITTER_KEY"), os.Getenv("TWITTER_SECRET"), fmt.Sprintf(callbackURLTemplate, "twitterv2")))
-	}
+	// if v := os.Getenv("TWITTER_KEY"); v != "" {
+	// 	providers = append(providers, twitterv2.NewAuthenticate(os.Getenv("TWITTER_KEY"), os.Getenv("TWITTER_SECRET"), fmt.Sprintf(callbackURLTemplate, "twitterv2")))
+	// }
 	if v := os.Getenv("TIKTOK_KEY"); v != "" {
 		providers = append(providers, tiktok.New(os.Getenv("TIKTOK_KEY"), os.Getenv("TIKTOK_SECRET"), fmt.Sprintf(callbackURLTemplate, "tiktok")))
 	}
@@ -271,6 +272,14 @@ func (f *ProductionProviderFactory) CreateProviders(callbackURLTemplate string) 
 		providers = append(providers, patreon.New(os.Getenv("PATREON_KEY"), os.Getenv("PATREON_SECRET"), fmt.Sprintf(callbackURLTemplate, "patreon")))
 	}
 
+	// OpenID Connect is based on OpenID Connect Auto Discovery URL (https://openid.net/specs/openid-connect-discovery-1_0-17.html)
+	// because the OpenID Connect provider initialize itself in the New(), it can return an error which should be handled or ignored
+	// ignore the error for now
+	openid, _ := openidConnect.New(os.Getenv("OPENID_CONNECT_KEY"), os.Getenv("OPENID_CONNECT_SECRET"), fmt.Sprintf(callbackURLTemplate, "openid-connect"), os.Getenv("OPENID_CONNECT_DISCOVERY_URL"))
+	if openid != nil {
+		providers = append(providers, openid)
+	}
+
 	return providers
 }
 
@@ -284,7 +293,8 @@ func DefaultProviderFactory() ProviderFactory {
 // the complete authentication flow including user session management.
 type Auth struct {
 	IController
-	callbackAddress string
+	callbackEndpoint string
+	providerFactory  ProviderFactory
 }
 
 // UserObject represents an authenticated user stored in the session.
@@ -293,10 +303,6 @@ type Auth struct {
 type UserObject struct {
 	Id   string    `json:"id"`   // Unique identifier for the user session
 	User goth.User `json:"user"` // Complete user information from OAuth2 provider
-}
-
-func providers(callbackEndpoint string) {
-	providersWithFactory(callbackEndpoint, DefaultProviderFactory())
 }
 
 func providersWithFactory(callbackEndpoint string, factory ProviderFactory) {
@@ -320,7 +326,25 @@ func providersWithFactory(callbackEndpoint string, factory ProviderFactory) {
 //
 // Returns a pointer to the configured Auth controller.
 func NewAuth(callbackEndpoint string) *Auth {
-	return &Auth{callbackAddress: callbackEndpoint}
+	return &Auth{
+		callbackEndpoint: callbackEndpoint,
+		providerFactory:  DefaultProviderFactory(),
+	}
+}
+
+// NewAuthWithFactory creates a new Auth controller with a custom provider factory.
+// This constructor is primarily intended for testing, allowing injection of mock providers.
+//
+// Parameters:
+//   - callbackEndpoint: The base URL where OAuth2 providers should redirect after authentication
+//   - factory: The provider factory to use for creating OAuth providers
+//
+// Returns a pointer to the configured Auth controller.
+func NewAuthWithFactory(callbackEndpoint string, factory ProviderFactory) *Auth {
+	return &Auth{
+		callbackEndpoint: callbackEndpoint,
+		providerFactory:  factory,
+	}
 }
 
 // NewAuthFromFlags creates an Auth controller factory function that reads
@@ -375,7 +399,7 @@ func LoginFunc(c *gin.Context) {
 }
 
 func (a *Auth) Bind(server *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
-	if a.callbackAddress == "" {
+	if a.callbackEndpoint == "" {
 		address := config.Address()
 		// Add http:// if not present
 		if !strings.Contains(address, "://") {
@@ -387,13 +411,15 @@ func (a *Auth) Bind(server *gin.Engine, config config.Config, loginMiddleware gi
 		}
 		if u.Hostname() == "0.0.0.0" {
 			log.Println("Auth callback endpoint is set to 0.0.0.0, changing it to localhost")
-			a.callbackAddress = u.Scheme + "://localhost" + ":" + u.Port()
+			a.callbackEndpoint = u.Scheme + "://localhost" + ":" + u.Port()
+		} else {
+			a.callbackEndpoint = u.Scheme + "://" + u.Hostname() + ":" + u.Port()
 		}
-		a.callbackAddress = u.Scheme + "://" + u.Hostname() + ":" + u.Port()
 	}
 
-	log.Printf("Callback endpoint: %q\n", a.callbackAddress)
-	providers(a.callbackAddress)
+	log.Printf("Callback endpoint: %q\n", a.callbackEndpoint)
+
+	providersWithFactory(a.callbackEndpoint, a.providerFactory)
 
 	server.Group("/auth").
 		Use(func(c *gin.Context) {
@@ -438,7 +464,9 @@ func (a *Auth) login(c *gin.Context) {
 
 func (a *Auth) callback(c *gin.Context) {
 	if user, err := gothic.CompleteUserAuth(c.Writer, c.Request); err != nil {
-		_ = c.AbortWithError(http.StatusForbidden, err)
+		err = c.Error(err)
+		c.JSON(http.StatusForbidden, err)
+		c.Abort()
 	} else {
 		a.success(c, user)
 	}

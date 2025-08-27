@@ -51,9 +51,33 @@ services:
     ports:
       - "8080:8080"
     hostname: host.docker.internal
+    environment:
+      LOG_LEVEL: DEBUG
+      JSON_CONFIG: |
+        {
+          "interactiveLogin": false,
+          "httpServer": "NettyWrapper",
+          "tokenCallbacks": [
+            {
+              "issuerId": "default",
+              "tokenExpiry": "120",
+              "requestMappings": [
+                {
+                  "requestParam": "grant_type",
+                  "match": "authorization_code",
+                  "claims": {
+                    "aud": "sargantana",
+                    "acr": "Level4",
+                    "groups": ["sargantana-users"],
+                    "sub": "test-user"
+                  }
+                }
+              ]
+            }
+          ]
+        }
     networks:
       - sargantana-network
-
 volumes:
   valkey_data:
     driver: local
