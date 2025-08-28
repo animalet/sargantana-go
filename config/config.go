@@ -18,10 +18,10 @@ type Config struct {
 
 // VaultConfig holds configuration for connecting to HashiCorp Vault
 type VaultConfig struct {
-	Address   string `yaml:"address"`   // Vault server address (e.g., "https://vault.example.com:8200")
-	Token     string `yaml:"token"`     // Vault authentication token
-	Path      string `yaml:"path"`      // Base path for secrets (e.g., "secret/data/myapp")
-	Namespace string `yaml:"namespace"` // Vault namespace (optional, for Vault Enterprise)
+	Address   string `yaml:"address"`
+	Token     string `yaml:"token"`
+	Path      string `yaml:"path"`
+	Namespace string `yaml:"namespace"`
 }
 
 // NewConfig creates a new Config instance with the provided parameters.

@@ -6,6 +6,7 @@ require (
 	github.com/gin-contrib/sessions v1.0.4
 	github.com/gin-gonic/gin v1.10.1
 	github.com/gomodule/redigo v1.9.2
+	github.com/hashicorp/vault/api v1.20.0
 	github.com/markbates/goth v1.82.0
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.2
 	github.com/pkg/errors v0.9.1
@@ -42,7 +43,6 @@ require (
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.2 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
-	github.com/hashicorp/vault/api v1.20.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
