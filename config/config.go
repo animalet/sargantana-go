@@ -7,11 +7,12 @@ package config
 // It encapsulates all necessary configuration parameters including network settings,
 // session storage options, security settings, and debugging preferences.
 type Config struct {
-	address           string
-	redisSessionStore string
-	secretsDir        string
-	debug             bool
-	sessionName       string
+	address           string                   `yaml:"address"`
+	redisSessionStore string                   `yaml:"redis_session_store"`
+	secretsDir        string                   `yaml:"secrets_dir"`
+	debug             bool                     `yaml:"debug"`
+	sessionName       string                   `yaml:"session_name"`
+	controllerConfig  []map[string]interface{} `yaml:"controller_config"`
 }
 
 // NewConfig creates a new Config instance with the provided parameters.
@@ -67,4 +68,11 @@ func (c *Config) Debug() bool {
 // to identify user sessions consistently across the application.
 func (c *Config) SessionName() string {
 	return c.sessionName
+}
+
+// ControllerConfig returns the controller configuration array.
+// Each element contains the type and configuration data for a controller
+// that should be initialized by the server.
+func (c *Config) ControllerConfig() []map[string]interface{} {
+	return c.controllerConfig
 }

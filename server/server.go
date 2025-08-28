@@ -13,9 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -198,45 +196,8 @@ func (s *Server) Start(appControllers ...controller.IController) error {
 	return nil
 }
 
-func (s *Server) loadSecrets() error {
-	if s.config.SecretsDir() == "" {
-		log.Println("No secrets directory configured, skipping secrets loading")
-		return nil
-	}
-
-	files, err := os.ReadDir(s.config.SecretsDir())
-	if err != nil {
-		return fmt.Errorf("error reading secrets directory %s: %v", s.config.SecretsDir(), err)
-	}
-	count := 0
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-		name := file.Name()
-		content, err := os.ReadFile(filepath.Join(s.config.SecretsDir(), name))
-		if err != nil {
-			return fmt.Errorf("error reading secret file %s: %v", name, err)
-		}
-		err = os.Setenv(strings.ToUpper(name), strings.TrimSpace(string(content)))
-		if err != nil {
-			return fmt.Errorf("error setting environment variable %s: %v", strings.ToUpper(name), err)
-		} else {
-			count += 1
-			if s.config.Debug() {
-				log.Printf("Set environment variable from secret %s\n", strings.ToUpper(name))
-			}
-		}
-	}
-	if s.config.Debug() {
-		log.Printf("Loaded %d secrets from %s\n", count, s.config.SecretsDir())
-	}
-
-	return nil
-}
-
 func (s *Server) bootstrap(appControllers ...controller.IController) error {
-	err := s.loadSecrets()
+	err := config.LoadSecretsFromDir(s.config.SecretsDir())
 	if err != nil {
 		return err
 	}
