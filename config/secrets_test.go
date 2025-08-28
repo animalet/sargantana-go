@@ -81,3 +81,112 @@ func TestSecrets_LoadSecretsWithInvalidFile(t *testing.T) {
 		t.Errorf("loadSecrets should skip directories without error: %v", err)
 	}
 }
+
+func TestLoadSecretsFromVault_EmptyConfig(t *testing.T) {
+	// Test with empty Vault configuration
+	vaultConfig := VaultConfig{}
+	err := LoadSecretsFromVault(vaultConfig)
+	if err != nil {
+		t.Errorf("Expected no error with empty config, got: %v", err)
+	}
+}
+
+func TestLoadSecretsFromVault_PartialConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		vaultConfig VaultConfig
+	}{
+		{
+			name: "missing token",
+			vaultConfig: VaultConfig{
+				Address: "https://vault.example.com:8200",
+				Path:    "secret/data/test",
+			},
+		},
+		{
+			name: "missing address",
+			vaultConfig: VaultConfig{
+				Token: "test-token",
+				Path:  "secret/data/test",
+			},
+		},
+		{
+			name: "missing path",
+			vaultConfig: VaultConfig{
+				Address: "https://vault.example.com:8200",
+				Token:   "test-token",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := LoadSecretsFromVault(tt.vaultConfig)
+			if err != nil {
+				t.Errorf("Expected no error with partial config, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestLoadSecrets_Integration(t *testing.T) {
+	// Create temporary directory for file-based secrets
+	tempDir := t.TempDir()
+
+	// Create a test secret file
+	err := os.WriteFile(filepath.Join(tempDir, "file_secret"), []byte("file_value"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test secret file: %v", err)
+	}
+
+	// Create config with both directory and empty Vault config
+	config := &Config{
+		secretsDir:  tempDir,
+		vaultConfig: VaultConfig{}, // Empty Vault config should be skipped
+	}
+
+	// Clear any existing environment variable
+	os.Unsetenv("FILE_SECRET")
+
+	err = LoadSecrets(config)
+	if err != nil {
+		t.Errorf("LoadSecrets failed: %v", err)
+	}
+
+	// Check that file secret was loaded
+	value := os.Getenv("FILE_SECRET")
+	if value != "file_value" {
+		t.Errorf("Expected FILE_SECRET to be 'file_value', got '%s'", value)
+	}
+
+	// Clean up
+	os.Unsetenv("FILE_SECRET")
+}
+
+func TestVaultConfig_Getters(t *testing.T) {
+	vaultConfig := VaultConfig{
+		Address:   "https://vault.example.com:8200",
+		Token:     "test-token",
+		Path:      "secret/data/myapp",
+		Namespace: "test-namespace",
+	}
+
+	config := &Config{
+		vaultConfig: vaultConfig,
+	}
+
+	retrievedConfig := config.VaultConfig()
+
+	if retrievedConfig.Address != vaultConfig.Address {
+		t.Errorf("Expected Address %s, got %s", vaultConfig.Address, retrievedConfig.Address)
+	}
+	if retrievedConfig.Token != vaultConfig.Token {
+		t.Errorf("Expected Token %s, got %s", vaultConfig.Token, retrievedConfig.Token)
+	}
+	if retrievedConfig.Path != vaultConfig.Path {
+		t.Errorf("Expected Path %s, got %s", vaultConfig.Path, retrievedConfig.Path)
+	}
+	if retrievedConfig.Namespace != vaultConfig.Namespace {
+		t.Errorf("Expected Namespace %s, got %s", vaultConfig.Namespace, retrievedConfig.Namespace)
+	}
+}

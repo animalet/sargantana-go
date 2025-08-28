@@ -8,6 +8,13 @@ secrets_dir: "/run/secrets"            # Directory containing secret files
 debug: true                           # Enable debug mode
 session_name: "sargantana_session"    # Session cookie name
 
+# Vault configuration for loading secrets from HashiCorp Vault
+vault:
+  address: "https://vault.example.com:8200"  # Vault server address
+  token: "${VAULT_TOKEN}"                     # Vault authentication token (can use env var)
+  path: "secret/data/myapp"                   # Path to secrets in Vault (for KV v2 engine)
+  namespace: ""                               # Optional: Vault namespace for Enterprise (leave empty for OSS)
+
 # Controller configurations using the new typed system
 controller_config:
   # Static file controller

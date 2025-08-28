@@ -16,5 +16,6 @@ func LoadYaml(file string, out interface{}) error {
 	if err != nil {
 		return err
 	}
+
 	return yaml.Unmarshal(data, out)
 }

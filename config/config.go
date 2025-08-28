@@ -10,9 +10,18 @@ type Config struct {
 	address           string                   `yaml:"address"`
 	redisSessionStore string                   `yaml:"redis_session_store"`
 	secretsDir        string                   `yaml:"secrets_dir"`
+	vaultConfig       VaultConfig              `yaml:"vault"`
 	debug             bool                     `yaml:"debug"`
 	sessionName       string                   `yaml:"session_name"`
 	controllerConfig  []map[string]interface{} `yaml:"controller_config"`
+}
+
+// VaultConfig holds configuration for connecting to HashiCorp Vault
+type VaultConfig struct {
+	Address   string `yaml:"address"`   // Vault server address (e.g., "https://vault.example.com:8200")
+	Token     string `yaml:"token"`     // Vault authentication token
+	Path      string `yaml:"path"`      // Base path for secrets (e.g., "secret/data/myapp")
+	Namespace string `yaml:"namespace"` // Vault namespace (optional, for Vault Enterprise)
 }
 
 // NewConfig creates a new Config instance with the provided parameters.
@@ -75,4 +84,11 @@ func (c *Config) SessionName() string {
 // that should be initialized by the server.
 func (c *Config) ControllerConfig() []map[string]interface{} {
 	return c.controllerConfig
+}
+
+// VaultConfig returns the Vault configuration settings.
+// This includes the Vault server address, authentication token, base path for secrets,
+// and optional namespace for Vault Enterprise.
+func (c *Config) VaultConfig() VaultConfig {
+	return c.vaultConfig
 }
