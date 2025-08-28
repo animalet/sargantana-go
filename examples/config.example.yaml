@@ -1,0 +1,97 @@
+# Example configuration using typed controller configurations
+# This demonstrates how each controller can have its own dedicated configuration struct
+
+# Server configuration
+address: "localhost:8080"
+redis_session_store: "localhost:6379"  # Optional: Redis for session storage, default is cookie-based
+session_secret: "${SESSION_SECRET}" # Secret for signing session cookies, mandatory
+secrets_dir: "/run/secrets"            # Directory containing secret files
+debug: true                           # Enable debug mode
+session_name: "sargantana_session"    # Session cookie name
+
+# Controller configurations using the new typed system
+controller_config:
+  # Static file controller
+  - type: "static"
+    config:
+      statics_dir: "./static"      # Directory for static files (CSS, JS, images)
+      templates_dir: "./templates" # Directory for HTML templates
+
+  # Load balancer controller
+  - type: "load_balancer"
+  - name: "dmz"
+    config:
+      endpoints: # Backend servers to load balance
+        - "http://backend1:8081"
+        - "http://backend2:8082"
+        - "http://backend3:8083"
+      path: "/api1/*"             # Path pattern to load balance
+      auth: false                 # Require authentication
+
+  - type: "load_balancer"
+  - name: "internal"
+    config:
+      endpoints: # Backend servers to load balance
+        - "http://backend3:8081"
+        - "http://backend4:8082"
+        - "http://backend5:8083"
+      path: "/api2/*"             # Path pattern to load balance
+      auth: true                 # Require authentication
+
+  # Authentication controller
+  - type: "auth"
+    config:
+      callback_url: "https://myapp.com"           # Base URL for OAuth callbacks
+      login_path: "/auth/{provider}"              # Login endpoint pattern
+      logout_path: "/logout/{provider}"           # Logout endpoint pattern
+      callback_path: "/auth/{provider}/callback"  # OAuth callback pattern
+      user_info_path: "/user"                      # User info endpoint
+      redirect_on_login: "/"                       # Where to redirect after login
+      providers: # OAuth provider configurations
+        openid-connect:
+          key: "${OPENID_CONNECT_KEY}"
+          secret: "${OPENID_CONNECT_SECRET}"
+          url: "${OPENID_CONNECT_DISCOVERY_URL}"  # OpenID Connect discovery URL
+          scopes:
+            - "openid"
+            - "profile"
+            - "email"
+        github:
+          key: "${GITHUB_KEY}"                   # GitHub OAuth app key
+          secret: "${GITHUB_SECRET}"             # GitHub OAuth app secret
+          scopes: # Requested OAuth scopes
+            - "read:user"
+            - "user:email"
+        google:
+          key: "${GOOGLE_KEY}"
+          secret: "${GOOGLE_SECRET}"
+          scopes:
+            - "openid"
+            - "profile"
+            - "email"
+        auth0:
+          key: "${AUTH0_KEY}"
+          secret: "${AUTH0_SECRET}"
+          domain: "${AUTH0_DOMAIN}"              # Auth0 tenant domain
+        discord:
+          key: "${DISCORD_KEY}"
+          secret: "${DISCORD_SECRET}"
+          scopes:
+            - "identify"
+            - "email"
+        facebook:
+          key: "${FACEBOOK_KEY}"
+          secret: "${FACEBOOK_SECRET}"
+          scopes:
+            - "email"
+            - "public_profile"
+        nextcloud:
+          key: "${NEXTCLOUD_KEY}"
+          secret: "${NEXTCLOUD_SECRET}"
+          url: "${NEXTCLOUD_URL}"               # Nextcloud instance URL
+        gitlab:
+          key: "${GITLAB_KEY}"
+          secret: "${GITLAB_SECRET}"
+          scopes:
+            - "read_user"
+            - "read_api"

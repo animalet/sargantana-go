@@ -84,11 +84,11 @@ deps:
 
 # Testing
 test:
-	@echo "Running backend tests..."
+	@echo "Running tests..."
 	go test ./...
 
 test-coverage:
-	@echo "Running backend tests with coverage..."
+	@echo "Running tests with coverage..."
 	go test ./... -covermode=atomic -coverprofile=coverage.out
 
 check-coverage: test-coverage install-go-test-coverage
