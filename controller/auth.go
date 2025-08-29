@@ -79,7 +79,16 @@ import (
 type authConfigurator struct {
 }
 
-func NewAuthConfigurator() IControllerConfigurator {
+type AuthControllerConfig struct {
+	CallbackPath     string `yaml:"callback_path"`
+	LoginPath        string `yaml:"login_path"`
+	LogoutPath       string `yaml:"logout_path"`
+	UserInfoPath     string `yaml:"user_info_path"`
+	RedirectOnLogin  string `yaml:"redirect_on_login"`
+	RedirectOnLogout string `yaml:"redirect_on_logout"`
+}
+
+func NewAuthConfigurator() IConfigurator {
 	return &authConfigurator{}
 }
 
@@ -87,7 +96,12 @@ func (a *authConfigurator) ForType() string {
 	return "auth"
 }
 
-func (a *authConfigurator) Configure(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
+func (a *authConfigurator) Configure(configData config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
+	var c *AuthControllerConfig
+	err := configData.To(c)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal auth controller config")
+	}
 	address := serverConfig.Address
 	// Add http:// if not present
 	if !strings.Contains(address, "://") {
@@ -105,7 +119,7 @@ func (a *authConfigurator) Configure(controllerConfig config.ControllerConfig, s
 		callbackEndpoint = u.Scheme + "://" + u.Hostname() + ":" + u.Port()
 	}
 
-	callbackPath := controllerConfig["callback_path"].(string)
+	callbackPath := c.CallbackPath
 	callbackURLTemplate := callbackEndpoint + "/" + strings.TrimPrefix(callbackPath, "/")
 
 	gob.Register(UserObject{})
@@ -115,11 +129,11 @@ func (a *authConfigurator) Configure(controllerConfig config.ControllerConfig, s
 	}
 
 	return &auth{
-		loginPath:        a.providerToGin(controllerConfig["login_path"].(string)),
-		logoutPath:       a.providerToGin(controllerConfig["logout_path"].(string)),
-		userInfoPath:     a.providerToGin(controllerConfig["user_info_path"].(string)),
-		redirectOnLogin:  a.providerToGin(controllerConfig["redirect_on_login"].(string)),
-		redirectOnLogout: a.providerToGin(controllerConfig["redirect_on_logout"].(string)),
+		loginPath:        a.providerToGin(c.LoginPath),
+		logoutPath:       a.providerToGin(c.LogoutPath),
+		userInfoPath:     a.providerToGin(c.UserInfoPath),
+		redirectOnLogin:  a.providerToGin(c.RedirectOnLogin),
+		redirectOnLogout: a.providerToGin(c.RedirectOnLogout),
 		callbackPath:     a.providerToGin(callbackPath),
 	}, nil
 }

@@ -17,14 +17,25 @@ import (
 type loadBalancerConfigurator struct {
 }
 
-func NewLoadBalancerConfigurator() IControllerConfigurator {
+type LoadBalancerControllerConfig struct {
+	Auth      bool     `yaml:"auth"`
+	Path      string   `yaml:"path"`
+	Endpoints []string `yaml:"endpoints"`
+}
+
+func NewLoadBalancerConfigurator() IConfigurator {
 	return &loadBalancerConfigurator{}
 }
 
-func (l *loadBalancerConfigurator) Configure(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
-	auth := controllerConfig["auth"].(bool)
-	path := strings.TrimSuffix(controllerConfig["path"].(string), "/") + "/*proxyPath"
-	stringEndpoints := controllerConfig["endpoints"].([]any)
+func (a *loadBalancerConfigurator) Configure(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
+	var c LoadBalancerControllerConfig
+	err := configData.To(c)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse load balancer controller config")
+	}
+	auth := c.Auth
+	path := strings.TrimSuffix(c.Path, "/") + "/*proxyPath"
+	stringEndpoints := c.Endpoints
 	endpoints := make([]url.URL, 0, len(stringEndpoints))
 	if len(stringEndpoints) == 0 {
 		return nil, errors.New("no endpoints provided for load balancing")
@@ -33,7 +44,7 @@ func (l *loadBalancerConfigurator) Configure(controllerConfig config.ControllerC
 		log.Printf("Load balancing authentication: %t\n", auth)
 		log.Printf("Load balanced endpoints:")
 		for _, endpoint := range stringEndpoints {
-			u, err := url.Parse(endpoint.(string))
+			u, err := url.Parse(endpoint)
 			if err != nil {
 				return nil, errors.Wrap(err, fmt.Sprintf("failed to parse load balancer path: %s", path))
 			}
@@ -57,7 +68,7 @@ func (l *loadBalancerConfigurator) Configure(controllerConfig config.ControllerC
 	}, nil
 }
 
-func (l *loadBalancerConfigurator) ForType() string {
+func (a *loadBalancerConfigurator) ForType() string {
 	return "load_balancer"
 }
 
@@ -81,9 +92,21 @@ func (l *loadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc)
 	}
 
 	if l.auth {
-		engine.Any(l.path, loginMiddleware, l.forward)
+		engine.GET(l.path, loginMiddleware, l.forward).
+			POST(l.path, loginMiddleware, l.forward).
+			PUT(l.path, loginMiddleware, l.forward).
+			DELETE(l.path, loginMiddleware, l.forward).
+			PATCH(l.path, loginMiddleware, l.forward).
+			HEAD(l.path, loginMiddleware, l.forward).
+			OPTIONS(l.path, loginMiddleware, l.forward)
 	} else {
-		engine.Any(l.path, l.forward)
+		engine.GET(l.path, l.forward).
+			POST(l.path, l.forward).
+			PUT(l.path, l.forward).
+			DELETE(l.path, l.forward).
+			PATCH(l.path, l.forward).
+			HEAD(l.path, l.forward).
+			OPTIONS(l.path, l.forward)
 	}
 }
 
@@ -100,15 +123,7 @@ func (l *loadBalancer) nextEndpoint() url.URL {
 	return l.endpoints[l.endpointIndex]
 }
 
-var allowedMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "PATCH": true, "HEAD": true, "OPTIONS": true}
-
 func (l *loadBalancer) forward(c *gin.Context) {
-	// Only allow safe HTTP methods
-	if !allowedMethods[c.Request.Method] {
-		c.AbortWithStatus(http.StatusMethodNotAllowed)
-		return
-	}
-
 	endpoint := l.nextEndpoint()
 	// Build the target URL using only path and raw query
 	targetUrl := url.URL{

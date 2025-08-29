@@ -50,7 +50,7 @@ controllers:
     config:
       callback_url: "https://myapp.com"           # Base URL for OAuth callbacks
       login_path: "/auth/{provider}"              # Login endpoint pattern
-      logout_path: "/logout/{provider}"           # Logout endpoint pattern
+      logout_path: "/auth/{provider}/logout"           # Logout endpoint pattern
       callback_path: "/auth/{provider}/callback"  # OAuth callback pattern
       user_info_path: "/user"                      # User info endpoint
       redirect_on_login: "/"                       # Where to redirect after login

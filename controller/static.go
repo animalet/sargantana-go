@@ -13,24 +13,44 @@ import (
 type staticConfigurator struct {
 }
 
-func (s staticConfigurator) ForType() string {
+func NewStaticConfigurator() IConfigurator {
+	return &staticConfigurator{}
+}
+
+type StaticControllerConfig struct {
+	StaticsDir       string `yaml:"statics_dir,omitempty"`
+	HtmlTemplatesDir string `yaml:"templates_dir,omitempty"`
+}
+
+func (a *staticConfigurator) ForType() string {
 	return "static"
 }
 
-func (s staticConfigurator) Configure(controllerConfig config.ControllerConfig, _ config.ServerConfig) (IController, error) {
-	staticsDir := controllerConfig["statics_dir"].(string)
-	htmlTemplatesDir := controllerConfig["templates_dir"].(string)
-	log.Printf("Statics directory: %q\n", staticsDir)
-	log.Printf("Templates directory: %q\n", htmlTemplatesDir)
+func (a *staticConfigurator) Configure(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
+	var c StaticControllerConfig
+	err := configData.To(&c)
+	if err != nil {
+		return nil, err
+	}
 
+	log.Printf("Statics directory: %q\n", c.StaticsDir)
+	log.Printf("Templates directory: %q\n", c.HtmlTemplatesDir)
+
+	// Ensure the statics directory exists
+	if stat, err := os.Stat(c.StaticsDir); err != nil || !stat.IsDir() {
+		log.Printf("Warning: Statics directory %q does not exist or is not a directory. Continuing without statics.", c.StaticsDir)
+	}
+
+	// Ensure the templates directory exists (if provided)
+	if c.HtmlTemplatesDir != "" {
+		if stat, err := os.Stat(c.HtmlTemplatesDir); err != nil || !stat.IsDir() {
+			log.Printf("Warning: Templates directory %q does not exist or is not a directory. Continuing without templates.", c.HtmlTemplatesDir)
+		}
+	}
 	return &static{
-		staticsDir:       staticsDir,
-		htmlTemplatesDir: htmlTemplatesDir,
+		staticsDir:       c.StaticsDir,
+		htmlTemplatesDir: c.HtmlTemplatesDir,
 	}, nil
-}
-
-func NewStaticConfigurator() IControllerConfigurator {
-	return &staticConfigurator{}
 }
 
 // static is a controller that serves static files and HTML templates.
@@ -56,37 +76,41 @@ type static struct {
 //   - _: Server configuration (unused by this controller)
 //   - _: Login middleware function (unused by this controller)
 func (s *static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
-	engine.Static("/static", s.staticsDir)
-	engine.GET("/", func(c *gin.Context) {
-		c.Header("Content-Type", "text/html")
-		c.File(s.staticsDir + "/index.html")
-	})
-
-	if stat, err := os.Stat(s.htmlTemplatesDir); stat != nil && stat.IsDir() {
-		// check if dir is empty
-		var found bool
-		err = filepath.WalkDir(s.htmlTemplatesDir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if !d.IsDir() {
-				found = true
-			}
-			return nil
+	if s.staticsDir != "" {
+		engine.Static("/static", s.staticsDir)
+		engine.GET("/", func(c *gin.Context) {
+			c.Header("Content-Type", "text/html")
+			c.File(s.staticsDir + "/index.html")
 		})
+	}
 
-		if err != nil {
-			log.Printf("Error walking through templates directory: %v", err)
-			return
-		}
+	if s.htmlTemplatesDir != "" {
+		if stat, err := os.Stat(s.htmlTemplatesDir); stat != nil && stat.IsDir() {
+			// check if dir is empty
+			var found bool
+			err = filepath.WalkDir(s.htmlTemplatesDir, func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if !d.IsDir() {
+					found = true
+				}
+				return nil
+			})
 
-		if found {
-			engine.LoadHTMLGlob(s.htmlTemplatesDir + "/**")
+			if err != nil {
+				log.Printf("Error walking through templates directory: %v", err)
+				return
+			}
+
+			if found {
+				engine.LoadHTMLGlob(s.htmlTemplatesDir + "/**")
+			} else {
+				log.Printf("Templates directory present but no files found, skipping templates.")
+			}
 		} else {
-			log.Printf("Templates directory present but no files found, skipping templates.")
+			log.Printf("Templates directory not present: %v", err)
 		}
-	} else {
-		log.Printf("Templates directory not present: %v", err)
 	}
 }
 

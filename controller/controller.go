@@ -30,7 +30,7 @@ type IController interface {
 	Close() error
 }
 
-type IControllerConfigurator interface {
+type IConfigurator interface {
 	ForType() string
 	Configure(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (IController, error)
 }

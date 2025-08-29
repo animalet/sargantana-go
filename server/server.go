@@ -53,7 +53,7 @@ type serverFlags struct {
 //
 // Returns:
 //   - *Server: The configured server instance
-func NewServer(configFile string, controllerConfigurators ...controller.IControllerConfigurator) (*Server, error) {
+func NewServer(configFile string, controllerConfigurators ...controller.IConfigurator) (*Server, error) {
 	c, err := config.Load(configFile)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to load config file: %s", configFile))
@@ -72,7 +72,7 @@ func NewServer(configFile string, controllerConfigurators ...controller.IControl
 	return &Server{config: c, controllers: controllers}, nil
 }
 
-func configureControllers(c *config.Config, configMap map[string]controller.IControllerConfigurator) ([]controller.IController, error) {
+func configureControllers(c *config.Config, configMap map[string]controller.IConfigurator) ([]controller.IController, error) {
 	var controllers []controller.IController
 	for _, binding := range c.ControllerBindings {
 		forType := binding.TypeName
@@ -97,8 +97,8 @@ func configureControllers(c *config.Config, configMap map[string]controller.ICon
 	return controllers, nil
 }
 
-func registerConfigurators(configurators []controller.IControllerConfigurator) (map[string]controller.IControllerConfigurator, error) {
-	var configMap = make(map[string]controller.IControllerConfigurator)
+func registerConfigurators(configurators []controller.IConfigurator) (map[string]controller.IConfigurator, error) {
+	var configMap = make(map[string]controller.IConfigurator)
 	for _, binding := range configurators {
 		forType := binding.ForType()
 		if _, exists := configMap[forType]; exists {
@@ -126,7 +126,7 @@ func (s *Server) StartAndWaitForSignal() error {
 // Start initializes the server components and starts listening for incoming HTTP requests.
 // It configures the server based on the provided flags, loads secrets, and sets up the router and middleware.
 // This function must be called before the server can handle requests.
-func (s *Server) Start(controllerInitializers ...controller.IControllerConfigurator) error {
+func (s *Server) Start(controllerInitializers ...controller.IConfigurator) error {
 	if s.config.ServerConfig.Debug {
 		log.Printf("Debug mode is enabled\n")
 		log.Printf("Secrets directory: %q\n", s.config.ServerConfig.SecretsDir)
