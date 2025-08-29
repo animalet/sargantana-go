@@ -3,26 +3,28 @@
 // debug mode, and session naming.
 package config
 
-// Config holds the configuration settings for the Sargantana Go server.
-// It encapsulates all necessary configuration parameters including network settings,
-// session storage options, security settings, and debugging preferences.
-type Config struct {
-	address           string                   `yaml:"address"`
-	redisSessionStore string                   `yaml:"redis_session_store"`
-	secretsDir        string                   `yaml:"secrets_dir"`
-	vaultConfig       VaultConfig              `yaml:"vault"`
-	debug             bool                     `yaml:"debug"`
-	sessionName       string                   `yaml:"session_name"`
-	controllerConfig  []map[string]interface{} `yaml:"controller_config"`
-}
-
-// VaultConfig holds configuration for connecting to HashiCorp Vault
-type VaultConfig struct {
-	Address   string `yaml:"address"`
-	Token     string `yaml:"token"`
-	Path      string `yaml:"path"`
-	Namespace string `yaml:"namespace"`
-}
+type (
+	// Config holds the configuration settings for the Sargantana Go server.
+	// It encapsulates all necessary configuration parameters including network settings,
+	// session storage options, security settings, and debugging preferences.
+	Config struct {
+		address           string           `yaml:"address"`
+		redisSessionStore string           `yaml:"redis_session_store"`
+		secretsDir        string           `yaml:"secrets_dir"`
+		vaultConfig       VaultConfig      `yaml:"vault"`
+		debug             bool             `yaml:"debug"`
+		sessionName       string           `yaml:"session_name"`
+		controllerConfig  []map[string]any `yaml:"controller_config"`
+		sessionSecret     string           `yaml:"session_secret"`
+	}
+	// VaultConfig holds configuration for connecting to HashiCorp Vault
+	VaultConfig struct {
+		address   string `yaml:"address"`
+		token     string `yaml:"token"`
+		path      string `yaml:"path"`
+		namespace string `yaml:"namespace"`
+	}
+)
 
 // NewConfig creates a new Config instance with the provided parameters.
 // It initializes all configuration fields with the given values.
@@ -82,7 +84,7 @@ func (c *Config) SessionName() string {
 // ControllerConfig returns the controller configuration array.
 // Each element contains the type and configuration data for a controller
 // that should be initialized by the server.
-func (c *Config) ControllerConfig() []map[string]interface{} {
+func (c *Config) ControllerConfig() []map[string]any {
 	return c.controllerConfig
 }
 
@@ -91,4 +93,40 @@ func (c *Config) ControllerConfig() []map[string]interface{} {
 // and optional namespace for Vault Enterprise.
 func (c *Config) VaultConfig() VaultConfig {
 	return c.vaultConfig
+}
+
+// SessionSecret returns the secret key used for signing session cookies.
+// This value can hold environment variable references (e.g., "${SESSION_SECRET}")
+// which should be expanded at runtime to enhance security by avoiding hardcoded secrets.
+func (c *Config) SessionSecret() string {
+	return c.sessionSecret
+}
+
+// IsValid checks if the VaultConfig has all required fields set.
+func (v *VaultConfig) IsValid() bool {
+	return v.address != "" && v.token != "" && v.path != ""
+}
+
+// Address returns the Vault server address.
+// This is the URL of the Vault instance to connect to (e.g., "http://localhost:8200").
+func (v *VaultConfig) Address() string {
+	return v.address
+}
+
+// Path returns the base path in Vault where secrets are stored.
+// This path is used to read key-value pairs that will be loaded as environment variables.
+func (v *VaultConfig) Path() string {
+	return v.path
+}
+
+// Namespace returns the Vault namespace for Enterprise installations.
+func (v *VaultConfig) Namespace() string {
+	return v.namespace
+}
+
+// Token returns the authentication token used to connect to Vault.
+// This value can hold environment variable references (e.g., "${SESSION_SECRET}")
+// which should be expanded at runtime to enhance security by avoiding hardcoded secrets.
+func (v *VaultConfig) Token() string {
+	return v.token
 }

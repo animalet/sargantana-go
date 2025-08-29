@@ -179,7 +179,7 @@ func TestRedisSessionStore_AuthenticationBehavior(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		mockResponse interface{}
+		mockResponse any
 		mockError    error
 	}{
 		{

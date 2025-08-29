@@ -102,22 +102,22 @@ func TestLoadSecretsFromVault_PartialConfig(t *testing.T) {
 		{
 			name: "missing token",
 			vaultConfig: VaultConfig{
-				Address: "https://vault.example.com:8200",
-				Path:    "secret/data/test",
+				address: "https://vault.example.com:8200",
+				path:    "secret/data/test",
 			},
 		},
 		{
 			name: "missing address",
 			vaultConfig: VaultConfig{
-				Token: "test-token",
-				Path:  "secret/data/test",
+				token: "test-token",
+				path:  "secret/data/test",
 			},
 		},
 		{
 			name: "missing path",
 			vaultConfig: VaultConfig{
-				Address: "https://vault.example.com:8200",
-				Token:   "test-token",
+				address: "https://vault.example.com:8200",
+				token:   "test-token",
 			},
 		},
 	}
@@ -168,10 +168,10 @@ func TestLoadSecrets_Integration(t *testing.T) {
 
 func TestVaultConfig_Getters(t *testing.T) {
 	vaultConfig := VaultConfig{
-		Address:   "https://vault.example.com:8200",
-		Token:     "test-token",
-		Path:      "secret/data/myapp",
-		Namespace: "test-namespace",
+		address:   "https://vault.example.com:8200",
+		token:     "test-token",
+		path:      "secret/data/myapp",
+		namespace: "test-namespace",
 	}
 
 	config := &Config{
@@ -180,17 +180,17 @@ func TestVaultConfig_Getters(t *testing.T) {
 
 	retrievedConfig := config.VaultConfig()
 
-	if retrievedConfig.Address != vaultConfig.Address {
-		t.Errorf("Expected Address %s, got %s", vaultConfig.Address, retrievedConfig.Address)
+	if retrievedConfig.address != vaultConfig.address {
+		t.Errorf("Expected Address %s, got %s", vaultConfig.address, retrievedConfig.address)
 	}
-	if retrievedConfig.Token != vaultConfig.Token {
-		t.Errorf("Expected Token %s, got %s", vaultConfig.Token, retrievedConfig.Token)
+	if retrievedConfig.token != vaultConfig.token {
+		t.Errorf("Expected Token %s, got %s", vaultConfig.token, retrievedConfig.token)
 	}
-	if retrievedConfig.Path != vaultConfig.Path {
-		t.Errorf("Expected Path %s, got %s", vaultConfig.Path, retrievedConfig.Path)
+	if retrievedConfig.path != vaultConfig.path {
+		t.Errorf("Expected Path %s, got %s", vaultConfig.path, retrievedConfig.path)
 	}
-	if retrievedConfig.Namespace != vaultConfig.Namespace {
-		t.Errorf("Expected Namespace %s, got %s", vaultConfig.Namespace, retrievedConfig.Namespace)
+	if retrievedConfig.namespace != vaultConfig.namespace {
+		t.Errorf("Expected Namespace %s, got %s", vaultConfig.namespace, retrievedConfig.namespace)
 	}
 }
 
@@ -217,9 +217,9 @@ func TestVaultIntegration_DockerContainer(t *testing.T) {
 		{
 			name: "successful connection to vault container with KV v2",
 			vaultConfig: VaultConfig{
-				Address: "http://localhost:8200",
-				Token:   "dev-root-token",
-				Path:    "secret/data/sargantana",
+				address: "http://localhost:8200",
+				token:   "dev-root-token",
+				path:    "secret/data/sargantana",
 			},
 			expectError: false,
 			expectEnvs: map[string]string{
@@ -231,9 +231,9 @@ func TestVaultIntegration_DockerContainer(t *testing.T) {
 		{
 			name: "successful connection to vault container with KV v1",
 			vaultConfig: VaultConfig{
-				Address: "http://localhost:8200",
-				Token:   "dev-root-token",
-				Path:    "secret/sargantana",
+				address: "http://localhost:8200",
+				token:   "dev-root-token",
+				path:    "secret/sargantana",
 			},
 			expectError: false,
 			expectEnvs: map[string]string{
@@ -245,18 +245,18 @@ func TestVaultIntegration_DockerContainer(t *testing.T) {
 		{
 			name: "invalid token",
 			vaultConfig: VaultConfig{
-				Address: "http://localhost:8200",
-				Token:   "invalid-token",
-				Path:    "secret/data/sargantana",
+				address: "http://localhost:8200",
+				token:   "invalid-token",
+				path:    "secret/data/sargantana",
 			},
 			expectError: true,
 		},
 		{
 			name: "non-existent path",
 			vaultConfig: VaultConfig{
-				Address: "http://localhost:8200",
-				Token:   "dev-root-token",
-				Path:    "secret/data/nonexistent",
+				address: "http://localhost:8200",
+				token:   "dev-root-token",
+				path:    "secret/data/nonexistent",
 			},
 			expectError: false, // Should not error, just no secrets loaded
 		},
@@ -331,9 +331,9 @@ func TestLoadSecrets_IntegrationWithVaultContainer(t *testing.T) {
 	config := &Config{
 		secretsDir: tempDir,
 		vaultConfig: VaultConfig{
-			Address: "http://localhost:8200",
-			Token:   "dev-root-token",
-			Path:    "secret/data/sargantana",
+			address: "http://localhost:8200",
+			token:   "dev-root-token",
+			path:    "secret/data/sargantana",
 		},
 	}
 

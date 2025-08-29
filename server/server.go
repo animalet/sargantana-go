@@ -205,7 +205,7 @@ func (s *Server) bootstrap(appControllers ...controller.IController) error {
 	engine := gin.New()
 	isReleaseMode := gin.Mode() == gin.ReleaseMode
 	var sessionStore sessions.Store
-	sessionSecret := []byte(os.Getenv("SESSION_SECRET"))
+	sessionSecret := []byte(os.ExpandEnv(s.config.SessionSecret()))
 	if s.config.RedisSessionStore() == "" {
 		log.Println("Using cookies for session storage")
 		sessionStore = session.NewCookieStore(isReleaseMode, sessionSecret)

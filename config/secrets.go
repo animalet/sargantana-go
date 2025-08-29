@@ -47,14 +47,14 @@ func LoadSecretsFromDir(dir string) error {
 // It connects to Vault using the provided configuration and retrieves all key-value pairs from the specified path.
 // Each key is converted to uppercase and set as an environment variable.
 func LoadSecretsFromVault(vaultConfig VaultConfig) error {
-	if vaultConfig.Address == "" || vaultConfig.Token == "" || vaultConfig.Path == "" {
+	if vaultConfig.IsValid() {
 		log.Println("Vault configuration incomplete, skipping Vault secrets loading")
 		return nil
 	}
 
 	// Create Vault client configuration
 	config := api.DefaultConfig()
-	config.Address = vaultConfig.Address
+	config.Address = vaultConfig.Address()
 
 	// Create Vault client
 	client, err := api.NewClient(config)
@@ -63,33 +63,35 @@ func LoadSecretsFromVault(vaultConfig VaultConfig) error {
 	}
 
 	// Set the token for authentication
-	client.SetToken(os.ExpandEnv(vaultConfig.Token))
+	client.SetToken(os.ExpandEnv(vaultConfig.Token()))
 
 	// Set namespace if provided (for Vault Enterprise)
-	if vaultConfig.Namespace != "" {
-		client.SetNamespace(vaultConfig.Namespace)
+	namespace := vaultConfig.Namespace()
+	if namespace != "" {
+		client.SetNamespace(namespace)
 	}
 
 	// Read secrets from the specified path
-	secret, err := client.Logical().Read(vaultConfig.Path)
+	path := vaultConfig.Path()
+	secret, err := client.Logical().Read(path)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("error reading secrets from Vault path %s", vaultConfig.Path))
+		return errors.Wrap(err, fmt.Sprintf("error reading secrets from Vault path %s", path))
 	}
 
 	if secret == nil {
-		log.Printf("No secret found at Vault path %s", vaultConfig.Path)
+		log.Printf("No secret found at Vault path %s", path)
 		return nil
 	}
 
 	// Extract data from the secret
-	var data map[string]interface{}
+	var data map[string]any
 	if secret.Data != nil {
 		// For KV v2 secrets engine, data is nested under "data" key
 		if dataField, exists := secret.Data["data"]; exists {
-			if dataMap, ok := dataField.(map[string]interface{}); ok {
+			if dataMap, ok := dataField.(map[string]any); ok {
 				data = dataMap
 			} else {
-				return fmt.Errorf("unexpected data format in Vault secret at path %s", vaultConfig.Path)
+				return fmt.Errorf("unexpected data format in Vault secret at path %s", path)
 			}
 		} else {
 			// For KV v1 secrets engine or other engines, data is directly in secret.Data
@@ -98,7 +100,7 @@ func LoadSecretsFromVault(vaultConfig VaultConfig) error {
 	}
 
 	if data == nil {
-		log.Printf("No data found in Vault secret at path %s", vaultConfig.Path)
+		log.Printf("No data found in Vault secret at path %s", path)
 		return nil
 	}
 
@@ -117,7 +119,7 @@ func LoadSecretsFromVault(vaultConfig VaultConfig) error {
 		}
 	}
 
-	log.Printf("Successfully loaded %d secrets from Vault path %s", count, vaultConfig.Path)
+	log.Printf("Successfully loaded %d secrets from Vault path %s", count, path)
 	return nil
 }
 
