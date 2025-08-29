@@ -5,16 +5,16 @@
 server:
   address: "localhost:8080"
   redis_session_store: "localhost:6379"  # Optional: Redis for session storage, default is cookie-based
-  secrets_dir: "/run/secrets"            # Directory containing secret files
+  secrets_dir: ".secrets"            # Directory containing secret files
   debug: true                           # Enable debug mode
   session_name: "sargantana_session"    # Session cookie name
   session_secret: "${SESSION_SECRET}"  # Session secret (can use env var)
 
-vault:
-  address: "https://vault.example.com:8200"  # Vault server address
-  token: "${VAULT_TOKEN}"                     # Vault authentication token (can use env var)
-  path: "secret/data/myapp"                   # Path to secrets in Vault (for KV v2 engine)
-  namespace: ""                               # Optional: Vault namespace for Enterprise (leave empty for OSS)
+# vault:
+#   address: "https://localhost:8200"  # Vault server address
+#   token: "${VAULT_TOKEN}"                     # Vault authentication token (can use env var)
+#   path: "secret/data/myapp"                   # Path to secrets in Vault (for KV v2 engine)
+#   namespace: ""                               # Optional: Vault namespace for Enterprise (leave empty for OSS)
 
 # Controller configurations
 controllers:
@@ -32,7 +32,7 @@ controllers:
         - "http://backend1:8081"
         - "http://backend2:8082"
         - "http://backend3:8083"
-      path: "/api1/"             # Path root to load balance
+      path: "/api1"             # Path root to load balance
       auth: false                 # Require authentication
 
   - type: "load_balancer"
@@ -42,7 +42,7 @@ controllers:
         - "http://backend3:8081"
         - "http://backend4:8082"
         - "http://backend5:8083"
-      path: "/api2/"             # Path root to load balance
+      path: "/api2"             # Path root to load balance
       auth: true                 # Require authentication
 
   # Authentication controller

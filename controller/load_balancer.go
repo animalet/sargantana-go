@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -9,45 +9,38 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/animalet/sargantana-go/config"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 )
 
-// loadBalancer is a controller that provides round-robin load balancing functionality.
-// It distributes incoming requests across multiple backend endpoints and supports
-// optional authentication requirements for protected load-balanced routes.
-type loadBalancer struct {
-	IController
-	endpoints     []url.URL
-	endpointIndex int
-	mu            sync.Mutex
-	httpClient    *http.Client
-	path          string
-	auth          bool
+type loadBalancerConfigurator struct {
 }
 
-// NewLoadBalancer creates a new loadBalancer controller with the specified configuration.
-// It sets up round-robin load balancing across the provided endpoints and configures
-// an optimized HTTP client for backend communication.
-//
-// Parameters:
-//   - endpoints: List of backend server URLs to load balance across
-//   - path: URL path where the load balancer will be accessible (e.g., "api" for /api/*)
-//   - auth: Whether authentication is required to access load-balanced routes
-//
-// Returns a pointer to the configured loadBalancer controller.
-func NewLoadBalancer(endpoints []url.URL, path string, auth bool) IController {
-	if len(endpoints) == 0 {
-		log.Printf("No endpoints provided for load balancing")
+func NewLoadBalancerConfigurator() IControllerConfigurator {
+	return &loadBalancerConfigurator{}
+}
+
+func (l *loadBalancerConfigurator) Configure(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
+	auth := controllerConfig["auth"].(bool)
+	path := strings.TrimSuffix(controllerConfig["path"].(string), "/") + "/*proxyPath"
+	stringEndpoints := controllerConfig["endpoints"].([]any)
+	endpoints := make([]url.URL, 0, len(stringEndpoints))
+	if len(stringEndpoints) == 0 {
+		return nil, errors.New("no endpoints provided for load balancing")
 	} else {
+		log.Printf("Load balancing path: %q\n", path)
+		log.Printf("Load balancing authentication: %t\n", auth)
 		log.Printf("Load balanced endpoints:")
-		for _, endpoint := range endpoints {
-			log.Printf("%v", endpoint.String())
+		for _, endpoint := range stringEndpoints {
+			u, err := url.Parse(endpoint.(string))
+			if err != nil {
+				return nil, errors.Wrap(err, fmt.Sprintf("failed to parse load balancer path: %s", path))
+			}
+			endpoints = append(endpoints, *u)
+			log.Printf(" - %s\n", u.String())
 		}
 	}
-
-	log.Printf("Load balancing path: %q\n", path)
-	log.Printf("Load balancing authentication: %t\n", auth)
-	log.Printf("Load balancer endpoints: %v\n", endpoints)
 
 	httpClient := &http.Client{
 		Transport: &http.Transport{
@@ -61,36 +54,24 @@ func NewLoadBalancer(endpoints []url.URL, path string, auth bool) IController {
 		httpClient: httpClient,
 		path:       path,
 		auth:       auth,
-	}
+	}, nil
 }
 
-// NewLoadBalancerFromFlags creates a loadBalancer controller factory function that reads
-// configuration from command-line flags. This function is designed to be used
-// with the server's flag-based initialization system.
-//
-// The following flags are registered:
-//   - lbpath: Path to use for load balancing (default: "lb")
-//   - lbauth: Use authentication for load balancing (default: false)
-//   - lb: Backend endpoint URLs (can be specified multiple times)
-//
-// Parameters:
-//   - flagSet: The flag set to register the load balancer flags with
-//
-// Returns a factory function that creates a loadBalancer controller when called.
-func NewLoadBalancerFromFlags(flagSet *flag.FlagSet) func() IController {
-	lbPath := flagSet.String("lbpath", "lb", "Path to use for load balancing")
-	lbAuth := flagSet.Bool("lbauth", false, "Use authentication for load balancing")
+func (l *loadBalancerConfigurator) ForType() string {
+	return "load_balancer"
+}
 
-	lbEndpoints := make([]url.URL, 0)
-	flagSet.Func("lb", "Path to use for load balancing", func(s string) error {
-		u, err := url.Parse(s)
-		if err != nil {
-			return err
-		}
-		lbEndpoints = append(lbEndpoints, *u)
-		return nil
-	})
-	return func() IController { return NewLoadBalancer(lbEndpoints, *lbPath, *lbAuth) }
+// loadBalancer is a controller that provides round-robin load balancing functionality.
+// It distributes incoming requests across multiple backend endpoints and supports
+// optional authentication requirements for protected load-balanced routes.
+type loadBalancer struct {
+	IController
+	endpoints     []url.URL
+	endpointIndex int
+	mu            sync.Mutex
+	httpClient    *http.Client
+	path          string
+	auth          bool
 }
 
 func (l *loadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {

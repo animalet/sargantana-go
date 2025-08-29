@@ -1,14 +1,37 @@
 package controller
 
 import (
-	"flag"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 
+	"github.com/animalet/sargantana-go/config"
 	"github.com/gin-gonic/gin"
 )
+
+type staticConfigurator struct {
+}
+
+func (s staticConfigurator) ForType() string {
+	return "static"
+}
+
+func (s staticConfigurator) Configure(controllerConfig config.ControllerConfig, _ config.ServerConfig) (IController, error) {
+	staticsDir := controllerConfig["statics_dir"].(string)
+	htmlTemplatesDir := controllerConfig["templates_dir"].(string)
+	log.Printf("Statics directory: %q\n", staticsDir)
+	log.Printf("Templates directory: %q\n", htmlTemplatesDir)
+
+	return &static{
+		staticsDir:       staticsDir,
+		htmlTemplatesDir: htmlTemplatesDir,
+	}, nil
+}
+
+func NewStaticConfigurator() IControllerConfigurator {
+	return &staticConfigurator{}
+}
 
 // static is a controller that serves static files and HTML templates.
 // It provides functionality for serving frontend assets like CSS, JavaScript,
@@ -17,43 +40,6 @@ type static struct {
 	IController
 	staticsDir       string
 	htmlTemplatesDir string
-}
-
-// NewStatic creates a new static controller with the specified directories.
-// It sets up the controller to serve static files from staticsDir and
-// load HTML templates from htmlTemplatesDir.
-//
-// Parameters:
-//   - staticsDir: Directory path containing static files (CSS, JS, images, etc.)
-//   - htmlTemplatesDir: Directory path containing HTML template files
-//
-// Returns a pointer to the configured static controller.
-func NewStatic(staticsDir, htmlTemplatesDir string) IController {
-	log.Printf("Statics directory: %q\n", staticsDir)
-	log.Printf("Templates directory: %q\n", htmlTemplatesDir)
-
-	return &static{
-		staticsDir:       staticsDir,
-		htmlTemplatesDir: htmlTemplatesDir,
-	}
-}
-
-// NewStaticFromFlags creates a static controller factory function that reads
-// configuration from command-line flags. This function is designed to be used
-// with the server's flag-based initialization system.
-//
-// The following flags are registered:
-//   - frontend: Path to the frontend static content directory (default: "./frontend")
-//   - templates: Path to the templates directory (default: "./templates")
-//
-// Parameters:
-//   - flagSet: The flag set to register the static controller flags with
-//
-// Returns a factory function that creates a static controller when called.
-func NewStaticFromFlags(flagSet *flag.FlagSet) func() IController {
-	frontend := flagSet.String("frontend", "./frontend", "Path to the frontend static content directory")
-	templates := flagSet.String("templates", "./templates", "Path to the templates directory")
-	return func() IController { return NewStatic(*frontend, *templates) }
 }
 
 // Bind registers the static file serving routes with the Gin engine.
@@ -69,7 +55,7 @@ func NewStaticFromFlags(flagSet *flag.FlagSet) func() IController {
 //   - server: The Gin engine to register routes with
 //   - _: Server configuration (unused by this controller)
 //   - _: Login middleware function (unused by this controller)
-func (s *static) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+func (s *static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
 	engine.Static("/static", s.staticsDir)
 	engine.GET("/", func(c *gin.Context) {
 		c.Header("Content-Type", "text/html")

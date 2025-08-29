@@ -32,5 +32,5 @@ type IController interface {
 
 type IControllerConfigurator interface {
 	ForType() string
-	Configure(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) IController
+	Configure(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (IController, error)
 }

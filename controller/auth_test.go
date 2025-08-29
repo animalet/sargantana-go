@@ -41,7 +41,7 @@ func TestNewAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			auth := NewAuth(tt.callbackEndpoint)
+			auth := NewAuthConfigurator(tt.callbackEndpoint)
 
 			if auth == nil {
 				t.Fatal("NewAuth returned nil")
@@ -91,7 +91,7 @@ func TestNewAuthFromFlags(t *testing.T) {
 }
 
 func TestAuth_UserFactory(t *testing.T) {
-	auth := NewAuth("test")
+	auth := NewAuthConfigurator("test")
 
 	tests := []struct {
 		name       string
@@ -212,7 +212,7 @@ func TestLoginFunc(t *testing.T) {
 }
 
 func TestAuth_Close(t *testing.T) {
-	auth := NewAuth("test")
+	auth := NewAuthConfigurator("test")
 	err := auth.Close()
 	if err != nil {
 		t.Errorf("Close() returned error: %v", err)
@@ -222,7 +222,7 @@ func TestAuth_Close(t *testing.T) {
 func TestAuth_Routes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	auth := NewAuth("http://localhost:8080")
+	auth := NewAuthConfigurator("http://localhost:8080")
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
@@ -256,7 +256,7 @@ func TestAuth_Routes(t *testing.T) {
 func TestAuth_UserRoute_NoAuth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	auth := NewAuth("http://localhost:8080")
+	auth := NewAuthConfigurator("http://localhost:8080")
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
@@ -276,7 +276,7 @@ func TestAuth_UserRoute_NoAuth(t *testing.T) {
 func TestAuth_AuthRouteHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	auth := NewAuth("http://localhost:8080")
+	auth := NewAuthConfigurator("http://localhost:8080")
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
@@ -298,7 +298,7 @@ func TestAuth_AuthRouteHandler(t *testing.T) {
 func TestAuth_CallbackRouteHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	auth := NewAuth("http://localhost:8080")
+	auth := NewAuthConfigurator("http://localhost:8080")
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
@@ -320,7 +320,7 @@ func TestAuth_CallbackRouteHandler(t *testing.T) {
 func TestAuth_LogoutRouteHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	auth := NewAuth("http://localhost:8080")
+	auth := NewAuthConfigurator("http://localhost:8080")
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
@@ -395,7 +395,7 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			auth := NewAuth("")
+			auth := NewAuthConfigurator("")
 			engine := gin.New()
 			store := cookie.NewStore([]byte("secret"))
 			engine.Use(sessions.Sessions("test", store))

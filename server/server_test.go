@@ -443,7 +443,7 @@ func TestServer_GinBodyLogMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	engine := gin.New()
-	engine.Use(ginBodyLogMiddleware)
+	engine.Use(bodyLogMiddleware)
 	engine.GET("/test", func(c *gin.Context) {
 		c.String(http.StatusOK, "test response")
 	})

@@ -8,7 +8,7 @@ type (
 	// It encapsulates all necessary configuration parameters including network settings,
 	// session storage options, security settings, and debugging preferences.
 	Config struct {
-		ServerConfig       ServerConfig        `yaml:"serverconfig"`
+		ServerConfig       ServerConfig        `yaml:"server"`
 		Vault              VaultConfig         `yaml:"vault,omitempty"`
 		ControllerBindings []ControllerBinding `yaml:"controllers"`
 	}

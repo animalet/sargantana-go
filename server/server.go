@@ -63,21 +63,38 @@ func NewServer(configFile string, controllerConfigurators ...controller.IControl
 		return nil, errors.Wrap(err, "failed to register controller configurators")
 	}
 
+	controllers, err := configureControllers(c, configMap)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to configure controllers")
+	}
+
+	log.Println("Configuration loaded successfully")
+	return &Server{config: c, controllers: controllers}, nil
+}
+
+func configureControllers(c *config.Config, configMap map[string]controller.IControllerConfigurator) ([]controller.IController, error) {
 	var controllers []controller.IController
 	for _, binding := range c.ControllerBindings {
 		forType := binding.TypeName
+		var name string
+		if binding.Name == "" {
+			name = "unnamed"
+		} else {
+			name = "\"" + binding.Name + "\""
+		}
+
 		configurator, exists := configMap[forType]
 		if !exists {
-			return nil, fmt.Errorf("no configurator found for controller type: %s", forType)
+			return nil, fmt.Errorf("no configurator found for %s controller type: %s", name, forType)
 		}
-		newController := configurator.Configure(binding.ConfigData, c.ServerConfig)
-		if newController == nil {
-			return nil, fmt.Errorf("failed to configure controller of type: %s", forType)
+		log.Printf("Configuring %s controller of type: %s", name, forType)
+		newController, err := configurator.Configure(binding.ConfigData, c.ServerConfig)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to configure %s controller of type: %s", name, forType))
 		}
 		controllers = append(controllers, newController)
 	}
-	log.Println("Configuration loaded successfully")
-	return &Server{config: c, controllers: controllers}, nil
+	return controllers, nil
 }
 
 func registerConfigurators(configurators []controller.IControllerConfigurator) (map[string]controller.IControllerConfigurator, error) {
@@ -88,6 +105,7 @@ func registerConfigurators(configurators []controller.IControllerConfigurator) (
 			return nil, fmt.Errorf("duplicate controller type: %s", forType)
 		}
 		configMap[forType] = binding
+		log.Println("Registered controller type:", forType)
 	}
 
 	return configMap, nil
@@ -151,7 +169,7 @@ func (s *Server) bootstrap() error {
 		}
 		engine.Use(gin.ErrorLoggerT(gin.ErrorTypePrivate))
 	} else {
-		engine.Use(ginBodyLogMiddleware, gin.ErrorLogger())
+		engine.Use(bodyLogMiddleware, gin.ErrorLogger())
 
 	}
 	engine.Use(
@@ -254,7 +272,7 @@ func (w bodyLogWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-func ginBodyLogMiddleware(c *gin.Context) {
+func bodyLogMiddleware(c *gin.Context) {
 	blw := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
 	c.Writer = blw
 	c.Next()

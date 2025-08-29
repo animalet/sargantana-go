@@ -94,7 +94,7 @@ services:
       sh -c "
         vault server -dev -dev-root-token-id=dev-root-token -dev-listen-address=0.0.0.0:8200 &
         sleep 5 &&
-        export VAULT_ADDR=http://127.0.0.1:8200 &&
+        export VAULT_ADDR=http://0.0.0.0:8200 &&
         export VAULT_TOKEN=dev-root-token &&
         vault auth -method=token token=dev-root-token &&
         vault kv put secret/sargantana GOOGLE_KEY=test-google-key GOOGLE_SECRET=test-google-secret SESSION_SECRET=test-session-secret-that-is-long-enough &&

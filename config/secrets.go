@@ -13,7 +13,7 @@ import (
 
 func LoadSecretsFromDir(dir string) error {
 	if dir == "" {
-		log.Println("No secrets directory configured, skipping secrets loading")
+		log.Println("No secrets directory configured, skipping file secrets loading")
 		return nil
 	}
 
@@ -22,7 +22,6 @@ func LoadSecretsFromDir(dir string) error {
 		return errors.Wrap(err, fmt.Sprintf("error reading secrets directory %s", dir))
 	}
 
-	count := 0
 	for _, file := range files {
 		if file.IsDir() {
 			continue
@@ -35,8 +34,6 @@ func LoadSecretsFromDir(dir string) error {
 		err = os.Setenv(name, strings.TrimSpace(string(content)))
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("error setting environment variable %s", strings.ToUpper(name)))
-		} else {
-			count += 1
 		}
 	}
 

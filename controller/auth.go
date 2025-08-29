@@ -73,7 +73,60 @@ import (
 	"github.com/markbates/goth/providers/yammer"
 	"github.com/markbates/goth/providers/yandex"
 	"github.com/markbates/goth/providers/zoom"
+	"github.com/pkg/errors"
 )
+
+type authConfigurator struct {
+}
+
+func NewAuthConfigurator() IControllerConfigurator {
+	return &authConfigurator{}
+}
+
+func (a *authConfigurator) ForType() string {
+	return "auth"
+}
+
+func (a *authConfigurator) Configure(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
+	address := serverConfig.Address
+	// Add http:// if not present
+	if !strings.Contains(address, "://") {
+		address = "http://" + address
+	}
+	u, err := url.Parse(address)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse address")
+	}
+	var callbackEndpoint string
+	if u.Hostname() == "0.0.0.0" {
+		log.Println("Auth callback endpoint is set to 0.0.0.0, changing it to localhost")
+		callbackEndpoint = u.Scheme + "://localhost" + ":" + u.Port()
+	} else {
+		callbackEndpoint = u.Scheme + "://" + u.Hostname() + ":" + u.Port()
+	}
+
+	callbackPath := controllerConfig["callback_path"].(string)
+	callbackURLTemplate := callbackEndpoint + "/" + strings.TrimPrefix(callbackPath, "/")
+
+	gob.Register(UserObject{})
+	providers := (&productionProviderFactory{}).CreateProviders(callbackURLTemplate)
+	if len(providers) > 0 {
+		goth.UseProviders(providers...)
+	}
+
+	return &auth{
+		loginPath:        a.providerToGin(controllerConfig["login_path"].(string)),
+		logoutPath:       a.providerToGin(controllerConfig["logout_path"].(string)),
+		userInfoPath:     a.providerToGin(controllerConfig["user_info_path"].(string)),
+		redirectOnLogin:  a.providerToGin(controllerConfig["redirect_on_login"].(string)),
+		redirectOnLogout: a.providerToGin(controllerConfig["redirect_on_logout"].(string)),
+		callbackPath:     a.providerToGin(callbackPath),
+	}, nil
+}
+
+func (a *authConfigurator) providerToGin(str string) string {
+	return strings.ReplaceAll(str, "{provider}", ":provider")
+}
 
 // ProviderFactory is an interface for creating OAuth providers
 type ProviderFactory interface {
@@ -299,6 +352,7 @@ type auth struct {
 	userInfoPath     string
 	redirectOnLogin  string
 	redirectOnLogout string
+	callbackPath     string
 }
 
 // UserObject represents an authenticated user stored in the session.
@@ -343,49 +397,6 @@ func LoginFunc(c *gin.Context) {
 	c.Next()
 }
 
-type AuthConfigurator struct {
-}
-
-func (a *AuthConfigurator) ForType() string {
-	return "auth"
-}
-
-func (a *AuthConfigurator) Configure(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) IController {
-	address := serverConfig.Address
-	// Add http:// if not present
-	if !strings.Contains(address, "://") {
-		address = "http://" + address
-	}
-	u, err := url.Parse(address)
-	if err != nil {
-		log.Panicf("Failed to parse auth callback address %q: %v", address, err)
-	}
-	var callbackEndpoint string
-	if u.Hostname() == "0.0.0.0" {
-		log.Println("Auth callback endpoint is set to 0.0.0.0, changing it to localhost")
-		callbackEndpoint = u.Scheme + "://localhost" + ":" + u.Port()
-	} else {
-		callbackEndpoint = u.Scheme + "://" + u.Hostname() + ":" + u.Port()
-	}
-
-	path := controllerConfig["callback_path"].(string)
-	callbackURLTemplate := callbackEndpoint + "/" + strings.TrimPrefix(path, "/")
-
-	gob.Register(UserObject{})
-	providers := (&productionProviderFactory{}).CreateProviders(callbackURLTemplate)
-	if len(providers) > 0 {
-		goth.UseProviders(providers...)
-	}
-
-	return &auth{
-		loginPath:        controllerConfig["login_path"].(string),
-		logoutPath:       controllerConfig["logout_path"].(string),
-		userInfoPath:     controllerConfig["user_info_path"].(string),
-		redirectOnLogin:  controllerConfig["redirect_on_login"].(string),
-		redirectOnLogout: controllerConfig["redirect_on_logout"].(string),
-	}
-}
-
 func (a *auth) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 	engine.Group("/").
 		Use(func(c *gin.Context) {
@@ -401,12 +412,9 @@ func (a *auth) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 			c.Next()
 		}).
 		GET(a.loginPath, a.login).
-		GET(a.logoutPath, a.callback).
+		GET(a.callbackPath, a.callback).
 		GET(a.logoutPath, a.logout)
-
-	engine.GET(a.userInfoPath, loginMiddleware, func(c *gin.Context) {
-		c.JSON(http.StatusOK, sessions.Default(c).Get("user").(UserObject).Id)
-	})
+	engine.GET(a.userInfoPath, loginMiddleware, a.userInfo)
 }
 
 func (a *auth) Close() error {
@@ -447,6 +455,10 @@ func (a *auth) logout(c *gin.Context) {
 	session.Clear()
 	saveSession(c, session)
 	c.Redirect(http.StatusFound, a.redirectOnLogout)
+}
+
+func (a *auth) userInfo(c *gin.Context) {
+	c.JSON(http.StatusOK, sessions.Default(c).Get("user").(UserObject).Id)
 }
 
 func saveSession(c *gin.Context, session sessions.Session) {
