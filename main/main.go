@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/animalet/sargantana-go/controller"
+	_ "github.com/animalet/sargantana-go/controller"
 	"github.com/animalet/sargantana-go/server"
 )
 
@@ -26,15 +26,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Create a set of controllers that will be initialized from command line arguments (flags)
-	controllerConfigurators := []controller.IConfigurator{
-		controller.NewStaticConfigurator(),
-		controller.NewAuthConfigurator(),
-		controller.NewLoadBalancerConfigurator(),
-	}
-
 	// Parse command line flags and create the server and controllers based on those flags
-	sargantana, err := server.NewServer(*configFile, controllerConfigurators...)
+	sargantana, err := server.NewServer(*configFile)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}

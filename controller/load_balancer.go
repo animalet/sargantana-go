@@ -14,7 +14,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-type loadBalancerConfigurator struct {
+func init() {
+	RegisterController("load_balancer", NewLoadBalancerController)
 }
 
 type LoadBalancerControllerConfig struct {
@@ -23,11 +24,7 @@ type LoadBalancerControllerConfig struct {
 	Endpoints []string `yaml:"endpoints"`
 }
 
-func NewLoadBalancerConfigurator() IConfigurator {
-	return &loadBalancerConfigurator{}
-}
-
-func (a *loadBalancerConfigurator) Configure(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
+func NewLoadBalancerController(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
 	var c LoadBalancerControllerConfig
 	err := configData.To(&c)
 	if err != nil {
@@ -65,10 +62,6 @@ func (a *loadBalancerConfigurator) Configure(configData config.ControllerConfig,
 		path:       strings.TrimSuffix(c.Path, "/") + "/*proxyPath",
 		auth:       auth,
 	}, nil
-}
-
-func (a *loadBalancerConfigurator) ForType() string {
-	return "load_balancer"
 }
 
 // loadBalancer is a controller that provides round-robin load balancing functionality.

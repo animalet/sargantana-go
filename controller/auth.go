@@ -76,7 +76,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-type authConfigurator struct {
+func init() {
+	RegisterController("auth", NewAuthController)
 }
 
 type AuthControllerConfig struct {
@@ -88,15 +89,7 @@ type AuthControllerConfig struct {
 	RedirectOnLogout string `yaml:"redirect_on_logout"`
 }
 
-func NewAuthConfigurator() IConfigurator {
-	return &authConfigurator{}
-}
-
-func (a *authConfigurator) ForType() string {
-	return "auth"
-}
-
-func (a *authConfigurator) Configure(configData config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
+func NewAuthController(configData config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
 	var c AuthControllerConfig
 	err := configData.To(&c)
 	if err != nil {
@@ -129,16 +122,16 @@ func (a *authConfigurator) Configure(configData config.ControllerConfig, serverC
 	}
 
 	return &auth{
-		loginPath:        a.providerToGin(c.LoginPath),
-		logoutPath:       a.providerToGin(c.LogoutPath),
-		userInfoPath:     a.providerToGin(c.UserInfoPath),
-		redirectOnLogin:  a.providerToGin(c.RedirectOnLogin),
-		redirectOnLogout: a.providerToGin(c.RedirectOnLogout),
-		callbackPath:     a.providerToGin(callbackPath),
+		loginPath:        providerToGin(c.LoginPath),
+		logoutPath:       providerToGin(c.LogoutPath),
+		userInfoPath:     providerToGin(c.UserInfoPath),
+		redirectOnLogin:  providerToGin(c.RedirectOnLogin),
+		redirectOnLogout: providerToGin(c.RedirectOnLogout),
+		callbackPath:     providerToGin(callbackPath),
 	}, nil
 }
 
-func (a *authConfigurator) providerToGin(str string) string {
+func providerToGin(str string) string {
 	return strings.ReplaceAll(str, "{provider}", ":provider")
 }
 

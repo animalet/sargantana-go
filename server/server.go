@@ -53,17 +53,13 @@ type serverFlags struct {
 //
 // Returns:
 //   - *Server: The configured server instance
-func NewServer(configFile string, controllerConfigurators ...controller.IConfigurator) (*Server, error) {
+func NewServer(configFile string) (*Server, error) {
 	c, err := config.Load(configFile)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to load config file: %s", configFile))
 	}
-	configMap, err := registerConfigurators(controllerConfigurators)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to register controller configurators")
-	}
 
-	controllers, err := configureControllers(c, configMap)
+	controllers, err := configureControllers(c)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to configure controllers")
 	}
@@ -72,7 +68,7 @@ func NewServer(configFile string, controllerConfigurators ...controller.IConfigu
 	return &Server{config: c, controllers: controllers}, nil
 }
 
-func configureControllers(c *config.Config, configMap map[string]controller.IConfigurator) ([]controller.IController, error) {
+func configureControllers(c *config.Config) ([]controller.IController, error) {
 	var controllers []controller.IController
 	for _, binding := range c.ControllerBindings {
 		forType := binding.TypeName
@@ -83,32 +79,18 @@ func configureControllers(c *config.Config, configMap map[string]controller.ICon
 			name = "\"" + binding.Name + "\""
 		}
 
-		configurator, exists := configMap[forType]
+		factory, exists := controller.GetControllerFactory(forType)
 		if !exists {
 			return nil, fmt.Errorf("no configurator found for %s controller type: %s", name, forType)
 		}
 		log.Printf("Configuring %s controller of type: %s", name, forType)
-		newController, err := configurator.Configure(binding.ConfigData, c.ServerConfig)
+		newController, err := factory(binding.ConfigData, c.ServerConfig)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to configure %s controller of type: %s", name, forType))
 		}
 		controllers = append(controllers, newController)
 	}
 	return controllers, nil
-}
-
-func registerConfigurators(configurators []controller.IConfigurator) (map[string]controller.IConfigurator, error) {
-	var configMap = make(map[string]controller.IConfigurator)
-	for _, binding := range configurators {
-		forType := binding.ForType()
-		if _, exists := configMap[forType]; exists {
-			return nil, fmt.Errorf("duplicate controller type: %s", forType)
-		}
-		configMap[forType] = binding
-		log.Println("Registered controller type:", forType)
-	}
-
-	return configMap, nil
 }
 
 // StartAndWaitForSignal starts the HTTP server and waits for an OS signal to gracefully shut it down.
@@ -126,7 +108,7 @@ func (s *Server) StartAndWaitForSignal() error {
 // Start initializes the server components and starts listening for incoming HTTP requests.
 // It configures the server based on the provided flags, loads secrets, and sets up the router and middleware.
 // This function must be called before the server can handle requests.
-func (s *Server) Start(controllerInitializers ...controller.IConfigurator) error {
+func (s *Server) Start() error {
 	if s.config.ServerConfig.Debug {
 		log.Printf("Debug mode is enabled\n")
 		log.Printf("Secrets directory: %q\n", s.config.ServerConfig.SecretsDir)

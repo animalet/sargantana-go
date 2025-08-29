@@ -10,11 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type staticConfigurator struct {
-}
-
-func NewStaticConfigurator() IConfigurator {
-	return &staticConfigurator{}
+func init() {
+	RegisterController("static", NewStaticController)
 }
 
 type StaticControllerConfig struct {
@@ -22,11 +19,7 @@ type StaticControllerConfig struct {
 	HtmlTemplatesDir string `yaml:"templates_dir,omitempty"`
 }
 
-func (a *staticConfigurator) ForType() string {
-	return "static"
-}
-
-func (a *staticConfigurator) Configure(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
+func NewStaticController(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
 	var c *StaticControllerConfig
 	err := configData.To(&c)
 	if err != nil {
