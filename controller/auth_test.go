@@ -81,7 +81,7 @@ func TestNewAuthFromFlags(t *testing.T) {
 				t.Fatalf("Failed to parse flags: %v", err)
 			}
 
-			controller := factory().(*Auth)
+			controller := factory().(*auth)
 
 			if controller.callbackEndpoint != tt.expected {
 				t.Errorf("callbackEndpoint = %v, want %v", controller.callbackEndpoint, tt.expected)
@@ -226,7 +226,7 @@ func TestAuth_Routes(t *testing.T) {
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 	auth.Bind(engine, *cfg, LoginFunc)
 
@@ -260,7 +260,7 @@ func TestAuth_UserRoute_NoAuth(t *testing.T) {
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 	auth.Bind(engine, *cfg, LoginFunc)
 
@@ -280,7 +280,7 @@ func TestAuth_AuthRouteHandler(t *testing.T) {
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 	auth.Bind(engine, *cfg, LoginFunc)
 
@@ -302,7 +302,7 @@ func TestAuth_CallbackRouteHandler(t *testing.T) {
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 	auth.Bind(engine, *cfg, LoginFunc)
 
@@ -324,7 +324,7 @@ func TestAuth_LogoutRouteHandler(t *testing.T) {
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 	auth.Bind(engine, *cfg, LoginFunc)
 
@@ -399,7 +399,7 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 			engine := gin.New()
 			store := cookie.NewStore([]byte("secret"))
 			engine.Use(sessions.Sessions("test", store))
-			cfg := config.NewConfig(tt.configAddress, "", "", false, "test-session")
+			cfg := config.NewConfig(tt.configAddress, "", "", false, "test-session", "")
 
 			auth.Bind(engine, *cfg, LoginFunc)
 
@@ -484,7 +484,7 @@ func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 		_ = os.Setenv(env, val)
 	}
 
-	factory := &ProductionProviderFactory{}
+	factory := &productionProviderFactory{}
 	providers := factory.CreateProviders("https://test.example.com/auth/%s/callback")
 
 	// Verify that providers were created
@@ -535,7 +535,7 @@ func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 
 func TestProductionProviderFactory_CreateProviders_NoEnvironmentVars(t *testing.T) {
 	// Test with no environment variables set
-	factory := &ProductionProviderFactory{}
+	factory := &productionProviderFactory{}
 	providers := factory.CreateProviders("https://test.example.com/auth/%s/callback")
 
 	// Should return empty slice when no environment variables are set

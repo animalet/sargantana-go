@@ -41,7 +41,7 @@ func TestNewConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := NewConfig(tt.address, tt.redisSessionStore, tt.secretsDir, tt.debug, tt.sessionName)
+			config := NewConfig(tt.address, tt.redisSessionStore, tt.secretsDir, tt.debug, tt.sessionName, "")
 
 			if config.Address() != tt.address {
 				t.Errorf("Address() = %v, want %v", config.Address(), tt.address)
@@ -63,7 +63,7 @@ func TestNewConfig(t *testing.T) {
 }
 
 func TestConfig_Getters(t *testing.T) {
-	config := NewConfig("test:1234", "redis:6379", "/test/secrets", true, "test-session")
+	config := NewConfig("test:1234", "redis:6379", "/test/secrets", true, "test-session", "")
 
 	// Test all getter methods
 	if got := config.Address(); got != "test:1234" {
@@ -88,7 +88,7 @@ func TestConfig_Getters(t *testing.T) {
 }
 
 func TestConfig_EmptyValues(t *testing.T) {
-	config := NewConfig("", "", "", false, "")
+	config := NewConfig("", "", "", false, "", "")
 
 	if config.Address() != "" {
 		t.Errorf("Expected empty address, got %v", config.Address())

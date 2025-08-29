@@ -46,15 +46,16 @@ func LoadSecretsFromDir(dir string) error {
 // LoadSecretsFromVault loads secrets from a HashiCorp Vault instance and sets them as environment variables.
 // It connects to Vault using the provided configuration and retrieves all key-value pairs from the specified path.
 // Each key is converted to uppercase and set as an environment variable.
-func LoadSecretsFromVault(vaultConfig VaultConfig) error {
-	if vaultConfig.IsValid() {
+func (c *Config) LoadSecretsFromVault() error {
+	vaultConfig := c.Vault
+	if !vaultConfig.IsValid() {
 		log.Println("Vault configuration incomplete, skipping Vault secrets loading")
 		return nil
 	}
 
 	// Create Vault client configuration
 	config := api.DefaultConfig()
-	config.Address = vaultConfig.Address()
+	config.Address = vaultConfig.Address
 
 	// Create Vault client
 	client, err := api.NewClient(config)
@@ -63,16 +64,16 @@ func LoadSecretsFromVault(vaultConfig VaultConfig) error {
 	}
 
 	// Set the token for authentication
-	client.SetToken(os.ExpandEnv(vaultConfig.Token()))
+	client.SetToken(os.ExpandEnv(vaultConfig.Token))
 
 	// Set namespace if provided (for Vault Enterprise)
-	namespace := vaultConfig.Namespace()
+	namespace := vaultConfig.Namespace
 	if namespace != "" {
 		client.SetNamespace(namespace)
 	}
 
 	// Read secrets from the specified path
-	path := vaultConfig.Path()
+	path := vaultConfig.Path
 	secret, err := client.Logical().Read(path)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("error reading secrets from Vault path %s", path))
@@ -126,14 +127,14 @@ func LoadSecretsFromVault(vaultConfig VaultConfig) error {
 // LoadSecrets loads secrets from both directory and Vault sources.
 // It first loads secrets from the directory (if configured), then from Vault (if configured).
 // Vault secrets will override directory secrets if they have the same key names.
-func LoadSecrets(config *Config) error {
+func (c *Config) LoadSecrets() error {
 	// Load secrets from directory first
-	if err := LoadSecretsFromDir(config.SecretsDir()); err != nil {
+	if err := LoadSecretsFromDir(c.ServerConfig.SecretsDir); err != nil {
 		return errors.Wrap(err, "error loading secrets from directory")
 	}
 
 	// Load secrets from Vault (will override directory secrets with same names)
-	if err := LoadSecretsFromVault(config.VaultConfig()); err != nil {
+	if err := c.LoadSecretsFromVault(); err != nil {
 		return errors.Wrap(err, "error loading secrets from Vault")
 	}
 

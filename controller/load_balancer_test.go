@@ -102,7 +102,7 @@ func TestNewLoadBalancerFromFlags(t *testing.T) {
 				t.Fatalf("Failed to parse flags: %v", err)
 			}
 
-			controller := factory().(*LoadBalancer)
+			controller := factory().(*loadBalancer)
 
 			if controller.path != tt.expectedPath {
 				t.Errorf("path = %v, want %v", controller.path, tt.expectedPath)
@@ -154,14 +154,14 @@ func TestLoadBalancer_Bind(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			lb := NewLoadBalancer(tt.endpoints, tt.path, tt.auth)
 			engine := gin.New()
-			cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+			cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 			// Mock login middleware
 			loginMiddleware := func(c *gin.Context) {
 				c.Next()
 			}
 
-			lb.Bind(engine, *cfg, loginMiddleware)
+			lb.Bind(engine, loginMiddleware)
 
 			// Check if routes were registered (only if endpoints exist)
 			routes := engine.Routes()
@@ -300,7 +300,7 @@ func TestLoadBalancer_ForwardNoEndpoints(t *testing.T) {
 	engine := gin.New()
 
 	// We'll test the behavior by checking that no routes are registered
-	lb.Bind(engine, config.Config{}, nil)
+	lb.Bind(engine, nil)
 
 	routes := engine.Routes()
 	if len(routes) > 0 {

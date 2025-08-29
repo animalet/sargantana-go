@@ -2,7 +2,6 @@ package controller
 
 import (
 	"encoding/gob"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -81,11 +80,13 @@ type ProviderFactory interface {
 	CreateProviders(callbackURLTemplate string) []goth.Provider
 }
 
-// ProductionProviderFactory creates real OAuth providers for production use
-type ProductionProviderFactory struct{}
+// productionProviderFactory creates real OAuth providers for production use
+type productionProviderFactory struct{}
 
 // CreateProviders creates all production OAuth providers
-func (f *ProductionProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
+func (f *productionProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
+	callbackURLTemplate = strings.ReplaceAll(callbackURLTemplate, "{provider}", "%s")
+
 	var providers []goth.Provider
 
 	// Essential API Level
@@ -283,18 +284,21 @@ func (f *ProductionProviderFactory) CreateProviders(callbackURLTemplate string) 
 	return providers
 }
 
-// DefaultProviderFactory returns the default provider factory for production use
-func DefaultProviderFactory() ProviderFactory {
-	return &ProductionProviderFactory{}
+// defaultProviderFactory returns the default provider factory for production use
+func defaultProviderFactory() ProviderFactory {
+	return &productionProviderFactory{}
 }
 
-// Auth is a controller that provides OAuth2 authentication functionality.
+// auth is a controller that provides OAuth2 authentication functionality.
 // It supports 50+ OAuth2 providers through the Goth library and handles
 // the complete authentication flow including user session management.
-type Auth struct {
+type auth struct {
 	IController
-	callbackEndpoint string
-	providerFactory  ProviderFactory
+	loginPath        string
+	logoutPath       string
+	userInfoPath     string
+	redirectOnLogin  string
+	redirectOnLogout string
 }
 
 // UserObject represents an authenticated user stored in the session.
@@ -303,65 +307,6 @@ type Auth struct {
 type UserObject struct {
 	Id   string    `json:"id"`   // Unique identifier for the user session
 	User goth.User `json:"user"` // Complete user information from OAuth2 provider
-}
-
-func providersWithFactory(callbackEndpoint string, factory ProviderFactory) {
-	gob.Register(UserObject{})
-	callbackURLTemplate := callbackEndpoint + "/auth/%s/callback"
-
-	providers := factory.CreateProviders(callbackURLTemplate)
-	if len(providers) > 0 {
-		goth.UseProviders(providers...)
-	}
-}
-
-// NewAuth creates a new Auth controller with the specified callback endpoint.
-// The callback endpoint is used to construct OAuth2 callback URLs for all providers.
-// If an empty string is provided, the callback endpoint will be automatically
-// determined from the server configuration during binding.
-//
-// Parameters:
-//   - callbackEndpoint: The base URL where OAuth2 providers should redirect after authentication
-//     (e.g., "https://myapp.com" will result in callbacks to "https://myapp.com/auth/{provider}/callback")
-//
-// Returns a pointer to the configured Auth controller.
-func NewAuth(callbackEndpoint string) *Auth {
-	return &Auth{
-		callbackEndpoint: callbackEndpoint,
-		providerFactory:  DefaultProviderFactory(),
-	}
-}
-
-// NewAuthWithFactory creates a new Auth controller with a custom provider factory.
-// This constructor is primarily intended for testing, allowing injection of mock providers.
-//
-// Parameters:
-//   - callbackEndpoint: The base URL where OAuth2 providers should redirect after authentication
-//   - factory: The provider factory to use for creating OAuth providers
-//
-// Returns a pointer to the configured Auth controller.
-func NewAuthWithFactory(callbackEndpoint string, factory ProviderFactory) *Auth {
-	return &Auth{
-		callbackEndpoint: callbackEndpoint,
-		providerFactory:  factory,
-	}
-}
-
-// NewAuthFromFlags creates an Auth controller factory function that reads
-// configuration from command-line flags. This function is designed to be used
-// with the server's flag-based initialization system.
-//
-// The following flags are registered:
-//   - callback: Callback endpoint for authentication, used when behind a reverse proxy or load balancer
-//     If not set, it will default to http://<host>:<port>
-//
-// Parameters:
-//   - flagSet: The flag set to register the auth controller flags with
-//
-// Returns a factory function that creates an Auth controller when called.
-func NewAuthFromFlags(flagSet *flag.FlagSet) func() IController {
-	callback := flagSet.String("callback", "", "Callback endpoint for authentication, in case you are behind a reverse proxy or load balancer. If not set, it will default to http://<host>:<port>")
-	return func() IController { return NewAuth(*callback) }
 }
 
 // LoginFunc is a middleware function that protects routes requiring authentication.
@@ -398,30 +343,51 @@ func LoginFunc(c *gin.Context) {
 	c.Next()
 }
 
-func (a *Auth) Bind(server *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
-	if a.callbackEndpoint == "" {
-		address := config.Address()
-		// Add http:// if not present
-		if !strings.Contains(address, "://") {
-			address = "http://" + address
-		}
-		u, err := url.Parse(address)
-		if err != nil {
-			log.Panicf("Failed to parse auth callback address %q: %v", address, err)
-		}
-		if u.Hostname() == "0.0.0.0" {
-			log.Println("Auth callback endpoint is set to 0.0.0.0, changing it to localhost")
-			a.callbackEndpoint = u.Scheme + "://localhost" + ":" + u.Port()
-		} else {
-			a.callbackEndpoint = u.Scheme + "://" + u.Hostname() + ":" + u.Port()
-		}
+type AuthConfigurator struct {
+}
+
+func (a *AuthConfigurator) ForType() string {
+	return "auth"
+}
+
+func (a *AuthConfigurator) Configure(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) IController {
+	address := serverConfig.Address
+	// Add http:// if not present
+	if !strings.Contains(address, "://") {
+		address = "http://" + address
+	}
+	u, err := url.Parse(address)
+	if err != nil {
+		log.Panicf("Failed to parse auth callback address %q: %v", address, err)
+	}
+	var callbackEndpoint string
+	if u.Hostname() == "0.0.0.0" {
+		log.Println("Auth callback endpoint is set to 0.0.0.0, changing it to localhost")
+		callbackEndpoint = u.Scheme + "://localhost" + ":" + u.Port()
+	} else {
+		callbackEndpoint = u.Scheme + "://" + u.Hostname() + ":" + u.Port()
 	}
 
-	log.Printf("Callback endpoint: %q\n", a.callbackEndpoint)
+	path := controllerConfig["callback_path"].(string)
+	callbackURLTemplate := callbackEndpoint + "/" + strings.TrimPrefix(path, "/")
 
-	providersWithFactory(a.callbackEndpoint, a.providerFactory)
+	gob.Register(UserObject{})
+	providers := (&productionProviderFactory{}).CreateProviders(callbackURLTemplate)
+	if len(providers) > 0 {
+		goth.UseProviders(providers...)
+	}
 
-	server.Group("/auth").
+	return &auth{
+		loginPath:        controllerConfig["login_path"].(string),
+		logoutPath:       controllerConfig["logout_path"].(string),
+		userInfoPath:     controllerConfig["user_info_path"].(string),
+		redirectOnLogin:  controllerConfig["redirect_on_login"].(string),
+		redirectOnLogout: controllerConfig["redirect_on_logout"].(string),
+	}
+}
+
+func (a *auth) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+	engine.Group("/").
 		Use(func(c *gin.Context) {
 			// Hack to make gothic work with gin
 			q := c.Request.URL.Query()
@@ -434,27 +400,27 @@ func (a *Auth) Bind(server *gin.Engine, config config.Config, loginMiddleware gi
 			c.Request.URL.RawQuery = q.Encode()
 			c.Next()
 		}).
-		GET("/:provider", a.login).
-		GET("/:provider/callback", a.callback).
-		GET("/:provider/logout", a.logout)
+		GET(a.loginPath, a.login).
+		GET(a.logoutPath, a.callback).
+		GET(a.logoutPath, a.logout)
 
-	server.GET("/auth/user", loginMiddleware, func(c *gin.Context) {
+	engine.GET(a.userInfoPath, loginMiddleware, func(c *gin.Context) {
 		c.JSON(http.StatusOK, sessions.Default(c).Get("user").(UserObject).Id)
 	})
 }
 
-func (a *Auth) Close() error {
+func (a *auth) Close() error {
 	return nil
 }
 
-func (a *Auth) success(c *gin.Context, user goth.User) {
+func (a *auth) success(c *gin.Context, user goth.User) {
 	session := sessions.Default(c)
 	session.Set("user", a.userFactory(user))
 	saveSession(c, session)
-	c.Redirect(http.StatusFound, "/")
+	c.Redirect(http.StatusFound, a.redirectOnLogin)
 }
 
-func (a *Auth) login(c *gin.Context) {
+func (a *auth) login(c *gin.Context) {
 	if user, err := gothic.CompleteUserAuth(c.Writer, c.Request); err != nil {
 		gothic.BeginAuthHandler(c.Writer, c.Request)
 	} else {
@@ -462,7 +428,7 @@ func (a *Auth) login(c *gin.Context) {
 	}
 }
 
-func (a *Auth) callback(c *gin.Context) {
+func (a *auth) callback(c *gin.Context) {
 	if user, err := gothic.CompleteUserAuth(c.Writer, c.Request); err != nil {
 		err = c.Error(err)
 		c.JSON(http.StatusForbidden, err)
@@ -472,7 +438,7 @@ func (a *Auth) callback(c *gin.Context) {
 	}
 }
 
-func (a *Auth) logout(c *gin.Context) {
+func (a *auth) logout(c *gin.Context) {
 	err := gothic.Logout(c.Writer, c.Request)
 	if err != nil {
 		log.Printf("Failed to log out: %v", err)
@@ -480,7 +446,7 @@ func (a *Auth) logout(c *gin.Context) {
 	session := sessions.Default(c)
 	session.Clear()
 	saveSession(c, session)
-	c.Redirect(http.StatusFound, "/")
+	c.Redirect(http.StatusFound, a.redirectOnLogout)
 }
 
 func saveSession(c *gin.Context, session sessions.Session) {
@@ -489,7 +455,7 @@ func saveSession(c *gin.Context, session sessions.Session) {
 	}
 }
 
-func (a *Auth) userFactory(user goth.User) *UserObject {
+func (a *auth) userFactory(user goth.User) *UserObject {
 	var id string
 	if user.Email == "" {
 		id = user.UserID + "@" + user.Provider

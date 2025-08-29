@@ -83,7 +83,7 @@ func TestNewStaticFromFlags(t *testing.T) {
 				t.Fatalf("Failed to parse flags: %v", err)
 			}
 
-			controller := factory().(*Static)
+			controller := factory().(*static)
 
 			if controller.staticsDir != tt.wantFrontend {
 				t.Errorf("staticsDir = %v, want %v", controller.staticsDir, tt.wantFrontend)
@@ -124,9 +124,9 @@ func TestStatic_Bind(t *testing.T) {
 
 	static := NewStatic(staticDir, templatesDir)
 	engine := gin.New()
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
-	static.Bind(engine, *cfg, nil)
+	static.Bind(engine, nil)
 
 	tests := []struct {
 		name           string
@@ -204,10 +204,10 @@ func TestStatic_BindWithTemplates(t *testing.T) {
 
 	static := NewStatic(staticDir, templatesDir)
 	engine := gin.New()
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 	// This should load templates without error
-	static.Bind(engine, *cfg, nil)
+	static.Bind(engine, nil)
 }
 
 func TestStatic_BindWithEmptyTemplatesDir(t *testing.T) {
@@ -236,10 +236,10 @@ func TestStatic_BindWithEmptyTemplatesDir(t *testing.T) {
 
 	static := NewStatic(staticDir, templatesDir)
 	engine := gin.New()
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 	// This should handle empty templates directory gracefully
-	static.Bind(engine, *cfg, nil)
+	static.Bind(engine, nil)
 }
 
 func TestStatic_BindWithNonExistentTemplatesDir(t *testing.T) {
@@ -263,10 +263,10 @@ func TestStatic_BindWithNonExistentTemplatesDir(t *testing.T) {
 
 	static := NewStatic(staticDir, templatesDir)
 	engine := gin.New()
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 	// This should handle non-existent templates directory gracefully
-	static.Bind(engine, *cfg, nil)
+	static.Bind(engine, nil)
 }
 
 func TestStatic_Close(t *testing.T) {
@@ -296,9 +296,9 @@ func TestStatic_ContentTypeHeader(t *testing.T) {
 
 	static := NewStatic(staticDir, "")
 	engine := gin.New()
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
+	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
-	static.Bind(engine, *cfg, nil)
+	static.Bind(engine, nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/", nil)

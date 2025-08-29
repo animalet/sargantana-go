@@ -124,7 +124,7 @@ func TestNewServerFromFlags(t *testing.T) {
 				}
 			}
 
-			server, controllers := NewServerFromFlags(dummyInit)
+			server, controllers := NewServer(dummyInit)
 
 			if server == nil {
 				t.Fatal("NewServerFromFlags returned nil server")
@@ -187,17 +187,17 @@ func TestServer_Start(t *testing.T) {
 
 			err := server.Start(tt.controllers...)
 			if err != nil {
-				t.Errorf("Start() returned error: %v", err)
+				t.Fatalf("Start() returned error: %v", err)
 			}
 
 			if server.httpServer == nil {
-				t.Error("httpServer not initialized")
+				t.Fatalf("httpServer not initialized")
 			}
 
 			// Cleanup
 			err = server.Shutdown() // Force cleanup
 			if err != nil {
-				t.Errorf("Shutdown() returned error during timeout: %v", err)
+				t.Fatalf("Shutdown() returned error during timeout: %v", err)
 			}
 		})
 	}
@@ -332,7 +332,7 @@ func TestServer_BootstrapWithSecretsError(t *testing.T) {
 
 	// Use a non-existent directory to trigger secrets loading error
 	server := &Server{
-		config: config.NewConfig("localhost:8080", "", "/non/existent/path", false, "test"),
+		config: config.NewConfig("localhost:8080", "", "/non/existent/path", false, "test", ""),
 	}
 
 	err := server.bootstrap()
@@ -495,7 +495,7 @@ type mockController struct {
 	closed bool
 }
 
-func (m *mockController) Bind(engine *gin.Engine, cfg config.Config, loginMiddleware gin.HandlerFunc) {
+func (m *mockController) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 	m.bound = true
 	engine.GET("/"+m.name, func(c *gin.Context) {
 		c.String(http.StatusOK, "Hello from "+m.name)

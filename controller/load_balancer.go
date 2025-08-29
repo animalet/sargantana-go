@@ -9,14 +9,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/animalet/sargantana-go/config"
 	"github.com/gin-gonic/gin"
 )
 
-// LoadBalancer is a controller that provides round-robin load balancing functionality.
+// loadBalancer is a controller that provides round-robin load balancing functionality.
 // It distributes incoming requests across multiple backend endpoints and supports
 // optional authentication requirements for protected load-balanced routes.
-type LoadBalancer struct {
+type loadBalancer struct {
 	IController
 	endpoints     []url.URL
 	endpointIndex int
@@ -26,7 +25,7 @@ type LoadBalancer struct {
 	auth          bool
 }
 
-// NewLoadBalancer creates a new LoadBalancer controller with the specified configuration.
+// NewLoadBalancer creates a new loadBalancer controller with the specified configuration.
 // It sets up round-robin load balancing across the provided endpoints and configures
 // an optimized HTTP client for backend communication.
 //
@@ -35,8 +34,8 @@ type LoadBalancer struct {
 //   - path: URL path where the load balancer will be accessible (e.g., "api" for /api/*)
 //   - auth: Whether authentication is required to access load-balanced routes
 //
-// Returns a pointer to the configured LoadBalancer controller.
-func NewLoadBalancer(endpoints []url.URL, path string, auth bool) *LoadBalancer {
+// Returns a pointer to the configured loadBalancer controller.
+func NewLoadBalancer(endpoints []url.URL, path string, auth bool) IController {
 	if len(endpoints) == 0 {
 		log.Printf("No endpoints provided for load balancing")
 	} else {
@@ -57,7 +56,7 @@ func NewLoadBalancer(endpoints []url.URL, path string, auth bool) *LoadBalancer 
 		},
 	}
 
-	return &LoadBalancer{
+	return &loadBalancer{
 		endpoints:  endpoints,
 		httpClient: httpClient,
 		path:       path,
@@ -65,7 +64,7 @@ func NewLoadBalancer(endpoints []url.URL, path string, auth bool) *LoadBalancer 
 	}
 }
 
-// NewLoadBalancerFromFlags creates a LoadBalancer controller factory function that reads
+// NewLoadBalancerFromFlags creates a loadBalancer controller factory function that reads
 // configuration from command-line flags. This function is designed to be used
 // with the server's flag-based initialization system.
 //
@@ -77,7 +76,7 @@ func NewLoadBalancer(endpoints []url.URL, path string, auth bool) *LoadBalancer 
 // Parameters:
 //   - flagSet: The flag set to register the load balancer flags with
 //
-// Returns a factory function that creates a LoadBalancer controller when called.
+// Returns a factory function that creates a loadBalancer controller when called.
 func NewLoadBalancerFromFlags(flagSet *flag.FlagSet) func() IController {
 	lbPath := flagSet.String("lbpath", "lb", "Path to use for load balancing")
 	lbAuth := flagSet.Bool("lbauth", false, "Use authentication for load balancing")
@@ -94,24 +93,24 @@ func NewLoadBalancerFromFlags(flagSet *flag.FlagSet) func() IController {
 	return func() IController { return NewLoadBalancer(lbEndpoints, *lbPath, *lbAuth) }
 }
 
-func (l *LoadBalancer) Bind(server *gin.Engine, _ config.Config, loginMiddleware gin.HandlerFunc) {
+func (l *loadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 	if len(l.endpoints) == 0 {
 		log.Printf("Load balancer not loaded")
 		return
 	}
 
 	if l.auth {
-		server.Any(l.path, loginMiddleware, l.forward)
+		engine.Any(l.path, loginMiddleware, l.forward)
 	} else {
-		server.Any(l.path, l.forward)
+		engine.Any(l.path, l.forward)
 	}
 }
 
-func (l *LoadBalancer) Close() error {
+func (l *loadBalancer) Close() error {
 	return nil
 }
 
-func (l *LoadBalancer) nextEndpoint() url.URL {
+func (l *loadBalancer) nextEndpoint() url.URL {
 	l.mu.Lock()
 	defer func() {
 		l.endpointIndex = (l.endpointIndex + 1) % len(l.endpoints)
@@ -122,7 +121,7 @@ func (l *LoadBalancer) nextEndpoint() url.URL {
 
 var allowedMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "PATCH": true, "HEAD": true, "OPTIONS": true}
 
-func (l *LoadBalancer) forward(c *gin.Context) {
+func (l *loadBalancer) forward(c *gin.Context) {
 	// Only allow safe HTTP methods
 	if !allowedMethods[c.Request.Method] {
 		c.AbortWithStatus(http.StatusMethodNotAllowed)

@@ -311,7 +311,7 @@ func (m *mockRedisConn) Do(commandName string, args ...interface{}) (interface{}
 	return nil, nil
 }
 
-func (m *mockRedisConn) Send(commandName string, args ...interface{}) error {
+func (m *mockRedisConn) Send(_ string, _ ...interface{}) error {
 	return nil
 }
 
@@ -344,6 +344,6 @@ type mockRedisConnWithError struct {
 	mockRedisConn
 }
 
-func (m *mockRedisConnWithError) Do(commandName string, args ...interface{}) (interface{}, error) {
+func (m *mockRedisConnWithError) Do(_ string, _ ...interface{}) (interface{}, error) {
 	return nil, errors.New("connection error")
 }

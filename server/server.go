@@ -6,14 +6,11 @@ package server
 import (
 	"bytes"
 	"context"
-	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -23,7 +20,7 @@ import (
 	"github.com/animalet/sargantana-go/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"github.com/markbates/goth/gothic"
+	"github.com/pkg/errors"
 )
 
 // Server represents the main HTTP server instance for the Sargantana Go framework.
@@ -34,6 +31,7 @@ type Server struct {
 	httpServer      *http.Server
 	shutdownHooks   []func() error
 	shutdownChannel chan os.Signal
+	controllers     []controller.IController
 }
 
 // serverFlags holds all the parsed flag values
@@ -45,126 +43,62 @@ type serverFlags struct {
 	redis       *string
 	sessionName *string
 	showVersion *bool
+	config      *string
 }
 
-type ControllerFlagInitializer func(flagSet *flag.FlagSet) func() controller.IController
-
-// parseServerFlags creates and parses all server flags, returning the flagset and parsed values
-func parseServerFlags(versionInfo string, flagInitializers ...ControllerFlagInitializer) (*serverFlags, []func() controller.IController) {
-	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-
-	// Define all server flags
-	flags := &serverFlags{
-		debug:       flagSet.Bool("debug", false, "Enable debug mode"),
-		secretsDir:  flagSet.String("secrets", "", "Path to the secrets directory"),
-		host:        flagSet.String("host", "localhost", "Host to listen on"),
-		port:        flagSet.Int("port", 8080, "port to listen on"),
-		redis:       flagSet.String("redis", "", "Use the specified Redis address as a session store. It expects <host>[:<port>] format and only TCP is currently supported. Defaults to cookie based session storage"),
-		sessionName: flagSet.String("cookiename", "sargantana-go", "Session cookie name. Be aware that this name will be used regardless of the session storage type (cookies or Redis)"),
-		showVersion: flagSet.Bool("version", false, "Show version information"),
-	}
-
-	// Initialize controller constructors
-	var constructors []func() controller.IController
-	for _, init := range flagInitializers {
-		constructors = append(constructors, init(flagSet))
-	}
-
-	// Parse command line arguments
-	_ = flagSet.Parse(os.Args[1:])
-
-	// Handle version flag if requested
-	if *flags.showVersion {
-		fmt.Printf("%s %s\n", "sargantana-go", versionInfo)
-		os.Exit(0)
-	}
-
-	return flags, constructors
-}
-
-// NewServer creates a new Server instance with the specified configuration parameters.
-// It initializes the server with basic configuration but does not start it.
+// NewServer creates a new Server instance by loading configuration from the specified file.
 //
 // Parameters:
-//   - host: The hostname or IP address to bind to (e.g., "localhost", "0.0.0.0")
-//   - port: The port number to listen on (e.g., 8080)
-//   - redis: Redis server address for session storage (empty string uses cookies)
-//   - secretsDir: Directory path containing secret files for environment variables
-//   - debug: Whether to enable debug mode with detailed logging
-//   - sessionName: Name of the session cookie
-//
-// Returns a pointer to the configured Server instance.
-func NewServer(host string, port int, redis, secretsDir string, debug bool, sessionName string) *Server {
-	c := config.NewConfig(
-		address(host, port),
-		redis,
-		secretsDir,
-		debug,
-		sessionName,
-	)
-	return &Server{config: c}
-}
-
-// NewServerFromFlags creates a new Server instance and controllers from command-line flags.
-// This is the primary way to initialize a Sargantana Go application with flag-based configuration.
-// It registers all controller flags, parses command line arguments, and creates both the server
-// and controller instances.
-//
-// Parameters:
-//   - flagInitializers: Variable number of controller factory functions that register their flags
+//   - configFile: Path to the configuration file to load settings from
 //
 // Returns:
 //   - *Server: The configured server instance
-//   - []controller.IController: List of initialized controllers
-func NewServerFromFlags(flagInitializers ...ControllerFlagInitializer) (*Server, []controller.IController) {
-	return newServerFromFlagsInternal("unknown", flagInitializers...)
-}
+func NewServer(configFile string, controllerConfigurators ...controller.IControllerConfigurator) (*Server, error) {
+	c, err := config.Load(configFile)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to load config file: %s", configFile))
+	}
+	configMap, err := registerConfigurators(controllerConfigurators)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to register controller configurators")
+	}
 
-// NewServerFromFlagsWithVersion creates a new Server instance and controllers from command-line flags.
-// This is the primary way to initialize a Sargantana Go application with flag-based configuration.
-// It registers all controller flags, parses command line arguments, and creates both the server
-// and controller instances.
-//
-// Parameters:
-//   - versionInfo: Version information to display with --version flag
-//   - flagInitializers: Variable number of controller factory functions that register their flags
-//
-// Returns:
-//   - *Server: The configured server instance
-//   - []controller.IController: List of initialized controllers
-func NewServerFromFlagsWithVersion(versionInfo string, flagInitializers ...ControllerFlagInitializer) (*Server, []controller.IController) {
-	return newServerFromFlagsInternal(versionInfo, flagInitializers...)
-}
-
-// newServerFromFlagsInternal is the internal implementation that both exported functions use
-func newServerFromFlagsInternal(versionInfo string, flagInitializers ...ControllerFlagInitializer) (*Server, []controller.IController) {
-	flags, constructors := parseServerFlags(versionInfo, flagInitializers...)
-
-	// Create controller instances
 	var controllers []controller.IController
-	for _, c := range constructors {
-		controllers = append(controllers, c())
+	for _, binding := range c.ControllerBindings {
+		forType := binding.TypeName
+		configurator, exists := configMap[forType]
+		if !exists {
+			return nil, fmt.Errorf("no configurator found for controller type: %s", forType)
+		}
+		newController := configurator.Configure(binding.ConfigData, c.ServerConfig)
+		if newController == nil {
+			return nil, fmt.Errorf("failed to configure controller of type: %s", forType)
+		}
+		controllers = append(controllers, newController)
 	}
-
-	// Create and return server
-	return NewServer(
-		*flags.host, *flags.port,
-		*flags.redis,
-		*flags.secretsDir,
-		*flags.debug,
-		*flags.sessionName), controllers
+	log.Println("Configuration loaded successfully")
+	return &Server{config: c, controllers: controllers}, nil
 }
 
-func address(host string, port int) string {
-	return host + ":" + strconv.Itoa(port)
+func registerConfigurators(configurators []controller.IControllerConfigurator) (map[string]controller.IControllerConfigurator, error) {
+	var configMap = make(map[string]controller.IControllerConfigurator)
+	for _, binding := range configurators {
+		forType := binding.ForType()
+		if _, exists := configMap[forType]; exists {
+			return nil, fmt.Errorf("duplicate controller type: %s", forType)
+		}
+		configMap[forType] = binding
+	}
+
+	return configMap, nil
 }
 
 // StartAndWaitForSignal starts the HTTP server and waits for an OS signal to gracefully shut it down.
 // It handles initialization, secret loading, and controller registration before starting the server.
 // Upon receiving a termination signal, it gracefully shuts down the server, allowing active connections
 // to complete and freeing up resources.
-func (s *Server) StartAndWaitForSignal(appControllers ...controller.IController) error {
-	err := s.Start(appControllers...)
+func (s *Server) StartAndWaitForSignal() error {
+	err := s.Start()
 	if err != nil {
 		return err
 	}
@@ -174,49 +108,39 @@ func (s *Server) StartAndWaitForSignal(appControllers ...controller.IController)
 // Start initializes the server components and starts listening for incoming HTTP requests.
 // It configures the server based on the provided flags, loads secrets, and sets up the router and middleware.
 // This function must be called before the server can handle requests.
-func (s *Server) Start(appControllers ...controller.IController) error {
-	if s.config.Debug() {
+func (s *Server) Start(controllerInitializers ...controller.IControllerConfigurator) error {
+	if s.config.ServerConfig.Debug {
 		log.Printf("Debug mode is enabled\n")
-		log.Printf("Secrets directory: %q\n", s.config.SecretsDir())
-		log.Printf("Listen address: %q\n", s.config.Address())
-		if s.config.RedisSessionStore() == "" {
+		log.Printf("Secrets directory: %q\n", s.config.ServerConfig.SecretsDir)
+		log.Printf("Listen address: %q\n", s.config.ServerConfig.Address)
+		if s.config.ServerConfig.RedisSessionStore == "" {
 			log.Printf("Use cookies for session storage\n")
 		} else {
-			log.Printf("Use Redis for session storage: %s\n", s.config.RedisSessionStore())
+			log.Printf("Use Redis for session storage: %s\n", s.config.ServerConfig.RedisSessionStore)
 		}
-		log.Printf("Session cookie name: %q\n", s.config.SessionName())
+		log.Printf("Session cookie name: %q\n", s.config.ServerConfig.SessionName)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	if err := s.bootstrap(appControllers...); err != nil {
+	if err := s.bootstrap(); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s *Server) bootstrap(appControllers ...controller.IController) error {
-	err := config.LoadSecretsFromDir(s.config.SecretsDir())
+func (s *Server) bootstrap() error {
+	err := s.config.LoadSecrets()
 	if err != nil {
 		return err
 	}
 
 	engine := gin.New()
 	isReleaseMode := gin.Mode() == gin.ReleaseMode
-	var sessionStore sessions.Store
-	sessionSecret := []byte(os.ExpandEnv(s.config.SessionSecret()))
-	if s.config.RedisSessionStore() == "" {
-		log.Println("Using cookies for session storage")
-		sessionStore = session.NewCookieStore(isReleaseMode, sessionSecret)
-	} else {
-		log.Println("Using Redis for session storage")
-		pool := database.NewRedisPool(s.config.RedisSessionStore())
-		s.addShutdownHook(func() error { return pool.Close() })
-		sessionStore, err = session.NewRedisSessionStore(isReleaseMode, sessionSecret, pool)
-		if err != nil {
-			return fmt.Errorf("error creating Redis session store: %v", err)
-		}
+	sessionStore, err := s.createSessionStore(isReleaseMode, err)
+	if err != nil {
+		return err
 	}
 
 	if isReleaseMode {
@@ -225,36 +149,53 @@ func (s *Server) bootstrap(appControllers ...controller.IController) error {
 		if err != nil {
 			return err
 		}
+		engine.Use(gin.ErrorLoggerT(gin.ErrorTypePrivate))
 	} else {
-		engine.Use(ginBodyLogMiddleware)
+		engine.Use(ginBodyLogMiddleware, gin.ErrorLogger())
+
 	}
-	gothic.Store = sessionStore
 	engine.Use(
 		gin.Logger(),
 		gin.Recovery(),
-		sessions.Sessions(s.config.SessionName(), sessionStore),
+		sessions.Sessions(s.config.ServerConfig.SessionName, sessionStore),
 	)
 
-	if isReleaseMode {
-		engine.Use(gin.ErrorLoggerT(gin.ErrorTypePrivate))
-	} else {
-		engine.Use(gin.ErrorLogger())
-	}
-
-	for _, c := range appControllers {
-		c.Bind(engine, *s.config, controller.LoginFunc)
+	for _, c := range s.controllers {
+		c.Bind(engine, controller.LoginFunc)
 		s.addShutdownHook(c.Close)
 	}
 
 	s.httpServer = &http.Server{
-		Addr:    s.config.Address(),
+		Addr:    s.config.ServerConfig.Address,
 		Handler: engine,
 	}
 
-	log.Println("Starting server on " + s.config.Address())
+	log.Println("Starting server on " + s.config.ServerConfig.Address)
 	s.listenAndServe()
 
 	return nil
+}
+
+func (s *Server) createSessionStore(isReleaseMode bool, err error) (sessions.Store, error) {
+	var sessionStore sessions.Store
+	secret := s.config.ServerConfig.SessionSecret
+	if secret == "" {
+		return nil, fmt.Errorf("session secret is not set")
+	}
+	sessionSecret := []byte(os.ExpandEnv(secret))
+	if s.config.ServerConfig.RedisSessionStore == "" {
+		log.Println("Using cookies for session storage")
+		sessionStore = session.NewCookieStore(isReleaseMode, sessionSecret)
+	} else {
+		log.Println("Using Redis for session storage")
+		pool := database.NewRedisPool(s.config.ServerConfig.RedisSessionStore)
+		s.addShutdownHook(func() error { return pool.Close() })
+		sessionStore, err = session.NewRedisSessionStore(isReleaseMode, sessionSecret, pool)
+		if err != nil {
+			return nil, fmt.Errorf("error creating Redis session store: %v", err)
+		}
+	}
+	return sessionStore, nil
 }
 
 func (s *Server) waitForSignal() error {
