@@ -29,24 +29,23 @@ func NewLoadBalancerConfigurator() IConfigurator {
 
 func (a *loadBalancerConfigurator) Configure(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
 	var c LoadBalancerControllerConfig
-	err := configData.To(c)
+	err := configData.To(&c)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse load balancer controller config")
 	}
 	auth := c.Auth
-	path := strings.TrimSuffix(c.Path, "/") + "/*proxyPath"
 	stringEndpoints := c.Endpoints
 	endpoints := make([]url.URL, 0, len(stringEndpoints))
 	if len(stringEndpoints) == 0 {
 		return nil, errors.New("no endpoints provided for load balancing")
 	} else {
-		log.Printf("Load balancing path: %q\n", path)
+		log.Printf("Load balancing path: %q\n", c.Path)
 		log.Printf("Load balancing authentication: %t\n", auth)
 		log.Printf("Load balanced endpoints:")
 		for _, endpoint := range stringEndpoints {
 			u, err := url.Parse(endpoint)
 			if err != nil {
-				return nil, errors.Wrap(err, fmt.Sprintf("failed to parse load balancer path: %s", path))
+				return nil, errors.Wrap(err, fmt.Sprintf("failed to parse load balancer path: %s", c.Path))
 			}
 			endpoints = append(endpoints, *u)
 			log.Printf(" - %s\n", u.String())
@@ -63,7 +62,7 @@ func (a *loadBalancerConfigurator) Configure(configData config.ControllerConfig,
 	return &loadBalancer{
 		endpoints:  endpoints,
 		httpClient: httpClient,
-		path:       path,
+		path:       strings.TrimSuffix(c.Path, "/") + "/*proxyPath",
 		auth:       auth,
 	}, nil
 }

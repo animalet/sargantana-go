@@ -11,7 +11,6 @@ require (
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.2
 	github.com/pkg/errors v0.9.1
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/client-go v0.34.0
 )
 
 require (

@@ -21,8 +21,8 @@ controllers:
   # Static file controller
   - type: "static"
     config:
-      statics_dir: "./static"      # Directory for static files (CSS, JS, images)
-      templates_dir: "./templates" # Directory for HTML templates
+      statics_dir: "./static"
+      templates_dir: "./templates"
 
   # Load balancer controller
   - type: "load_balancer"

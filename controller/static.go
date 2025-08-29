@@ -27,7 +27,7 @@ func (a *staticConfigurator) ForType() string {
 }
 
 func (a *staticConfigurator) Configure(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
-	var c StaticControllerConfig
+	var c *StaticControllerConfig
 	err := configData.To(&c)
 	if err != nil {
 		return nil, err
@@ -42,10 +42,8 @@ func (a *staticConfigurator) Configure(configData config.ControllerConfig, _ con
 	}
 
 	// Ensure the templates directory exists (if provided)
-	if c.HtmlTemplatesDir != "" {
-		if stat, err := os.Stat(c.HtmlTemplatesDir); err != nil || !stat.IsDir() {
-			log.Printf("Warning: Templates directory %q does not exist or is not a directory. Continuing without templates.", c.HtmlTemplatesDir)
-		}
+	if stat, err := os.Stat(c.HtmlTemplatesDir); err != nil || !stat.IsDir() {
+		log.Printf("Warning: Templates directory %q does not exist or is not a directory. Continuing without templates.", c.HtmlTemplatesDir)
 	}
 	return &static{
 		staticsDir:       c.StaticsDir,

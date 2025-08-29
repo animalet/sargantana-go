@@ -97,8 +97,8 @@ func (a *authConfigurator) ForType() string {
 }
 
 func (a *authConfigurator) Configure(configData config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
-	var c *AuthControllerConfig
-	err := configData.To(c)
+	var c AuthControllerConfig
+	err := configData.To(&c)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal auth controller config")
 	}

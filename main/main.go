@@ -27,13 +27,10 @@ func main() {
 	}
 
 	// Create a set of controllers that will be initialized from command line arguments (flags)
-	staticConfigurator := controller.NewStaticConfigurator()
-	authConfigurator := controller.NewAuthConfigurator()
-	configurator := controller.NewLoadBalancerConfigurator()
 	controllerConfigurators := []controller.IConfigurator{
-		staticConfigurator,
-		authConfigurator,
-		configurator,
+		controller.NewStaticConfigurator(),
+		controller.NewAuthConfigurator(),
+		controller.NewLoadBalancerConfigurator(),
 	}
 
 	// Parse command line flags and create the server and controllers based on those flags
