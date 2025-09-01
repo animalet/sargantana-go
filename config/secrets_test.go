@@ -448,15 +448,35 @@ func TestLoadSecretsFromVault_NilSecret(t *testing.T) {
 	}
 
 	// Test with a path that doesn't exist in Vault
+	nonExistentPath := "secret/data/absolutely/nonexistent/path/for/testing"
 	config := &Config{
 		Vault: VaultConfig{
 			Address: vaultAddr,
 			Token:   "dev-root-token",
-			Path:    "secret/data/nonexistent/path/that/does/not/exist",
+			Path:    nonExistentPath,
 		},
 	}
 
-	err := config.LoadSecretsFromVault()
+	// First verify the API behavior directly (this was the valuable part of the manual simulation test)
+	apiConfig := api.DefaultConfig()
+	apiConfig.Address = vaultAddr
+	client, err := api.NewClient(apiConfig)
+	if err != nil {
+		t.Fatalf("Failed to create Vault client: %v", err)
+	}
+	client.SetToken("dev-root-token")
+
+	// Verify that the Vault API returns nil secret with no error for nonexistent paths
+	secret, err := client.Logical().Read(nonExistentPath)
+	if err != nil {
+		t.Fatalf("Expected no error from Vault API but got: %v", err)
+	}
+	if secret != nil {
+		t.Errorf("Expected nil secret for nonexistent path, but got: %+v", secret)
+	}
+
+	// Now test that our function handles this case gracefully
+	err = config.LoadSecretsFromVault()
 	if err != nil {
 		t.Errorf("LoadSecretsFromVault should not return error for nonexistent path, got: %v", err)
 	}
@@ -596,55 +616,5 @@ func TestLoadSecretsFromVault_WithNamespace(t *testing.T) {
 	// We don't assert on error here because namespace behavior varies in dev mode
 	if err != nil {
 		t.Logf("LoadSecretsFromVault with namespace returned error (expected): %v", err)
-	}
-}
-
-// TestLoadSecretsFromVault_ManualNilSecretSimulation tests the nil secret path using direct API calls
-func TestLoadSecretsFromVault_ManualNilSecretSimulation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
-	vaultAddr := "http://localhost:8200"
-	if !isVaultReachable(vaultAddr) {
-		t.Skip("Vault container not reachable. Run 'docker-compose up vault' first")
-	}
-
-	// Test the specific scenario directly using Vault API
-	config := api.DefaultConfig()
-	config.Address = vaultAddr
-
-	client, err := api.NewClient(config)
-	if err != nil {
-		t.Fatalf("Failed to create Vault client: %v", err)
-	}
-
-	client.SetToken("dev-root-token")
-
-	// Try to read from a path that definitely doesn't exist
-	nonExistentPath := "secret/data/absolutely/nonexistent/path/for/testing"
-	secret, err := client.Logical().Read(nonExistentPath)
-
-	// This is the exact scenario we want to test
-	if err != nil {
-		t.Fatalf("Expected no error but got: %v", err)
-	}
-
-	if secret != nil {
-		t.Errorf("Expected nil secret for nonexistent path, but got: %+v", secret)
-	}
-
-	// Now test our function handles this case
-	testConfig := &Config{
-		Vault: VaultConfig{
-			Address: vaultAddr,
-			Token:   "dev-root-token",
-			Path:    nonExistentPath,
-		},
-	}
-
-	err = testConfig.LoadSecretsFromVault()
-	if err != nil {
-		t.Errorf("LoadSecretsFromVault should handle nil secret gracefully, got error: %v", err)
 	}
 }

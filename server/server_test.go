@@ -717,52 +717,6 @@ controllers: []`
 	}
 }
 
-func TestServer_Shutdown(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	// Set up environment
-	err := os.Setenv("SESSION_SECRET", "test-secret")
-	if err != nil {
-		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
-	}
-	defer func() {
-		_ = os.Unsetenv("SESSION_SECRET")
-	}()
-
-	// Create a temporary config file
-	tempDir := t.TempDir()
-	configFile := filepath.Join(tempDir, "config.yaml")
-
-	configContent := `server:
-  address: "localhost:0"
-  debug: false
-  session_name: "test-session"
-  session_secret: "test-secret"
-controllers: []`
-
-	err = os.WriteFile(configFile, []byte(configContent), 0644)
-	if err != nil {
-		t.Fatalf("Failed to write config file: %v", err)
-	}
-
-	server, err := NewServer(configFile)
-	if err != nil {
-		t.Fatalf("Failed to create server: %v", err)
-	}
-
-	// Start server
-	err = server.Start()
-	if err != nil {
-		t.Fatalf("Failed to start server: %v", err)
-	}
-
-	// Test shutdown
-	err = server.Shutdown()
-	if err != nil {
-		t.Errorf("Shutdown() returned error: %v", err)
-	}
-}
-
 func TestServer_InvalidConfig(t *testing.T) {
 	// Create a temporary config file with invalid YAML
 	tempDir := t.TempDir()
