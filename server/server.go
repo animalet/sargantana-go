@@ -34,18 +34,6 @@ type Server struct {
 	controllers     []controller.IController
 }
 
-// serverFlags holds all the parsed flag values
-type serverFlags struct {
-	debug       *bool
-	secretsDir  *string
-	host        *string
-	port        *int
-	redis       *string
-	sessionName *string
-	showVersion *bool
-	config      *string
-}
-
 // NewServer creates a new Server instance by loading configuration from the specified file.
 //
 // Parameters:
@@ -138,7 +126,7 @@ func (s *Server) bootstrap() error {
 
 	engine := gin.New()
 	isReleaseMode := gin.Mode() == gin.ReleaseMode
-	sessionStore, err := s.createSessionStore(isReleaseMode, err)
+	sessionStore, err := s.createSessionStore(isReleaseMode)
 	if err != nil {
 		return err
 	}
@@ -176,7 +164,7 @@ func (s *Server) bootstrap() error {
 	return nil
 }
 
-func (s *Server) createSessionStore(isReleaseMode bool, err error) (sessions.Store, error) {
+func (s *Server) createSessionStore(isReleaseMode bool) (sessions.Store, error) {
 	var sessionStore sessions.Store
 	secret := s.config.ServerConfig.SessionSecret
 	if secret == "" {
@@ -190,6 +178,7 @@ func (s *Server) createSessionStore(isReleaseMode bool, err error) (sessions.Sto
 		log.Println("Using Redis for session storage")
 		pool := database.NewRedisPool(s.config.ServerConfig.RedisSessionStore)
 		s.addShutdownHook(func() error { return pool.Close() })
+		var err error
 		sessionStore, err = session.NewRedisSessionStore(isReleaseMode, sessionSecret, pool)
 		if err != nil {
 			return nil, fmt.Errorf("error creating Redis session store: %v", err)

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,7 +61,7 @@ func TestNewServer(t *testing.T) {
   session_secret: "` + tt.configData.ServerConfig.SessionSecret + `"
 controllers: []`
 
-			err := ioutil.WriteFile(configFile, []byte(configContent), 0644)
+			err := os.WriteFile(configFile, []byte(configContent), 0644)
 			if err != nil {
 				t.Fatalf("Failed to write config file: %v", err)
 			}
@@ -158,7 +157,7 @@ controllers:
       statics_dir: "./static"
       templates_dir: "./templates"`
 
-	err := ioutil.WriteFile(configFile, []byte(configContent), 0644)
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
@@ -215,7 +214,7 @@ func TestServer_Start(t *testing.T) {
   session_secret: "test-secret"
 controllers: []`
 
-			err := ioutil.WriteFile(configFile, []byte(configContent), 0644)
+			err := os.WriteFile(configFile, []byte(configContent), 0644)
 			if err != nil {
 				t.Fatalf("Failed to write config file: %v", err)
 			}
@@ -266,7 +265,7 @@ func TestServer_StartAndWaitForSignal(t *testing.T) {
   session_secret: "test-secret"
 controllers: []`
 
-	err = ioutil.WriteFile(configFile, []byte(configContent), 0644)
+	err = os.WriteFile(configFile, []byte(configContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
@@ -335,7 +334,7 @@ func TestServer_Shutdown(t *testing.T) {
   session_secret: "test-secret"
 controllers: []`
 
-	err = ioutil.WriteFile(configFile, []byte(configContent), 0644)
+	err = os.WriteFile(configFile, []byte(configContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
@@ -368,7 +367,7 @@ func TestServer_InvalidConfig(t *testing.T) {
   debug: not-a-boolean
 controllers: []`
 
-	err := ioutil.WriteFile(configFile, []byte(invalidConfigContent), 0644)
+	err := os.WriteFile(configFile, []byte(invalidConfigContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
