@@ -75,10 +75,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-func init() {
-	RegisterController("auth", NewAuthController)
-}
-
 // ProviderConfig represents the configuration for an OAuth provider
 type ProviderConfig struct {
 	Key     string   `yaml:"key"`
@@ -108,7 +104,6 @@ func NewAuthController(configData config.ControllerConfig, serverConfig config.S
 		return nil, errors.Wrap(err, "failed to unmarshal auth controller config")
 	}
 
-	// Use callback_url from config if provided, otherwise build from server address
 	var callbackEndpoint string
 	if c.CallbackURL != "" {
 		callbackEndpoint = c.CallbackURL
@@ -183,175 +178,119 @@ func (f *configProviderFactory) CreateProviders(callbackURLTemplate string) []go
 		case "twitter", "twitterv2":
 			providers = append(providers, twitterv2.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "twitterv2")))
 		case "tiktok":
-			providers = append(providers, tiktok.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "tiktok")))
+			providers = append(providers, tiktok.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "tiktok"), providerConfig.Scopes...))
 		case "facebook":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{"email", "public_profile"}
-			}
-			providers = append(providers, facebook.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "facebook"), scopes...))
+			providers = append(providers, facebook.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "facebook"), providerConfig.Scopes...))
 		case "fitbit":
-			providers = append(providers, fitbit.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "fitbit")))
+			providers = append(providers, fitbit.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "fitbit"), providerConfig.Scopes...))
 		case "google":
-			providers = append(providers, google.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "google")))
+			providers = append(providers, google.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "google"), providerConfig.Scopes...))
 		case "github":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{"read:user", "user:email"}
-			}
-			providers = append(providers, github.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "github"), scopes...))
+			providers = append(providers, github.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "github"), providerConfig.Scopes...))
 		case "spotify":
-			providers = append(providers, spotify.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "spotify")))
+			providers = append(providers, spotify.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "spotify"), providerConfig.Scopes...))
 		case "linkedin":
-			providers = append(providers, linkedin.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "linkedin")))
+			providers = append(providers, linkedin.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "linkedin"), providerConfig.Scopes...))
 		case "line":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{"profile", "openid", "email"}
-			}
-			providers = append(providers, line.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "line"), scopes...))
+			providers = append(providers, line.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "line"), providerConfig.Scopes...))
 		case "lastfm":
 			providers = append(providers, lastfm.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "lastfm")))
 		case "twitch":
-			providers = append(providers, twitch.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "twitch")))
+			providers = append(providers, twitch.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "twitch"), providerConfig.Scopes...))
 		case "dropbox":
-			providers = append(providers, dropbox.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "dropbox")))
+			providers = append(providers, dropbox.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "dropbox"), providerConfig.Scopes...))
 		case "digitalocean":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{"read"}
-			}
-			providers = append(providers, digitalocean.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "digitalocean"), scopes...))
+			providers = append(providers, digitalocean.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "digitalocean"), providerConfig.Scopes...))
 		case "bitbucket":
-			providers = append(providers, bitbucket.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "bitbucket")))
+			providers = append(providers, bitbucket.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "bitbucket"), providerConfig.Scopes...))
 		case "instagram":
-			providers = append(providers, instagram.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "instagram")))
+			providers = append(providers, instagram.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "instagram"), providerConfig.Scopes...))
 		case "intercom":
-			providers = append(providers, intercom.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "intercom")))
+			providers = append(providers, intercom.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "intercom"), providerConfig.Scopes...))
 		case "box":
-			providers = append(providers, box.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "box")))
+			providers = append(providers, box.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "box"), providerConfig.Scopes...))
 		case "salesforce":
-			providers = append(providers, salesforce.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "salesforce")))
+			providers = append(providers, salesforce.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "salesforce"), providerConfig.Scopes...))
 		case "seatalk":
-			providers = append(providers, seatalk.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "seatalk")))
+			providers = append(providers, seatalk.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "seatalk"), providerConfig.Scopes...))
 		case "amazon":
-			providers = append(providers, amazon.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "amazon")))
+			providers = append(providers, amazon.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "amazon"), providerConfig.Scopes...))
 		case "yammer":
-			providers = append(providers, yammer.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "yammer")))
+			providers = append(providers, yammer.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "yammer"), providerConfig.Scopes...))
 		case "onedrive":
-			providers = append(providers, onedrive.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "onedrive")))
+			providers = append(providers, onedrive.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "onedrive"), providerConfig.Scopes...))
 		case "azuread":
-			providers = append(providers, azuread.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "azuread"), nil))
+			providers = append(providers, azuread.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "azuread"), nil, providerConfig.Scopes...))
 		case "microsoftonline":
-			providers = append(providers, microsoftonline.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "microsoftonline")))
+			providers = append(providers, microsoftonline.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "microsoftonline"), providerConfig.Scopes...))
 		case "battlenet":
-			providers = append(providers, battlenet.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "battlenet")))
+			providers = append(providers, battlenet.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "battlenet"), providerConfig.Scopes...))
 		case "eveonline":
-			providers = append(providers, eveonline.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "eveonline")))
+			providers = append(providers, eveonline.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "eveonline"), providerConfig.Scopes...))
 		case "kakao":
-			providers = append(providers, kakao.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "kakao")))
+			providers = append(providers, kakao.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "kakao"), providerConfig.Scopes...))
 		case "yahoo":
-			providers = append(providers, yahoo.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "yahoo")))
+			providers = append(providers, yahoo.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "yahoo"), providerConfig.Scopes...))
 		case "typetalk":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{"my"}
-			}
-			providers = append(providers, typetalk.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "typetalk"), scopes...))
+			providers = append(providers, typetalk.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "typetalk"), providerConfig.Scopes...))
 		case "slack":
-			providers = append(providers, slack.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "slack")))
+			providers = append(providers, slack.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "slack"), providerConfig.Scopes...))
 		case "stripe":
-			providers = append(providers, stripe.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "stripe")))
+			providers = append(providers, stripe.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "stripe"), providerConfig.Scopes...))
 		case "wepay":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{"view_user"}
-			}
-			providers = append(providers, wepay.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "wepay"), scopes...))
+			providers = append(providers, wepay.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "wepay"), providerConfig.Scopes...))
 		case "paypal":
-			providers = append(providers, paypal.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "paypal")))
+			providers = append(providers, paypal.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "paypal"), providerConfig.Scopes...))
 		case "steam":
 			providers = append(providers, steam.New(providerConfig.Key, fmt.Sprintf(callbackURLTemplate, "steam")))
 		case "heroku":
-			providers = append(providers, heroku.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "heroku")))
+			providers = append(providers, heroku.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "heroku"), providerConfig.Scopes...))
 		case "uber":
-			providers = append(providers, uber.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "uber")))
+			providers = append(providers, uber.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "uber"), providerConfig.Scopes...))
 		case "soundcloud":
-			providers = append(providers, soundcloud.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "soundcloud")))
+			providers = append(providers, soundcloud.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "soundcloud"), providerConfig.Scopes...))
 		case "gitlab":
-			providers = append(providers, gitlab.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "gitlab")))
+			providers = append(providers, gitlab.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "gitlab"), providerConfig.Scopes...))
 		case "dailymotion":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{"email"}
-			}
-			providers = append(providers, dailymotion.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "dailymotion"), scopes...))
+			providers = append(providers, dailymotion.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "dailymotion"), providerConfig.Scopes...))
 		case "deezer":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{"email"}
-			}
-			providers = append(providers, deezer.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "deezer"), scopes...))
+			providers = append(providers, deezer.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "deezer"), providerConfig.Scopes...))
 		case "discord":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{discord.ScopeIdentify, discord.ScopeEmail}
-			}
-			providers = append(providers, discord.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "discord"), scopes...))
+			providers = append(providers, discord.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "discord"), providerConfig.Scopes...))
 		case "meetup":
-			providers = append(providers, meetup.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "meetup")))
+			providers = append(providers, meetup.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "meetup"), providerConfig.Scopes...))
 		case "auth0":
 			providers = append(providers, auth0.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "auth0"), providerConfig.Domain))
 		case "xero":
 			providers = append(providers, xero.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "xero")))
 		case "vk":
-			providers = append(providers, vk.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "vk")))
+			providers = append(providers, vk.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "vk"), providerConfig.Scopes...))
 		case "naver":
 			providers = append(providers, naver.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "naver")))
 		case "yandex":
-			providers = append(providers, yandex.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "yandex")))
+			providers = append(providers, yandex.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "yandex"), providerConfig.Scopes...))
 		case "nextcloud":
-			providers = append(providers, nextcloud.NewCustomisedDNS(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "nextcloud"), providerConfig.URL))
+			providers = append(providers, nextcloud.NewCustomisedDNS(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "nextcloud"), providerConfig.URL, providerConfig.Scopes...))
 		case "gitea":
-			providers = append(providers, gitea.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "gitea")))
+			providers = append(providers, gitea.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "gitea"), providerConfig.Scopes...))
 		case "shopify":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{shopify.ScopeReadCustomers, shopify.ScopeReadOrders}
-			}
-			providers = append(providers, shopify.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "shopify"), scopes...))
+			providers = append(providers, shopify.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "shopify"), providerConfig.Scopes...))
 		case "apple":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{apple.ScopeName, apple.ScopeEmail}
-			}
-			providers = append(providers, apple.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "apple"), nil, scopes...))
+			providers = append(providers, apple.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "apple"), nil, providerConfig.Scopes...))
 		case "strava":
-			providers = append(providers, strava.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "strava")))
+			providers = append(providers, strava.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "strava"), providerConfig.Scopes...))
 		case "okta":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{"openid", "profile", "email"}
-			}
-			providers = append(providers, okta.New(providerConfig.Key, providerConfig.Secret, providerConfig.OrgURL, fmt.Sprintf(callbackURLTemplate, "okta"), scopes...))
+			providers = append(providers, okta.New(providerConfig.Key, providerConfig.Secret, providerConfig.OrgURL, fmt.Sprintf(callbackURLTemplate, "okta"), providerConfig.Scopes...))
 		case "mastodon":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{"read:accounts"}
-			}
-			providers = append(providers, mastodon.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "mastodon"), scopes...))
+			providers = append(providers, mastodon.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "mastodon"), providerConfig.Scopes...))
 		case "wecom":
 			providers = append(providers, wecom.New(providerConfig.CorpID, providerConfig.Secret, providerConfig.AgentID, fmt.Sprintf(callbackURLTemplate, "wecom")))
 		case "zoom":
-			scopes := providerConfig.Scopes
-			if len(scopes) == 0 {
-				scopes = []string{"read:user"}
-			}
-			providers = append(providers, zoom.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "zoom"), scopes...))
+			providers = append(providers, zoom.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "zoom"), providerConfig.Scopes...))
 		case "patreon":
-			providers = append(providers, patreon.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "patreon")))
+			providers = append(providers, patreon.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "patreon"), providerConfig.Scopes...))
 		case "openid-connect":
-			openid, _ := openidConnect.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "openid-connect"), providerConfig.URL)
+			openid, _ := openidConnect.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "openid-connect"), providerConfig.URL, providerConfig.Scopes...)
 			if openid != nil {
 				providers = append(providers, openid)
 			}

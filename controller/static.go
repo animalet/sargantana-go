@@ -10,10 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func init() {
-	RegisterController("static", NewStaticController)
-}
-
 type StaticControllerConfig struct {
 	StaticsDir       string `yaml:"statics_dir,omitempty"`
 	HtmlTemplatesDir string `yaml:"templates_dir,omitempty"`

@@ -30,18 +30,5 @@ type IController interface {
 	Close() error
 }
 
-var controllerRegistry = make(map[string]NewController)
-
 // NewController is a factory function that creates a new controller instance.
 type NewController func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (IController, error)
-
-// RegisterController registers a new controller factory for a given type.
-func RegisterController(typeName string, factory NewController) {
-	controllerRegistry[typeName] = factory
-}
-
-// GetControllerFactory returns the factory for a given controller type.
-func GetControllerFactory(typeName string) (NewController, bool) {
-	factory, exists := controllerRegistry[typeName]
-	return factory, exists
-}

@@ -6,8 +6,11 @@ package config
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,7 +20,7 @@ type (
 	// session storage options, security settings, and debugging preferences.
 	Config struct {
 		ServerConfig       ServerConfig        `yaml:"server"`
-		Vault              VaultConfig         `yaml:"vault,omitempty"`
+		Vault              *VaultConfig        `yaml:"vault,omitempty"`
 		ControllerBindings []ControllerBinding `yaml:"controllers"`
 	}
 
@@ -25,8 +28,8 @@ type (
 	ServerConfig struct {
 		Address           string `yaml:"address"`
 		RedisSessionStore string `yaml:"redis_session_store"`
-		SecretsDir        string `yaml:"secrets_dir"`
-		Debug             bool   `yaml:"debug"`
+		SecretsDir        string `yaml:"secrets_dir,omitempty"`
+		Debug             bool   `yaml:"debug,omitempty"`
 		SessionName       string `yaml:"session_name"`
 		SessionSecret     string `yaml:"session_secret"`
 	}
@@ -55,12 +58,37 @@ func Load(file string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if cfg.ServerConfig.SecretsDir == "" {
+		log.Println("No secrets directory configured, file secrets will fail if requested")
+	}
+
+	secretDir = cfg.ServerConfig.SecretsDir
+	if cfg.Vault.IsValid() && cfg.Vault != nil {
+		err = cfg.createVaultManager()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		log.Println("Vault configuration incomplete, skipping Vault secrets loading")
+	}
+
+	cfg.ServerConfig.SessionSecret = expand(cfg.ServerConfig.SessionSecret)
+	if cfg.ServerConfig.SessionSecret == "" {
+		return nil, errors.New("session_secret must be set and non-empty")
+	}
+
+	// Always try to expand environment variables for structs
+	v := reflect.ValueOf(&cfg.ServerConfig).Elem()
+	if v.Kind() == reflect.Struct {
+		expandEnv(v)
+	}
 	return cfg, nil
 }
 
 // IsValid checks if the VaultConfig has all required fields set.
 func (v *VaultConfig) IsValid() bool {
-	return v.Address != "" && v.Token != "" && v.Path != ""
+	return v != nil && v.Address != "" && v.Token != "" && v.Path != ""
 }
 
 // LoadYaml reads the YAML configuration file and unmarshalls its content into the provided struct.
@@ -109,13 +137,68 @@ func UnmarshalTo[T any](c ControllerConfig) (*T, error) {
 	return &result, nil
 }
 
+// expand checks for specific prefixes in the string and expands them accordingly.
+// Supported prefixes are:
+//   - "env:": Expands to the value of the specified environment variable
+//   - "vault:": Placeholder for future Vault integration (currently returns a static value)
+//
+// If no known prefix is found, the original string is returned unchanged.
+const envPrefix = "env"
+const filePrefix = "file"
+const vaultPrefix = "vault"
+
+func expand(s string) string {
+	prefix, name, found := strings.Cut(s, envPrefix)
+	switch {
+	case !found || strings.EqualFold(prefix, envPrefix):
+		return os.ExpandEnv(s)
+	case strings.EqualFold(prefix, filePrefix):
+		file, err := secretFromFile(name)
+		if err != nil {
+			panic(errors.Wrap(err, "error retrieving secret from Vault"))
+		}
+		return file
+	case strings.EqualFold(prefix, vaultPrefix):
+		fromVault, err := vaultManagerInstance.secret(name)
+		if err != nil {
+			panic(errors.Wrap(err, "error retrieving secret from Vault"))
+		}
+		if fromVault == nil {
+			return ""
+		}
+		return *fromVault
+	default:
+		return s
+	}
+}
+
+var secretDir string
+
+// secretFromFile reads the content of a file and returns it as a trimmed string.
+// It returns an error if the file cannot be read.
+func secretFromFile(file string) (string, error) {
+	if secretDir == "" {
+		return "", errors.New("no secrets directory configured")
+	}
+	file = strings.TrimSpace(file)
+	if file == "" {
+		return "", errors.New("no file specified for file secret")
+	}
+	file = filepath.Join(secretDir, file)
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return "", errors.Wrap(err, "error reading secret file")
+	}
+	return strings.TrimSpace(string(b)), nil
+}
+
 // expandEnv recursively traverses the fields of a struct and expands environment variables in string fields.
 // It handles nested structs, pointers to structs, slices, and maps.
 func expandEnv(val reflect.Value) {
 	switch val.Kind() {
 	case reflect.String:
 		if val.CanSet() {
-			val.SetString(os.ExpandEnv(val.String()))
+			val.SetString(os.Expand(val.String(), expand))
 		}
 	case reflect.Struct:
 		for i := 0; i < val.NumField(); i++ {
@@ -134,7 +217,7 @@ func expandEnv(val reflect.Value) {
 			for _, key := range val.MapKeys() {
 				mapVal := val.MapIndex(key)
 				if mapVal.Kind() == reflect.String {
-					expanded := os.ExpandEnv(mapVal.String())
+					expanded := os.Expand(val.String(), expand)
 					val.SetMapIndex(key, reflect.ValueOf(expanded))
 				}
 			}
@@ -148,6 +231,6 @@ func expandEnv(val reflect.Value) {
 			}
 		}
 	default:
-		log.Panicf("expandEnv: unsupported kind %s", val.Kind())
+		return
 	}
 }

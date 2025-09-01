@@ -1,9 +1,11 @@
 package config
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -681,4 +683,22 @@ nested:
 			t.Fatalf("Expanded struct does not match expected.\nGot: %v\nWant: %v", out, expectedOut)
 		}
 	})
+}
+
+func TestExpandTest(t *testing.T) {
+	_ = os.Setenv("env:PEPE", "pepe_value")
+	_ = os.Setenv("PEPE", "pepe_value")
+	log.Printf(">>> %s", os.ExpandEnv("${env:PEPE}"))
+	log.Printf(">>> %s", os.ExpandEnv("${PEPE}"))
+	log.Printf(">>> %s", os.Expand("${env:PEPE}", func(s string) string {
+		// Accept this prefixes: env,vault
+		if strings.HasPrefix(s, "env:") {
+			return os.Getenv(strings.TrimPrefix(s, "env:"))
+		}
+
+		if strings.HasPrefix(s, "vault:") {
+			return "vault_value"
+		}
+		return s
+	}))
 }

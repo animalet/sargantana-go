@@ -14,10 +14,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-func init() {
-	RegisterController("load_balancer", NewLoadBalancerController)
-}
-
 type LoadBalancerControllerConfig struct {
 	Auth      bool     `yaml:"auth"`
 	Path      string   `yaml:"path"`

@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	_ "github.com/animalet/sargantana-go/controller"
+	"github.com/animalet/sargantana-go/controller"
 	"github.com/animalet/sargantana-go/server"
 )
 
@@ -26,13 +26,19 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Parse command line flags and create the server and controllers based on those flags
+	if *configFile == "" {
+		log.Fatalf("Error: -config is required")
+	}
+
+	server.AddController("auth", controller.NewAuthController)
+	server.AddController("static", controller.NewStaticController)
+	server.AddController("load_balancer", controller.NewLoadBalancerController)
+
 	sargantana, err := server.NewServer(*configFile)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
 
-	// Start the server with the controllers and wait for a termination signal
 	err = sargantana.StartAndWaitForSignal()
 	if err != nil {
 		log.Fatalf("%v", err)

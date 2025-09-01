@@ -135,7 +135,7 @@ func TestLoadSecretsFromDir(t *testing.T) {
 			}
 
 			// Run the function
-			err := LoadSecretsFromDir(testDir)
+			err := loadSecretsFromDir(testDir)
 
 			// Check error expectation
 			if tt.expectedError {
@@ -179,7 +179,7 @@ func TestLoadSecretsFromDir_EmptyDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Test loading from empty directory
-	err := LoadSecretsFromDir(tempDir)
+	err := loadSecretsFromDir(tempDir)
 	if err != nil {
 		t.Errorf("LoadSecretsFromDir with empty directory should not return error, got: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestLoadSecretsFromDir_FilePermissionError(t *testing.T) {
 	}()
 
 	// Test should return error due to permission issue
-	err = LoadSecretsFromDir(tempDir)
+	err = loadSecretsFromDir(tempDir)
 	if err == nil {
 		t.Fatal("Expected error due to file permission, but got none")
 	}
@@ -243,7 +243,7 @@ func TestLoadSecrets(t *testing.T) {
 		ServerConfig: ServerConfig{
 			SecretsDir: tempDir,
 		},
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			// Empty vault config - should be skipped
 		},
 	}
@@ -268,7 +268,7 @@ func TestLoadSecrets_EmptySecretsDir(t *testing.T) {
 		ServerConfig: ServerConfig{
 			SecretsDir: "",
 		},
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			// Empty vault config - should be skipped
 		},
 	}
@@ -284,7 +284,7 @@ func TestLoadSecrets_DirectoryError(t *testing.T) {
 		ServerConfig: ServerConfig{
 			SecretsDir: "/non/existent/directory",
 		},
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			// Empty vault config - should be skipped
 		},
 	}
@@ -322,7 +322,7 @@ func TestLoadSecrets_IntegrationWithVaultContainer(t *testing.T) {
 		ServerConfig: ServerConfig{
 			SecretsDir: tempDir,
 		},
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			Address: "http://localhost:8200",
 			Token:   "dev-root-token",
 			Path:    "secret/data/sargantana",
@@ -397,7 +397,7 @@ func TestLoadSecretsFromVault_NilSecret(t *testing.T) {
 	// Test with a path that doesn't exist in Vault
 	nonExistentPath := "secret/data/absolutely/nonexistent/path/for/testing"
 	config := &Config{
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			Address: vaultAddr,
 			Token:   "dev-root-token",
 			Path:    nonExistentPath,
@@ -423,7 +423,7 @@ func TestLoadSecretsFromVault_NilSecret(t *testing.T) {
 	}
 
 	// Now test that our function handles this case gracefully
-	err = config.LoadSecretsFromVault()
+	err = config.createVaultManager()
 	if err != nil {
 		t.Errorf("LoadSecretsFromVault should not return error for nonexistent path, got: %v", err)
 	}
@@ -432,7 +432,7 @@ func TestLoadSecretsFromVault_NilSecret(t *testing.T) {
 // TestLoadSecretsFromVault_Success tests successful loading of secrets from Vault
 func TestLoadSecretsFromVault_Success(t *testing.T) {
 	config := &Config{
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			Address: "http://localhost:8200",
 			Token:   "dev-root-token",
 			Path:    "secret/data/sargantana",
@@ -451,7 +451,7 @@ func TestLoadSecretsFromVault_Success(t *testing.T) {
 		_ = os.Unsetenv("SESSION_SECRET")
 	}()
 
-	err := config.LoadSecretsFromVault()
+	err := config.createVaultManager()
 	if err != nil {
 		t.Fatalf("LoadSecretsFromVault failed: %v", err)
 	}
@@ -466,7 +466,7 @@ func TestLoadSecretsFromVault_Success(t *testing.T) {
 // TestLoadSecretsFromVault_InvalidConfig tests with invalid Vault configuration
 func TestLoadSecretsFromVault_InvalidConfig(t *testing.T) {
 	config := &Config{
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			// Missing required fields - should be invalid
 			Address: "",
 			Token:   "",
@@ -474,7 +474,7 @@ func TestLoadSecretsFromVault_InvalidConfig(t *testing.T) {
 		},
 	}
 
-	err := config.LoadSecretsFromVault()
+	err := config.createVaultManager()
 	if err != nil {
 		t.Errorf("LoadSecretsFromVault with invalid config should not return error (should skip), got: %v", err)
 	}
@@ -483,14 +483,14 @@ func TestLoadSecretsFromVault_InvalidConfig(t *testing.T) {
 // TestLoadSecretsFromVault_ConnectionError tests with unreachable Vault server
 func TestLoadSecretsFromVault_ConnectionError(t *testing.T) {
 	config := &Config{
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			Address: "http://nonexistent-vault-server:8200",
 			Token:   "test-token",
 			Path:    "secret/data/test",
 		},
 	}
 
-	err := config.LoadSecretsFromVault()
+	err := config.createVaultManager()
 	if err == nil {
 		t.Fatal("LoadSecretsFromVault with unreachable server should return error")
 	}
@@ -503,14 +503,14 @@ func TestLoadSecretsFromVault_ConnectionError(t *testing.T) {
 // TestLoadSecretsFromVault_InvalidToken tests with invalid Vault token
 func TestLoadSecretsFromVault_InvalidToken(t *testing.T) {
 	config := &Config{
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			Address: "http://localhost:8200",
 			Token:   "invalid-token-that-does-not-exist",
 			Path:    "secret/data/sargantana",
 		},
 	}
 
-	err := config.LoadSecretsFromVault()
+	err := config.createVaultManager()
 	if err == nil {
 		t.Fatal("LoadSecretsFromVault with invalid token should return error")
 	}
@@ -526,7 +526,7 @@ func TestLoadSecretsFromVault_WithNamespace(t *testing.T) {
 
 	// Unit test scenario with invalid token
 	config := &Config{
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			Address:   "http://localhost:8200",
 			Token:     "test-token",
 			Path:      "secret/data/test",
@@ -536,7 +536,7 @@ func TestLoadSecretsFromVault_WithNamespace(t *testing.T) {
 
 	// This test focuses on the namespace setting code path
 	// We expect it to fail due to invalid token, but the namespace should be set
-	err := config.LoadSecretsFromVault()
+	err := config.createVaultManager()
 	if err == nil {
 		t.Fatal("Expected error due to invalid token")
 	}
@@ -559,9 +559,9 @@ func TestLoadSecretsFromDir_SetenvError(t *testing.T) {
 	}
 
 	// Test should return error due to invalid environment variable name
-	err = LoadSecretsFromDir(tempDir)
+	err = loadSecretsFromDir(tempDir)
 	if err == nil {
-		t.Error("Expected error due to invalid environment variable name, but got none")
+		t.Fatal("Expected error due to invalid environment variable name, but got none")
 	}
 
 	if !strings.Contains(err.Error(), "error setting environment variable") {
@@ -574,14 +574,14 @@ func TestLoadSecretsFromVault_CreateClientError(t *testing.T) {
 	// Test with configuration that would cause client creation to fail
 	// This is challenging to test directly, so we test with an extreme edge case
 	config := &Config{
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			Address: string([]byte{0, 1, 2, 3}), // Invalid URL with null bytes
 			Token:   "test-token",
 			Path:    "secret/data/test",
 		},
 	}
 
-	err := config.LoadSecretsFromVault()
+	err := config.createVaultManager()
 	if err == nil {
 		t.Fatal("Expected error when creating Vault client with invalid address")
 	}
@@ -616,16 +616,16 @@ func TestLoadSecretsFromVault_SetenvError(t *testing.T) {
 	}
 
 	config := &Config{
-		Vault: VaultConfig{
+		Vault: &VaultConfig{
 			Address: vaultAddr,
 			Token:   "dev-root-token",
 			Path:    testPath,
 		},
 	}
 
-	err = config.LoadSecretsFromVault()
+	err = config.createVaultManager()
 	if err == nil {
-		t.Error("Expected error due to invalid environment variable name")
+		t.Fatal("Expected error due to invalid environment variable name")
 	}
 
 	if !strings.Contains(err.Error(), "error setting environment variable") {

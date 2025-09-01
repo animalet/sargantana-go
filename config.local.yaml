@@ -10,11 +10,11 @@ server:
   session_name: "sargantana_session"    # Session cookie name
   session_secret: "${SESSION_SECRET}"  # Session secret (can use env var)
 
-# vault:
-#   address: "https://localhost:8200"  # Vault server address
-#   token: "${VAULT_TOKEN}"                     # Vault authentication token (can use env var)
-#   path: "secret/data/myapp"                   # Path to secrets in Vault (for KV v2 engine)
-#   namespace: ""                               # Optional: Vault namespace for Enterprise (leave empty for OSS)
+  vault:
+    address: "https://localhost:8200"  # Vault server address
+    token: "${VAULT_TOKEN}"                     # Vault authentication token (can use env var)
+    path: "secret/data/myapp"                   # Path to secrets in Vault (for KV v2 engine)
+    namespace: ""                               # Optional: Vault namespace for Enterprise (leave empty for OSS)
 
 # Controller configurations
 controllers:

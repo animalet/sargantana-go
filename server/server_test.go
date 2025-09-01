@@ -40,7 +40,7 @@ func (m *MockController) Close() error {
 
 func setupTestEnvironment() {
 	// Register a mock controller for testing
-	controller.RegisterController("mock", func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
+	AddController("mock", func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
 		return &MockController{}, nil
 	})
 }
@@ -548,6 +548,7 @@ func TestNewServer_InvalidConfigFile(t *testing.T) {
 func TestNewServer_WithControllers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
+	AddController("static", controller.NewStaticController)
 	// Create a temporary config file with controller bindings
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "config.yaml")

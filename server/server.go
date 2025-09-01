@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"syscall"
 	"time"
 
@@ -41,6 +42,7 @@ type Server struct {
 //
 // Returns:
 //   - *Server: The configured server instance
+//   - error: An error if the server could not be created, nil otherwise
 func NewServer(configFile string) (*Server, error) {
 	c, err := config.Load(configFile)
 	if err != nil {
@@ -56,6 +58,17 @@ func NewServer(configFile string) (*Server, error) {
 	return &Server{config: c, controllers: controllers}, nil
 }
 
+var controllerRegistry = make(map[string]controller.NewController)
+
+func AddController(typeName string, factory controller.NewController) {
+	log.Printf("Registering controller type %q", typeName)
+	_, exists := controllerRegistry[typeName]
+	if exists {
+		log.Printf("Controller type %q is already registered, overriding", typeName)
+	}
+	controllerRegistry[typeName] = factory
+}
+
 func configureControllers(c *config.Config) ([]controller.IController, error) {
 	var controllers []controller.IController
 	for _, binding := range c.ControllerBindings {
@@ -67,7 +80,7 @@ func configureControllers(c *config.Config) ([]controller.IController, error) {
 			name = "\"" + binding.Name + "\""
 		}
 
-		factory, exists := controller.GetControllerFactory(forType)
+		factory, exists := controllerRegistry[forType]
 		if !exists {
 			return nil, fmt.Errorf("no configurator found for %s controller type: %s", name, forType)
 		}
@@ -99,7 +112,11 @@ func (s *Server) StartAndWaitForSignal() error {
 func (s *Server) Start() error {
 	if s.config.ServerConfig.Debug {
 		log.Printf("Debug mode is enabled\n")
-		log.Printf("Secrets directory: %q\n", s.config.ServerConfig.SecretsDir)
+		if s.config.ServerConfig.SecretsDir == "" {
+			log.Printf("No secrets directory configured\n")
+		} else {
+			log.Printf("Secrets directory: %q\n", s.config.ServerConfig.SecretsDir)
+		}
 		log.Printf("Listen address: %q\n", s.config.ServerConfig.Address)
 		if s.config.ServerConfig.RedisSessionStore == "" {
 			log.Printf("Use cookies for session storage\n")
@@ -107,6 +124,16 @@ func (s *Server) Start() error {
 			log.Printf("Use Redis for session storage: %s\n", s.config.ServerConfig.RedisSessionStore)
 		}
 		log.Printf("Session cookie name: %q\n", s.config.ServerConfig.SessionName)
+		if s.config.Vault != nil {
+			log.Printf("Using Vault for secrets at %s, path: %s, namespace: %s\n", s.config.Vault.Address, s.config.Vault.Path, s.config.Vault.Namespace)
+		} else {
+			log.Printf("Not using Vault for secrets\n")
+		}
+		log.Printf("Registered controllers:\n")
+		for _, binding := range s.config.ControllerBindings {
+			log.Printf(" - Type: %s, Name: %s, Config Type: %s\n", binding.TypeName, binding.Name, reflect.TypeOf(binding.ConfigData))
+		}
+		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -119,11 +146,6 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) bootstrap() error {
-	err := s.config.LoadSecrets()
-	if err != nil {
-		return err
-	}
-
 	engine := gin.New()
 	isReleaseMode := gin.Mode() == gin.ReleaseMode
 	sessionStore, err := s.createSessionStore(isReleaseMode)
