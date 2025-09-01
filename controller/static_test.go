@@ -51,7 +51,7 @@ func TestNewStaticController(t *testing.T) {
 				t.Fatalf("Failed to marshal config: %v", err)
 			}
 
-			controller, err := NewStaticController(config.ControllerConfig(configBytes), config.ServerConfig{})
+			controller, err := NewStaticController(configBytes, config.ServerConfig{})
 
 			if tt.expectedError {
 				if err == nil {
@@ -109,7 +109,7 @@ func TestStatic_Bind(t *testing.T) {
 		HtmlTemplatesDir: templatesDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewStaticController(config.ControllerConfig(configBytes), config.ServerConfig{})
+	controller, err := NewStaticController(configBytes, config.ServerConfig{})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
@@ -197,16 +197,15 @@ func TestStatic_BindWithTemplates(t *testing.T) {
 		HtmlTemplatesDir: templatesDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewStaticController(config.ControllerConfig(configBytes), config.ServerConfig{})
+	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
 
-	static := controller.(*static)
 	engine := gin.New()
 
 	// This should load templates without error
-	static.Bind(engine, nil)
+	staticController.Bind(engine, nil)
 }
 
 func TestStatic_BindWithEmptyTemplatesDir(t *testing.T) {
@@ -238,16 +237,15 @@ func TestStatic_BindWithEmptyTemplatesDir(t *testing.T) {
 		HtmlTemplatesDir: templatesDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewStaticController(config.ControllerConfig(configBytes), config.ServerConfig{})
+	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
 
-	static := controller.(*static)
 	engine := gin.New()
 
 	// This should handle empty templates directory gracefully
-	static.Bind(engine, nil)
+	staticController.Bind(engine, nil)
 }
 
 func TestStatic_BindWithNonExistentTemplatesDir(t *testing.T) {
@@ -274,16 +272,15 @@ func TestStatic_BindWithNonExistentTemplatesDir(t *testing.T) {
 		HtmlTemplatesDir: templatesDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewStaticController(configBytes, config.ServerConfig{})
+	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
 
-	static := controller.(*static)
 	engine := gin.New()
 
 	// This should handle non-existent templates directory gracefully
-	static.Bind(engine, nil)
+	staticController.Bind(engine, nil)
 }
 
 func TestStatic_Close(t *testing.T) {
@@ -292,13 +289,12 @@ func TestStatic_Close(t *testing.T) {
 		HtmlTemplatesDir: "./templates",
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewStaticController(configBytes, config.ServerConfig{})
+	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
 
-	static := controller.(*static)
-	err = static.Close()
+	err = staticController.Close()
 	if err != nil {
 		t.Errorf("Close() returned error: %v", err)
 	}
@@ -326,14 +322,13 @@ func TestStatic_ContentTypeHeader(t *testing.T) {
 		HtmlTemplatesDir: "",
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewStaticController(configBytes, config.ServerConfig{})
+	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
 
-	static := controller.(*static)
 	engine := gin.New()
-	static.Bind(engine, nil)
+	staticController.Bind(engine, nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/", nil)

@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
+	"github.com/markbates/goth/gothic"
+	"github.com/markbates/goth/providers/openidConnect"
 	"gopkg.in/yaml.v3"
 )
 
@@ -66,7 +69,7 @@ func TestNewAuthController(t *testing.T) {
 				t.Fatalf("Failed to marshal config: %v", err)
 			}
 
-			controller, err := NewAuthController(config.ControllerConfig(configBytes), tt.serverConfig)
+			authController, err := NewAuthController(configBytes, tt.serverConfig)
 
 			if tt.expectedError && err == nil {
 				t.Error("Expected error but got none")
@@ -74,7 +77,7 @@ func TestNewAuthController(t *testing.T) {
 			if !tt.expectedError && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			if !tt.expectedError && controller == nil {
+			if !tt.expectedError && authController == nil {
 				t.Error("Expected controller but got nil")
 			}
 		})
@@ -93,7 +96,7 @@ func TestAuth_UserFactory(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	controller, err := NewAuthController(config.ControllerConfig(configBytes), serverConfig)
+	controller, err := NewAuthController(configBytes, serverConfig)
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
@@ -230,7 +233,7 @@ func TestAuth_Close(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	controller, err := NewAuthController(config.ControllerConfig(configBytes), serverConfig)
+	controller, err := NewAuthController(configBytes, serverConfig)
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
@@ -256,17 +259,16 @@ func TestAuth_Routes(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	controller, err := NewAuthController(config.ControllerConfig(configBytes), serverConfig)
+	authController, err := NewAuthController(configBytes, serverConfig)
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
 
-	auth := controller.(*auth)
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
 
-	auth.Bind(engine, LoginFunc)
+	authController.Bind(engine, LoginFunc)
 
 	// Test that routes are registered
 	routes := engine.Routes()
@@ -305,17 +307,16 @@ func TestAuth_UserRoute_NoAuth(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	controller, err := NewAuthController(config.ControllerConfig(configBytes), serverConfig)
+	authController, err := NewAuthController(configBytes, serverConfig)
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
 
-	auth := controller.(*auth)
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
 
-	auth.Bind(engine, LoginFunc)
+	authController.Bind(engine, LoginFunc)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/auth/user", nil)
@@ -340,17 +341,16 @@ func TestAuth_AuthRouteHandler(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	controller, err := NewAuthController(config.ControllerConfig(configBytes), serverConfig)
+	authController, err := NewAuthController(configBytes, serverConfig)
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
 
-	auth := controller.(*auth)
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
 
-	auth.Bind(engine, LoginFunc)
+	authController.Bind(engine, LoginFunc)
 
 	// Test auth route without provider
 	w := httptest.NewRecorder()
@@ -377,17 +377,16 @@ func TestAuth_CallbackRouteHandler(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	controller, err := NewAuthController(config.ControllerConfig(configBytes), serverConfig)
+	authController, err := NewAuthController(configBytes, serverConfig)
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
 
-	auth := controller.(*auth)
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
 
-	auth.Bind(engine, LoginFunc)
+	authController.Bind(engine, LoginFunc)
 
 	// Test callback route without provider
 	w := httptest.NewRecorder()
@@ -414,17 +413,16 @@ func TestAuth_LogoutRouteHandler(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	controller, err := NewAuthController(config.ControllerConfig(configBytes), serverConfig)
+	authController, err := NewAuthController(configBytes, serverConfig)
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
 
-	auth := controller.(*auth)
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
 
-	auth.Bind(engine, LoginFunc)
+	authController.Bind(engine, LoginFunc)
 
 	// Test logout route
 	w := httptest.NewRecorder()
@@ -504,23 +502,16 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 			configBytes, _ := yaml.Marshal(configData)
 			serverConfig := config.ServerConfig{Address: tt.configAddress}
 
-			controller, err := NewAuthController(config.ControllerConfig(configBytes), serverConfig)
+			authController, err := NewAuthController(configBytes, serverConfig)
 			if err != nil {
 				t.Fatalf("Failed to create auth controller: %v", err)
 			}
 
-			auth := controller.(*auth)
 			engine := gin.New()
 			store := cookie.NewStore([]byte("secret"))
 			engine.Use(sessions.Sessions("test", store))
 
-			auth.Bind(engine, LoginFunc)
-
-			// We can't directly access the callbackEndpoint, but we can verify the controller was created successfully
-			// The actual callback endpoint logic is tested indirectly through the working routes
-			if auth == nil {
-				t.Error("Expected auth controller to be created successfully")
-			}
+			authController.Bind(engine, LoginFunc)
 		})
 	}
 }
@@ -814,7 +805,6 @@ func TestConfigProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 		"deezer", "discord", "meetup", "auth0", "xero", "vk", "naver",
 		"yandex", "nextcloud", "gitea", "shopify", "apple", "strava",
 		"okta", "mastodon", "wecom", "zoom", "patreon",
-		// Note: openid-connect may fail to initialize with test URLs
 	}
 
 	var missingProviders []string
@@ -839,5 +829,92 @@ func TestConfigProviderFactory_CreateProviders_NoConfig(t *testing.T) {
 	// Should return empty slice when no providers are configured
 	if len(providers) != 0 {
 		t.Errorf("Expected 0 providers when no config set, got %d", len(providers))
+	}
+}
+
+type MockProviderFactory struct {
+}
+
+func TestAuth_IntegrationTest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	engine := gin.New()
+	store := cookie.NewStore([]byte("test-secret"))
+	engine.Use(sessions.Sessions("test", store))
+	gothic.Store = store
+
+	configData := AuthControllerConfig{
+		CallbackPath:     "/auth/{provider}/callback",
+		LoginPath:        "/auth/{provider}",
+		LogoutPath:       "/auth/{provider}/logout",
+		UserInfoPath:     "/auth/user",
+		RedirectOnLogin:  "/auth/user",
+		RedirectOnLogout: "/",
+	}
+
+	address := "localhost:8081"
+	ProviderFactory = &MockProviderFactory{}
+	serverConfig := config.ServerConfig{Address: address}
+	configBytes, _ := yaml.Marshal(configData)
+	authController, err := NewAuthController(configBytes, serverConfig)
+	if err != nil {
+		t.Fatalf("Failed to create auth controller: %v", err)
+	}
+
+	authController.Bind(engine, LoginFunc)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/auth/openid-connect", nil)
+	engine.ServeHTTP(w, req)
+
+	// Assert that the user is redirected to the mock server's auth URL
+	if w.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("Expected status 307 Found, got %d", w.Code)
+	}
+
+	location := w.Header().Get("Location")
+	theCookie := w.Header().Get("Set-Cookie")
+
+	// Mock OAuth2 Server Sign-in in non-interactive mode
+	req, _ = http.NewRequest("GET", location, nil)
+	cl := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Don't follow redirects
+			return http.ErrUseLastResponse
+		},
+	}
+	res, err := cl.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to perform OAuth2 callback: %v", err)
+	}
+	if res.StatusCode != http.StatusFound {
+		t.Fatalf("Expected status 302 Found after OAuth2 callback, got %d", res.StatusCode)
+	}
+
+	location = strings.Replace(res.Header.Get("Location"), "http://"+address, "", 1)
+	req, err = http.NewRequest("GET", location, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request to callback URL: %v", err)
+	}
+	req.Header.Set("Cookie", theCookie)
+
+	w = httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusFound {
+		t.Errorf("Expected status 302 OK, got %d", w.Code)
+	}
+}
+
+func (m *MockProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
+	provider, _ := openidConnect.New(
+		"sargantana",
+		"someSecret",
+		strings.ReplaceAll(callbackURLTemplate, "{provider}", "openid-connect"),
+		"http://localhost:8080/default/.well-known/openid-configuration",
+		"email", "profile",
+	)
+
+	return []goth.Provider{
+		provider,
 	}
 }
