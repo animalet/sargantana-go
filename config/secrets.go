@@ -11,6 +11,9 @@ import (
 	"github.com/pkg/errors"
 )
 
+// LoadSecretsFromDir loads secrets from a directory and sets them as environment variables.
+// Each file in the directory becomes an environment variable with the filename as the key
+// and the file content as the value.
 func LoadSecretsFromDir(dir string) error {
 	if dir == "" {
 		log.Println("No secrets directory configured, skipping file secrets loading")
@@ -50,89 +53,69 @@ func (c *Config) LoadSecretsFromVault() error {
 		return nil
 	}
 
-	// Create Vault client configuration
 	config := api.DefaultConfig()
 	config.Address = vaultConfig.Address
 
-	// Create Vault client
 	client, err := api.NewClient(config)
 	if err != nil {
-		return errors.Wrap(err, "error creating Vault client")
+		return errors.Wrap(err, "failed to create Vault client")
 	}
 
-	// Set the token for authentication
-	client.SetToken(os.ExpandEnv(vaultConfig.Token))
+	client.SetToken(vaultConfig.Token)
 
-	// Set namespace if provided (for Vault Enterprise)
-	namespace := vaultConfig.Namespace
-	if namespace != "" {
-		client.SetNamespace(namespace)
+	if vaultConfig.Namespace != "" {
+		client.SetNamespace(vaultConfig.Namespace)
 	}
 
-	// Read secrets from the specified path
-	path := vaultConfig.Path
-	secret, err := client.Logical().Read(path)
+	secret, err := client.Logical().Read(vaultConfig.Path)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("error reading secrets from Vault path %s", path))
+		return errors.Wrap(err, fmt.Sprintf("failed to read secret from path %s", vaultConfig.Path))
 	}
 
 	if secret == nil {
-		log.Printf("No secret found at Vault path %s", path)
+		log.Printf("No secret found at path %s", vaultConfig.Path)
 		return nil
 	}
 
-	// Extract data from the secret
-	var data map[string]any
-	if secret.Data != nil {
-		// For KV v2 secrets engine, data is nested under "data" key
-		if dataField, exists := secret.Data["data"]; exists {
-			if dataMap, ok := dataField.(map[string]any); ok {
-				data = dataMap
-			} else {
-				return fmt.Errorf("unexpected data format in Vault secret at path %s", path)
-			}
+	// Handle both KV v1 and KV v2 formats
+	var data map[string]interface{}
+	if secret.Data["data"] != nil {
+		// KV v2 format
+		if dataMap, ok := secret.Data["data"].(map[string]interface{}); ok {
+			data = dataMap
 		} else {
-			// For KV v1 secrets engine or other engines, data is directly in secret.Data
-			data = secret.Data
+			return fmt.Errorf("unexpected data format in KV v2 secret")
 		}
+	} else {
+		// KV v1 format
+		data = secret.Data
 	}
 
-	if data == nil {
-		log.Printf("No data found in Vault secret at path %s", path)
-		return nil
-	}
-
-	// Set environment variables from Vault secrets
-	count := 0
 	for key, value := range data {
-		if valueStr, ok := value.(string); ok {
-			envKey := strings.ToUpper(key)
-			err = os.Setenv(envKey, valueStr)
+		if strValue, ok := value.(string); ok {
+			err = os.Setenv(strings.ToUpper(key), strValue)
 			if err != nil {
-				return errors.Wrap(err, fmt.Sprintf("error setting environment variable %s from Vault", envKey))
+				return errors.Wrap(err, fmt.Sprintf("error setting environment variable %s", strings.ToUpper(key)))
 			}
-			count++
-		} else {
-			log.Printf("Warning: Vault secret key %s has non-string value, skipping", key)
 		}
 	}
 
-	log.Printf("Successfully loaded %d secrets from Vault path %s", count, path)
 	return nil
 }
 
-// LoadSecrets loads secrets from both directory and Vault sources.
-// It first loads secrets from the directory (if configured), then from Vault (if configured).
-// Vault secrets will override directory secrets if they have the same key names.
+// LoadSecrets loads secrets from both file system and Vault (if configured).
+// Vault secrets will override file-based secrets if there are conflicts.
 func (c *Config) LoadSecrets() error {
-	// Load secrets from directory first
-	if err := LoadSecretsFromDir(c.ServerConfig.SecretsDir); err != nil {
-		return errors.Wrap(err, "error loading secrets from directory")
+	// Load file-based secrets first
+	err := LoadSecretsFromDir(c.ServerConfig.SecretsDir)
+	if err != nil {
+		return errors.Wrap(err, "failed to load secrets from directory")
 	}
 
-	// Load secrets from Vault (will override directory secrets with same names)
-	if err := c.LoadSecretsFromVault(); err != nil {
-		return errors.Wrap(err, "error loading secrets from Vault")
+	// Load Vault secrets (these will override file secrets)
+	err = c.LoadSecretsFromVault()
+	if err != nil {
+		return errors.Wrap(err, "failed to load secrets from Vault")
 	}
 
 	return nil

@@ -4,6 +4,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -89,6 +90,9 @@ func (c *ControllerConfig) UnmarshalYAML(value *yaml.Node) error {
 // To unmarshals the raw YAML data from ControllerConfig into a target struct.
 // The 'out' parameter must be a pointer to a struct that can be unmarshalled from YAML.
 func (c *ControllerConfig) To(out any) error {
+	if out == nil {
+		return fmt.Errorf("output parameter cannot be nil")
+	}
 	bytes := []byte(*c)
 	return yaml.Unmarshal(bytes, out)
 }
