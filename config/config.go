@@ -75,27 +75,6 @@ func LoadYaml(file string, out any) error {
 	return yaml.Unmarshal(data, out)
 }
 
-func UnmarshalYAML[T any](data []byte) (*T, error) {
-	var s T
-	if err := yaml.Unmarshal(data, &s); err != nil {
-		return nil, err
-	}
-	return &s, nil
-}
-
-func UnmarshalYAMLFromMap[T any](data map[string]any) (*T, error) {
-	yamlBytes, err := yaml.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
-	var s T
-	if err := yaml.Unmarshal(yamlBytes, &s); err != nil {
-		return nil, err
-	}
-	return &s, nil
-}
-
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 // It marshals the provided yaml.Node back into a YAML byte slice.
 func (c *ControllerConfig) UnmarshalYAML(value *yaml.Node) error {
@@ -114,9 +93,9 @@ func (c *ControllerConfig) To(out any) error {
 	return yaml.Unmarshal(bytes, out)
 }
 
-// UnmarshalToNew unmarshals the raw YAML data from ControllerConfig into a new instance of type T.
+// UnmarshalTo unmarshals the raw YAML data from ControllerConfig into a new instance of type T.
 // This method creates a new instance and returns it, avoiding addressability issues.
-func UnmarshalToNew[T any](c ControllerConfig) (*T, error) {
+func UnmarshalTo[T any](c ControllerConfig) (*T, error) {
 	var result T
 	data := make([]byte, len(c))
 	copy(data, c)
