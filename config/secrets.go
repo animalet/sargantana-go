@@ -46,7 +46,7 @@ func LoadSecretsFromDir(dir string) error {
 // LoadSecretsFromVault loads secrets from a HashiCorp Vault instance and sets them as environment variables.
 // It connects to Vault using the provided configuration and retrieves all key-value pairs from the specified path.
 // Each key is converted to uppercase and set as an environment variable.
-func (c *Config) LoadSecretsFromVault() error {
+func (c Config) LoadSecretsFromVault() error {
 	vaultConfig := c.Vault
 	if !vaultConfig.IsValid() {
 		log.Println("Vault configuration incomplete, skipping Vault secrets loading")
@@ -105,7 +105,7 @@ func (c *Config) LoadSecretsFromVault() error {
 
 // LoadSecrets loads secrets from both file system and Vault (if configured).
 // Vault secrets will override file-based secrets if there are conflicts.
-func (c *Config) LoadSecrets() error {
+func (c Config) LoadSecrets() error {
 	// Load file-based secrets first
 	err := LoadSecretsFromDir(c.ServerConfig.SecretsDir)
 	if err != nil {

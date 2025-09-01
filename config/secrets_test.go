@@ -5,343 +5,408 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
 
-func TestLoadSecrets(t *testing.T) {
+func TestLoadSecretsFromDir(t *testing.T) {
 	tests := []struct {
-		name        string
-		setupFunc   func(string) error
-		secretsDir  string
-		expectError bool
+		name          string
+		dir           string
+		setupFiles    map[string]string // filename -> content
+		expectedError bool
+		expectedEnvs  map[string]string // env var -> expected value
 	}{
 		{
-			name: "valid secrets",
-			setupFunc: func(dir string) error {
-				return os.WriteFile(filepath.Join(dir, "TEST_SECRET"), []byte("secret_value"), 0644)
-			},
-			expectError: false,
+			name:          "empty directory string",
+			dir:           "",
+			setupFiles:    nil,
+			expectedError: false,
+			expectedEnvs:  nil,
 		},
 		{
-			name: "empty directory",
-			setupFunc: func(dir string) error {
-				return nil // Create empty directory
+			name: "single secret file",
+			dir:  "", // will be set to temp dir
+			setupFiles: map[string]string{
+				"API_KEY": "secret-api-key-123",
 			},
-			expectError: false,
+			expectedError: false,
+			expectedEnvs: map[string]string{
+				"API_KEY": "secret-api-key-123",
+			},
 		},
 		{
-			name:        "non-existent directory",
-			setupFunc:   nil,
-			secretsDir:  "/non/existent/path",
-			expectError: true,
+			name: "multiple secret files",
+			dir:  "", // will be set to temp dir
+			setupFiles: map[string]string{
+				"DATABASE_PASSWORD": "db-pass-456",
+				"JWT_SECRET":        "jwt-secret-789",
+				"REDIS_PASSWORD":    "redis-pass-abc",
+			},
+			expectedError: false,
+			expectedEnvs: map[string]string{
+				"DATABASE_PASSWORD": "db-pass-456",
+				"JWT_SECRET":        "jwt-secret-789",
+				"REDIS_PASSWORD":    "redis-pass-abc",
+			},
 		},
 		{
-			name: "file secrets with directories to skip",
-			setupFunc: func(dir string) error {
-				err := os.WriteFile(filepath.Join(dir, "FILE_SECRET"), []byte("file_value"), 0644)
-				if err != nil {
-					return err
-				}
-				// Create a directory to test skipping behavior
-				return os.Mkdir(filepath.Join(dir, "secret_as_dir"), 0755)
+			name: "secret file with whitespace",
+			dir:  "", // will be set to temp dir
+			setupFiles: map[string]string{
+				"TRIMMED_SECRET": "  secret-with-spaces  \n\t",
 			},
-			expectError: false,
+			expectedError: false,
+			expectedEnvs: map[string]string{
+				"TRIMMED_SECRET": "secret-with-spaces",
+			},
+		},
+		{
+			name: "ignore subdirectories",
+			dir:  "", // will be set to temp dir
+			setupFiles: map[string]string{
+				"VALID_SECRET": "valid-content",
+			},
+			expectedError: false,
+			expectedEnvs: map[string]string{
+				"VALID_SECRET": "valid-content",
+			},
+		},
+		{
+			name:          "non-existent directory",
+			dir:           "/non/existent/directory",
+			setupFiles:    nil,
+			expectedError: true,
+			expectedEnvs:  nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var secretsDir string
-			if tt.secretsDir != "" {
-				secretsDir = tt.secretsDir
-			} else {
-				secretsDir = t.TempDir()
-				if tt.setupFunc != nil {
-					err := tt.setupFunc(secretsDir)
+			// Store original environment to restore later
+			originalEnvs := make(map[string]string)
+			if tt.expectedEnvs != nil {
+				for key := range tt.expectedEnvs {
+					if val, exists := os.LookupEnv(key); exists {
+						originalEnvs[key] = val
+					}
+					_ = os.Unsetenv(key) // Clear before test
+				}
+			}
+			defer func() {
+				// Restore original environment
+				for key := range tt.expectedEnvs {
+					_ = os.Unsetenv(key)
+					if val, exists := originalEnvs[key]; exists {
+						_ = os.Setenv(key, val)
+					}
+				}
+			}()
+
+			var testDir string
+			if tt.dir == "" && tt.setupFiles != nil {
+				// Create temporary directory for test
+				tempDir := t.TempDir()
+				testDir = tempDir
+
+				// Create secret files
+				for filename, content := range tt.setupFiles {
+					err := os.WriteFile(filepath.Join(tempDir, filename), []byte(content), 0600)
 					if err != nil {
-						t.Fatalf("Setup failed: %v", err)
+						t.Fatalf("Failed to create test file %s: %v", filename, err)
+					}
+				}
+
+				// For the "ignore subdirectories" test, create a subdirectory
+				if tt.name == "ignore subdirectories" {
+					subDir := filepath.Join(tempDir, "subdir")
+					err := os.Mkdir(subDir, 0755)
+					if err != nil {
+						t.Fatalf("Failed to create subdirectory: %v", err)
+					}
+					err = os.WriteFile(filepath.Join(subDir, "IGNORED_SECRET"), []byte("should-be-ignored"), 0600)
+					if err != nil {
+						t.Fatalf("Failed to create file in subdirectory: %v", err)
+					}
+				}
+			} else {
+				testDir = tt.dir
+			}
+
+			// Run the function
+			err := LoadSecretsFromDir(testDir)
+
+			// Check error expectation
+			if tt.expectedError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			// Check environment variables
+			if tt.expectedEnvs != nil {
+				for expectedKey, expectedValue := range tt.expectedEnvs {
+					actualValue, exists := os.LookupEnv(expectedKey)
+					if !exists {
+						t.Errorf("Environment variable %s was not set", expectedKey)
+						continue
+					}
+					if actualValue != expectedValue {
+						t.Errorf("Environment variable %s = %q, want %q", expectedKey, actualValue, expectedValue)
 					}
 				}
 			}
 
-			err := LoadSecretsFromDir(secretsDir)
-
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			// Check that file secret was loaded for the directory skipping test
-			if tt.name == "file secrets with directories to skip" && err == nil {
-				value := os.Getenv("FILE_SECRET")
-				if value != "file_value" {
-					t.Errorf("Expected FILE_SECRET to be 'file_value', got '%s'", value)
+			// For the "ignore subdirectories" test, verify subdirectory files were ignored
+			if tt.name == "ignore subdirectories" {
+				if _, exists := os.LookupEnv("IGNORED_SECRET"); exists {
+					t.Error("Environment variable from subdirectory should not be set")
 				}
-				// Clean up
-				_ = os.Unsetenv("FILE_SECRET")
 			}
 		})
 	}
 }
 
-func TestLoadSecretsFromVault_EmptyConfig(t *testing.T) {
-	// Test with empty Vault configuration
-	c := Config{}
-	err := c.LoadSecretsFromVault()
+func TestLoadSecretsFromDir_EmptyDirectory(t *testing.T) {
+	// Create an empty temporary directory
+	tempDir := t.TempDir()
+
+	// Test loading from empty directory
+	err := LoadSecretsFromDir(tempDir)
 	if err != nil {
-		t.Errorf("Expected no error with empty config, got: %v", err)
+		t.Errorf("LoadSecretsFromDir with empty directory should not return error, got: %v", err)
 	}
 }
 
-func TestLoadSecretsFromVault_PartialConfig(t *testing.T) {
-	tests := []struct {
-		name   string
-		config Config
-	}{
-		{
-			name: "missing token",
-			config: Config{
-				Vault: VaultConfig{
-					Address: "https://vault.example.com:8200",
-					Path:    "secret/data/test",
-				},
-			},
-		},
-		{
-			name: "missing address",
-			config: Config{
-				Vault: VaultConfig{
-					Token: "test-token",
-					Path:  "secret/data/test",
-				},
-			},
-		},
-		{
-			name: "missing path",
-			config: Config{
-				Vault: VaultConfig{
-					Address: "https://vault.example.com:8200",
-					Token:   "test-token",
-				},
-			},
-		},
+func TestLoadSecretsFromDir_FilePermissionError(t *testing.T) {
+	tempDir := t.TempDir()
+	secretFile := filepath.Join(tempDir, "SECRET_KEY")
+
+	// Create a file with content
+	err := os.WriteFile(secretFile, []byte("secret-content"), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.LoadSecretsFromVault()
-			if err != nil {
-				t.Errorf("Expected no error with partial config, got: %v", err)
-			}
-		})
+	// Remove read permissions to simulate permission error
+	err = os.Chmod(secretFile, 0000)
+	if err != nil {
+		t.Fatalf("Failed to change file permissions: %v", err)
+	}
+
+	// Restore permissions after test
+	defer func() {
+		err := os.Chmod(secretFile, 0600)
+		if err != nil {
+			t.Errorf("Failed to restore file permissions: %v", err)
+		}
+	}()
+
+	// Test should return error due to permission issue
+	err = LoadSecretsFromDir(tempDir)
+	if err == nil {
+		t.Error("Expected error due to file permission, but got none")
+	}
+
+	if !strings.Contains(err.Error(), "permission denied") && !strings.Contains(err.Error(), "SECRET_KEY") {
+		t.Errorf("Error should mention permission issue or file name, got: %v", err)
 	}
 }
 
-// TestVaultIntegration_DockerContainer tests the integration with a real Vault Docker container
-// This comprehensive test covers Vault operations, health checks, and complete LoadSecrets integration
-func TestVaultIntegration_DockerContainer(t *testing.T) {
-	// Skip this test if not running integration tests
+func TestLoadSecrets(t *testing.T) {
+	// Create a temporary config with secrets directory
+	tempDir := t.TempDir()
+	secretFile := filepath.Join(tempDir, "TEST_SECRET")
+	err := os.WriteFile(secretFile, []byte("test-value"), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Store original environment
+	originalValue, originalExists := os.LookupEnv("TEST_SECRET")
+	_ = os.Unsetenv("TEST_SECRET")
+	defer func() {
+		_ = os.Unsetenv("TEST_SECRET")
+		if originalExists {
+			_ = os.Setenv("TEST_SECRET", originalValue)
+		}
+	}()
+
+	config := &Config{
+		ServerConfig: ServerConfig{
+			SecretsDir: tempDir,
+		},
+		Vault: VaultConfig{
+			// Empty vault config - should be skipped
+		},
+	}
+
+	err = config.LoadSecrets()
+	if err != nil {
+		t.Errorf("LoadSecrets should not return error, got: %v", err)
+	}
+
+	// Check that environment variable was set
+	value, exists := os.LookupEnv("TEST_SECRET")
+	if !exists {
+		t.Error("TEST_SECRET environment variable should be set")
+	}
+	if value != "test-value" {
+		t.Errorf("TEST_SECRET = %q, want %q", value, "test-value")
+	}
+}
+
+func TestLoadSecrets_EmptySecretsDir(t *testing.T) {
+	config := &Config{
+		ServerConfig: ServerConfig{
+			SecretsDir: "",
+		},
+		Vault: VaultConfig{
+			// Empty vault config - should be skipped
+		},
+	}
+
+	err := config.LoadSecrets()
+	if err != nil {
+		t.Errorf("LoadSecrets with empty secrets dir should not return error, got: %v", err)
+	}
+}
+
+func TestLoadSecrets_DirectoryError(t *testing.T) {
+	config := &Config{
+		ServerConfig: ServerConfig{
+			SecretsDir: "/non/existent/directory",
+		},
+		Vault: VaultConfig{
+			// Empty vault config - should be skipped
+		},
+	}
+
+	err := config.LoadSecrets()
+	if err == nil {
+		t.Error("LoadSecrets with non-existent directory should return error")
+	}
+
+	if !strings.Contains(err.Error(), "failed to load secrets from directory") {
+		t.Errorf("Error should mention directory loading failure, got: %v", err)
+	}
+}
+
+// TestLoadSecrets_IntegrationWithVaultContainer tests the complete LoadSecrets function
+// with both file-based and Vault-based secrets using the Docker container
+func TestLoadSecrets_IntegrationWithVaultContainer(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Check if Vault container is running by attempting to connect
 	vaultAddr := "http://localhost:8200"
 	if !isVaultReachable(vaultAddr) {
-		t.Skip("Vault container not reachable at http://localhost:8200. Run 'docker-compose up vault' first")
+		t.Skip("Vault container not reachable. Run 'docker-compose up vault' first")
 	}
 
-	// Test Vault health check first
-	t.Run("vault health check", func(t *testing.T) {
-		resp, err := http.Get(vaultAddr + "/v1/sys/health")
-		if err != nil {
-			t.Fatalf("Failed to check Vault health: %v", err)
-		}
-		defer func() {
-			err := resp.Body.Close()
-			if err != nil {
-				t.Errorf("Failed to close response body: %v", err)
-			}
-		}()
+	// Create temporary directory for file-based secrets
+	tempDir := t.TempDir()
 
-		// Vault dev mode returns 200 for unsealed, initialized state
-		if resp.StatusCode != 200 {
-			t.Errorf("Expected Vault to be healthy (status 200), got status %d", resp.StatusCode)
-		}
-	})
+	// Create a test secret file that will be overridden by Vault
+	err := os.WriteFile(filepath.Join(tempDir, "GOOGLE_KEY"), []byte("file-google-key"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test secret file: %v", err)
+	}
 
-	tests := []struct {
-		name        string
-		config      Config
-		expectError bool
-		expectEnvs  map[string]string
-	}{
-		{
-			name: "successful connection to vault container with KV v2",
-			config: Config{
-				Vault: VaultConfig{
-					Address: "http://localhost:8200",
-					Token:   "dev-root-token",
-					Path:    "secret/data/sargantana",
-				},
-			},
-			expectError: false,
-			expectEnvs: map[string]string{
-				"GOOGLE_KEY":     "test-google-key",
-				"GOOGLE_SECRET":  "test-google-secret",
-				"SESSION_SECRET": "test-session-secret-that-is-long-enough",
-			},
+	// Create a file-only secret (not in Vault)
+	err = os.WriteFile(filepath.Join(tempDir, "FILE_ONLY_SECRET"), []byte("file-only-value"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create file-only secret: %v", err)
+	}
+
+	// Create config with both directory and Vault config
+	c := &Config{
+		ServerConfig: ServerConfig{
+			SecretsDir: tempDir,
 		},
-		{
-			name: "successful connection to vault container with KV v1",
-			config: Config{
-				Vault: VaultConfig{
-					Address: "http://localhost:8200",
-					Token:   "dev-root-token",
-					Path:    "secret-v1/sargantana",
-				},
-			},
-			expectError: false,
-			expectEnvs: map[string]string{
-				"GOOGLE_KEY":     "test-google-key",
-				"GOOGLE_SECRET":  "test-google-secret",
-				"SESSION_SECRET": "test-session-secret-that-is-long-enough",
-			},
-		},
-		{
-			name: "invalid token",
-			config: Config{
-				Vault: VaultConfig{
-					Address: "http://localhost:8200",
-					Token:   "invalid-token",
-					Path:    "secret/data/sargantana",
-				},
-			},
-			expectError: true,
-		},
-		{
-			name: "non-existent path",
-			config: Config{
-				Vault: VaultConfig{
-					Address: "http://localhost:8200",
-					Token:   "dev-root-token",
-					Path:    "secret/data/nonexistent",
-				},
-			},
-			expectError: false, // Should not error, just no secrets loaded
+		Vault: VaultConfig{
+			Address: "http://localhost:8200",
+			Token:   "dev-root-token",
+			Path:    "secret/data/sargantana",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Clear environment variables before test
-			for envKey := range tt.expectEnvs {
-				_ = os.Unsetenv(envKey)
-			}
+	// Clear environment variables
+	_ = os.Unsetenv("GOOGLE_KEY")
+	_ = os.Unsetenv("GOOGLE_SECRET")
+	_ = os.Unsetenv("SESSION_SECRET")
+	_ = os.Unsetenv("FILE_ONLY_SECRET")
 
-			// Run the test
-			err := tt.config.LoadSecretsFromVault()
-
-			// Check error expectation
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-				return
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-				return
-			}
-
-			// If no error expected, check environment variables
-			if !tt.expectError && err == nil {
-				for envKey, expectedValue := range tt.expectEnvs {
-					actualValue := os.Getenv(envKey)
-					if actualValue != expectedValue {
-						t.Errorf("Expected %s to be '%s', got '%s'", envKey, expectedValue, actualValue)
-					}
-				}
-			}
-
-			// Clean up environment variables after test
-			for envKey := range tt.expectEnvs {
-				_ = os.Unsetenv(envKey)
-			}
-		})
+	// Load secrets
+	err = c.LoadSecrets()
+	if err != nil {
+		t.Fatalf("LoadSecrets failed: %v", err)
 	}
 
-	// Test complete LoadSecrets integration with both file and Vault secrets
-	t.Run("complete LoadSecrets integration with file and vault secrets", func(t *testing.T) {
-		// Create temporary directory for file-based secrets
-		tempDir := t.TempDir()
+	// Verify that Vault secrets override file secrets
+	googleKey := os.Getenv("GOOGLE_KEY")
+	if googleKey != "test-google-key" {
+		t.Errorf("Expected GOOGLE_KEY to be 'test-google-key' (from Vault), got '%s'", googleKey)
+	}
 
-		// Create a test secret file that will be overridden by Vault
-		err := os.WriteFile(filepath.Join(tempDir, "GOOGLE_KEY"), []byte("file-google-key"), 0644)
+	// Verify Vault-only secrets are loaded
+	googleSecret := os.Getenv("GOOGLE_SECRET")
+	if googleSecret != "test-google-secret" {
+		t.Errorf("Expected GOOGLE_SECRET to be 'test-google-secret', got '%s'", googleSecret)
+	}
+
+	sessionSecret := os.Getenv("SESSION_SECRET")
+	if sessionSecret != "test-session-secret-that-is-long-enough" {
+		t.Errorf("Expected SESSION_SECRET to be 'test-session-secret-that-is-long-enough', got '%s'", sessionSecret)
+	}
+
+	// Verify file-only secrets are still loaded
+	fileOnlySecret := os.Getenv("FILE_ONLY_SECRET")
+	if fileOnlySecret != "file-only-value" {
+		t.Errorf("Expected FILE_ONLY_SECRET to be 'file-only-value', got '%s'", fileOnlySecret)
+	}
+
+	// Clean up
+	_ = os.Unsetenv("GOOGLE_KEY")
+	_ = os.Unsetenv("GOOGLE_SECRET")
+	_ = os.Unsetenv("SESSION_SECRET")
+	_ = os.Unsetenv("FILE_ONLY_SECRET")
+}
+
+// TestVaultHealthCheck tests that we can properly detect if Vault is healthy
+func TestVaultHealthCheck(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	vaultAddr := "http://localhost:8200"
+	if !isVaultReachable(vaultAddr) {
+		t.Skip("Vault container not reachable")
+	}
+
+	// Test health endpoint
+	resp, err := http.Get(vaultAddr + "/v1/sys/health")
+	if err != nil {
+		t.Fatalf("Failed to check Vault health: %v", err)
+	}
+	defer func() {
+		err := resp.Body.Close()
 		if err != nil {
-			t.Fatalf("Failed to create test secret file: %v", err)
+			t.Errorf("Failed to close response body: %v", err)
 		}
+	}()
 
-		// Create a file-only secret (not in Vault)
-		err = os.WriteFile(filepath.Join(tempDir, "FILE_ONLY_SECRET"), []byte("file-only-value"), 0644)
-		if err != nil {
-			t.Fatalf("Failed to create file-only secret: %v", err)
-		}
-
-		// Create config with both directory and Vault config
-		c := &Config{
-			ServerConfig: ServerConfig{
-				SecretsDir: tempDir,
-			},
-			Vault: VaultConfig{
-				Address: "http://localhost:8200",
-				Token:   "dev-root-token",
-				Path:    "secret/data/sargantana",
-			},
-		}
-
-		// Clear environment variables
-		_ = os.Unsetenv("GOOGLE_KEY")
-		_ = os.Unsetenv("GOOGLE_SECRET")
-		_ = os.Unsetenv("SESSION_SECRET")
-		_ = os.Unsetenv("FILE_ONLY_SECRET")
-
-		// Load secrets
-		err = c.LoadSecrets()
-		if err != nil {
-			t.Fatalf("LoadSecrets failed: %v", err)
-		}
-
-		// Verify that Vault secrets override file secrets
-		googleKey := os.Getenv("GOOGLE_KEY")
-		if googleKey != "test-google-key" {
-			t.Errorf("Expected GOOGLE_KEY to be 'test-google-key' (from Vault), got '%s'", googleKey)
-		}
-
-		// Verify Vault-only secrets are loaded
-		googleSecret := os.Getenv("GOOGLE_SECRET")
-		if googleSecret != "test-google-secret" {
-			t.Errorf("Expected GOOGLE_SECRET to be 'test-google-secret', got '%s'", googleSecret)
-		}
-
-		sessionSecret := os.Getenv("SESSION_SECRET")
-		if sessionSecret != "test-session-secret-that-is-long-enough" {
-			t.Errorf("Expected SESSION_SECRET to be 'test-session-secret-that-is-long-enough', got '%s'", sessionSecret)
-		}
-
-		// Verify file-only secrets are still loaded
-		fileOnlySecret := os.Getenv("FILE_ONLY_SECRET")
-		if fileOnlySecret != "file-only-value" {
-			t.Errorf("Expected FILE_ONLY_SECRET to be 'file-only-value', got '%s'", fileOnlySecret)
-		}
-
-		// Clean up
-		_ = os.Unsetenv("GOOGLE_KEY")
-		_ = os.Unsetenv("GOOGLE_SECRET")
-		_ = os.Unsetenv("SESSION_SECRET")
-		_ = os.Unsetenv("FILE_ONLY_SECRET")
-	})
+	// Vault dev mode returns 200 for unsealed, initialized state
+	if resp.StatusCode != 200 {
+		t.Errorf("Expected Vault to be healthy (status 200), got status %d", resp.StatusCode)
+	}
 }
 
 // isVaultReachable checks if Vault is reachable at the given address

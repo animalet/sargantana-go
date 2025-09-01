@@ -38,24 +38,6 @@ func (m *MockController) Close() error {
 	return m.closeError
 }
 
-// MockRedisConn implements redis.Conn for testing
-type MockRedisConn struct {
-	commands []string
-}
-
-func (m *MockRedisConn) Close() error { return nil }
-func (m *MockRedisConn) Err() error   { return nil }
-func (m *MockRedisConn) Do(commandName string, args ...interface{}) (interface{}, error) {
-	m.commands = append(m.commands, commandName)
-	if commandName == "PING" {
-		return "PONG", nil
-	}
-	return "OK", nil
-}
-func (m *MockRedisConn) Send(commandName string, args ...interface{}) error { return nil }
-func (m *MockRedisConn) Flush() error                                       { return nil }
-func (m *MockRedisConn) Receive() (interface{}, error)                      { return nil, nil }
-
 func setupTestEnvironment(t *testing.T) {
 	// Register a mock controller for testing
 	controller.RegisterController("mock", func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
