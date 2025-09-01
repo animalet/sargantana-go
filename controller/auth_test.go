@@ -4,7 +4,6 @@ import (
 	"encoding/gob"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -526,87 +525,270 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 	}
 }
 
-func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
-	// Set test values for all environment variables
-	testValues := map[string]string{
-		"TWITTER_KEY": "test-twitter-key", "TWITTER_SECRET": "test-twitter-secret",
-		"TIKTOK_KEY": "test-tiktok-key", "TIKTOK_SECRET": "test-tiktok-secret",
-		"FACEBOOK_KEY": "test-facebook-key", "FACEBOOK_SECRET": "test-facebook-secret",
-		"FITBIT_KEY": "test-fitbit-key", "FITBIT_SECRET": "test-fitbit-secret",
-		"GOOGLE_KEY": "test-google-key", "GOOGLE_SECRET": "test-google-secret",
-		"GITHUB_KEY": "test-github-key", "GITHUB_SECRET": "test-github-secret",
-		"SPOTIFY_KEY": "test-spotify-key", "SPOTIFY_SECRET": "test-spotify-secret",
-		"LINKEDIN_KEY": "test-linkedin-key", "LINKEDIN_SECRET": "test-linkedin-secret",
-		"LINE_KEY": "test-line-key", "LINE_SECRET": "test-line-secret",
-		"LASTFM_KEY": "test-lastfm-key", "LASTFM_SECRET": "test-lastfm-secret",
-		"TWITCH_KEY": "test-twitch-key", "TWITCH_SECRET": "test-twitch-secret",
-		"DROPBOX_KEY": "test-dropbox-key", "DROPBOX_SECRET": "test-dropbox-secret",
-		"DIGITALOCEAN_KEY": "test-do-key", "DIGITALOCEAN_SECRET": "test-do-secret",
-		"BITBUCKET_KEY": "test-bitbucket-key", "BITBUCKET_SECRET": "test-bitbucket-secret",
-		"INSTAGRAM_KEY": "test-instagram-key", "INSTAGRAM_SECRET": "test-instagram-secret",
-		"INTERCOM_KEY": "test-intercom-key", "INTERCOM_SECRET": "test-intercom-secret",
-		"BOX_KEY": "test-box-key", "BOX_SECRET": "test-box-secret",
-		"SALESFORCE_KEY": "test-salesforce-key", "SALESFORCE_SECRET": "test-salesforce-secret",
-		"SEATALK_KEY": "test-seatalk-key", "SEATALK_SECRET": "test-seatalk-secret",
-		"AMAZON_KEY": "test-amazon-key", "AMAZON_SECRET": "test-amazon-secret",
-		"YAMMER_KEY": "test-yammer-key", "YAMMER_SECRET": "test-yammer-secret",
-		"ONEDRIVE_KEY": "test-onedrive-key", "ONEDRIVE_SECRET": "test-onedrive-secret",
-		"AZUREAD_KEY": "test-azuread-key", "AZUREAD_SECRET": "test-azuread-secret",
-		"MICROSOFTONLINE_KEY": "test-msonline-key", "MICROSOFTONLINE_SECRET": "test-msonline-secret",
-		"BATTLENET_KEY": "test-battlenet-key", "BATTLENET_SECRET": "test-battlenet-secret",
-		"EVEONLINE_KEY": "test-eve-key", "EVEONLINE_SECRET": "test-eve-secret",
-		"KAKAO_KEY": "test-kakao-key", "KAKAO_SECRET": "test-kakao-secret",
-		"YAHOO_KEY": "test-yahoo-key", "YAHOO_SECRET": "test-yahoo-secret",
-		"TYPETALK_KEY": "test-typetalk-key", "TYPETALK_SECRET": "test-typetalk-secret",
-		"SLACK_KEY": "test-slack-key", "SLACK_SECRET": "test-slack-secret",
-		"STRIPE_KEY": "test-stripe-key", "STRIPE_SECRET": "test-stripe-secret",
-		"WEPAY_KEY": "test-wepay-key", "WEPAY_SECRET": "test-wepay-secret",
-		"PAYPAL_KEY": "test-paypal-key", "PAYPAL_SECRET": "test-paypal-secret",
-		"STEAM_KEY":  "test-steam-key",
-		"HEROKU_KEY": "test-heroku-key", "HEROKU_SECRET": "test-heroku-secret",
-		"UBER_KEY": "test-uber-key", "UBER_SECRET": "test-uber-secret",
-		"SOUNDCLOUD_KEY": "test-soundcloud-key", "SOUNDCLOUD_SECRET": "test-soundcloud-secret",
-		"GITLAB_KEY": "test-gitlab-key", "GITLAB_SECRET": "test-gitlab-secret",
-		"DAILYMOTION_KEY": "test-dailymotion-key", "DAILYMOTION_SECRET": "test-dailymotion-secret",
-		"DEEZER_KEY": "test-deezer-key", "DEEZER_SECRET": "test-deezer-secret",
-		"DISCORD_KEY": "test-discord-key", "DISCORD_SECRET": "test-discord-secret",
-		"MEETUP_KEY": "test-meetup-key", "MEETUP_SECRET": "test-meetup-secret",
-		"AUTH0_KEY": "test-auth0-key", "AUTH0_SECRET": "test-auth0-secret", "AUTH0_DOMAIN": "test.auth0.com",
-		"XERO_KEY": "test-xero-key", "XERO_SECRET": "test-xero-secret",
-		"VK_KEY": "test-vk-key", "VK_SECRET": "test-vk-secret",
-		"NAVER_KEY": "test-naver-key", "NAVER_SECRET": "test-naver-secret",
-		"YANDEX_KEY": "test-yandex-key", "YANDEX_SECRET": "test-yandex-secret",
-		"NEXTCLOUD_KEY": "test-nextcloud-key", "NEXTCLOUD_SECRET": "test-nextcloud-secret", "NEXTCLOUD_URL": "https://test.nextcloud.com",
-		"GITEA_KEY": "test-gitea-key", "GITEA_SECRET": "test-gitea-secret",
-		"SHOPIFY_KEY": "test-shopify-key", "SHOPIFY_SECRET": "test-shopify-secret",
-		"APPLE_KEY": "test-apple-key", "APPLE_SECRET": "test-apple-secret",
-		"STRAVA_KEY": "test-strava-key", "STRAVA_SECRET": "test-strava-secret",
-		"OKTA_ID": "test-okta-id", "OKTA_SECRET": "test-okta-secret", "OKTA_ORG_URL": "https://test.okta.com",
-		"MASTODON_KEY": "test-mastodon-key", "MASTODON_SECRET": "test-mastodon-secret",
-		"WECOM_CORP_ID": "test-wecom-corp", "WECOM_SECRET": "test-wecom-secret", "WECOM_AGENT_ID": "test-wecom-agent",
-		"ZOOM_KEY": "test-zoom-key", "ZOOM_SECRET": "test-zoom-secret",
-		"PATREON_KEY": "test-patreon-key", "PATREON_SECRET": "test-patreon-secret",
-		"OPENID_CONNECT_KEY": "test-oidc-key", "OPENID_CONNECT_SECRET": "test-oidc-secret", "OPENID_CONNECT_DISCOVERY_URL": "https://test.example.com/.well-known/openid_configuration",
+func TestConfigProviderFactory_CreateProviders_AllProviders(t *testing.T) {
+	// Create test configuration with all providers
+	testConfig := map[string]ProviderConfig{
+		"twitter": {
+			Key:    "test-twitter-key",
+			Secret: "test-twitter-secret",
+		},
+		"tiktok": {
+			Key:    "test-tiktok-key",
+			Secret: "test-tiktok-secret",
+		},
+		"facebook": {
+			Key:    "test-facebook-key",
+			Secret: "test-facebook-secret",
+			Scopes: []string{"email", "public_profile"},
+		},
+		"fitbit": {
+			Key:    "test-fitbit-key",
+			Secret: "test-fitbit-secret",
+		},
+		"google": {
+			Key:    "test-google-key",
+			Secret: "test-google-secret",
+		},
+		"github": {
+			Key:    "test-github-key",
+			Secret: "test-github-secret",
+			Scopes: []string{"read:user", "user:email"},
+		},
+		"spotify": {
+			Key:    "test-spotify-key",
+			Secret: "test-spotify-secret",
+		},
+		"linkedin": {
+			Key:    "test-linkedin-key",
+			Secret: "test-linkedin-secret",
+		},
+		"line": {
+			Key:    "test-line-key",
+			Secret: "test-line-secret",
+			Scopes: []string{"profile", "openid", "email"},
+		},
+		"lastfm": {
+			Key:    "test-lastfm-key",
+			Secret: "test-lastfm-secret",
+		},
+		"twitch": {
+			Key:    "test-twitch-key",
+			Secret: "test-twitch-secret",
+		},
+		"dropbox": {
+			Key:    "test-dropbox-key",
+			Secret: "test-dropbox-secret",
+		},
+		"digitalocean": {
+			Key:    "test-do-key",
+			Secret: "test-do-secret",
+			Scopes: []string{"read"},
+		},
+		"bitbucket": {
+			Key:    "test-bitbucket-key",
+			Secret: "test-bitbucket-secret",
+		},
+		"instagram": {
+			Key:    "test-instagram-key",
+			Secret: "test-instagram-secret",
+		},
+		"intercom": {
+			Key:    "test-intercom-key",
+			Secret: "test-intercom-secret",
+		},
+		"box": {
+			Key:    "test-box-key",
+			Secret: "test-box-secret",
+		},
+		"salesforce": {
+			Key:    "test-salesforce-key",
+			Secret: "test-salesforce-secret",
+		},
+		"seatalk": {
+			Key:    "test-seatalk-key",
+			Secret: "test-seatalk-secret",
+		},
+		"amazon": {
+			Key:    "test-amazon-key",
+			Secret: "test-amazon-secret",
+		},
+		"yammer": {
+			Key:    "test-yammer-key",
+			Secret: "test-yammer-secret",
+		},
+		"onedrive": {
+			Key:    "test-onedrive-key",
+			Secret: "test-onedrive-secret",
+		},
+		"azuread": {
+			Key:    "test-azuread-key",
+			Secret: "test-azuread-secret",
+		},
+		"microsoftonline": {
+			Key:    "test-msonline-key",
+			Secret: "test-msonline-secret",
+		},
+		"battlenet": {
+			Key:    "test-battlenet-key",
+			Secret: "test-battlenet-secret",
+		},
+		"eveonline": {
+			Key:    "test-eve-key",
+			Secret: "test-eve-secret",
+		},
+		"kakao": {
+			Key:    "test-kakao-key",
+			Secret: "test-kakao-secret",
+		},
+		"yahoo": {
+			Key:    "test-yahoo-key",
+			Secret: "test-yahoo-secret",
+		},
+		"typetalk": {
+			Key:    "test-typetalk-key",
+			Secret: "test-typetalk-secret",
+			Scopes: []string{"my"},
+		},
+		"slack": {
+			Key:    "test-slack-key",
+			Secret: "test-slack-secret",
+		},
+		"stripe": {
+			Key:    "test-stripe-key",
+			Secret: "test-stripe-secret",
+		},
+		"wepay": {
+			Key:    "test-wepay-key",
+			Secret: "test-wepay-secret",
+			Scopes: []string{"view_user"},
+		},
+		"paypal": {
+			Key:    "test-paypal-key",
+			Secret: "test-paypal-secret",
+		},
+		"steam": {
+			Key: "test-steam-key",
+			// Note: Steam only requires a key, no secret
+		},
+		"heroku": {
+			Key:    "test-heroku-key",
+			Secret: "test-heroku-secret",
+		},
+		"uber": {
+			Key:    "test-uber-key",
+			Secret: "test-uber-secret",
+		},
+		"soundcloud": {
+			Key:    "test-soundcloud-key",
+			Secret: "test-soundcloud-secret",
+		},
+		"gitlab": {
+			Key:    "test-gitlab-key",
+			Secret: "test-gitlab-secret",
+		},
+		"dailymotion": {
+			Key:    "test-dailymotion-key",
+			Secret: "test-dailymotion-secret",
+			Scopes: []string{"email"},
+		},
+		"deezer": {
+			Key:    "test-deezer-key",
+			Secret: "test-deezer-secret",
+			Scopes: []string{"email"},
+		},
+		"discord": {
+			Key:    "test-discord-key",
+			Secret: "test-discord-secret",
+			Scopes: []string{"identify", "email"},
+		},
+		"meetup": {
+			Key:    "test-meetup-key",
+			Secret: "test-meetup-secret",
+		},
+		"auth0": {
+			Key:    "test-auth0-key",
+			Secret: "test-auth0-secret",
+			Domain: "test.auth0.com",
+		},
+		"xero": {
+			Key:    "test-xero-key",
+			Secret: "test-xero-secret",
+		},
+		"vk": {
+			Key:    "test-vk-key",
+			Secret: "test-vk-secret",
+		},
+		"naver": {
+			Key:    "test-naver-key",
+			Secret: "test-naver-secret",
+		},
+		"yandex": {
+			Key:    "test-yandex-key",
+			Secret: "test-yandex-secret",
+		},
+		"nextcloud": {
+			Key:    "test-nextcloud-key",
+			Secret: "test-nextcloud-secret",
+			URL:    "https://test.nextcloud.com",
+		},
+		"gitea": {
+			Key:    "test-gitea-key",
+			Secret: "test-gitea-secret",
+		},
+		"shopify": {
+			Key:    "test-shopify-key",
+			Secret: "test-shopify-secret",
+			Scopes: []string{"read_customers", "read_orders"},
+		},
+		"apple": {
+			Key:    "test-apple-key",
+			Secret: "test-apple-secret",
+			Scopes: []string{"name", "email"},
+		},
+		"strava": {
+			Key:    "test-strava-key",
+			Secret: "test-strava-secret",
+		},
+		"okta": {
+			Key:    "test-okta-key",
+			Secret: "test-okta-secret",
+			OrgURL: "https://test.okta.com",
+			Scopes: []string{"openid", "profile", "email"},
+		},
+		"mastodon": {
+			Key:    "test-mastodon-key",
+			Secret: "test-mastodon-secret",
+			Scopes: []string{"read:accounts"},
+		},
+		"wecom": {
+			CorpID:  "test-wecom-corp",
+			Secret:  "test-wecom-secret",
+			AgentID: "test-wecom-agent",
+		},
+		"zoom": {
+			Key:    "test-zoom-key",
+			Secret: "test-zoom-secret",
+			Scopes: []string{"read:user"},
+		},
+		"patreon": {
+			Key:    "test-patreon-key",
+			Secret: "test-patreon-secret",
+		},
+		"openid-connect": {
+			Key:    "test-oidc-key",
+			Secret: "test-oidc-secret",
+			URL:    "http://localhost:8080/.well-known/openid_configuration",
+		},
 	}
 
-	defer func() {
-		for k := range testValues {
-			_ = os.Unsetenv(k)
-		}
-	}()
-
-	// Set all test environment variables
-	for env, val := range testValues {
-		_ = os.Setenv(env, val)
-	}
-
-	factory := &productionProviderFactory{}
+	factory := &configProviderFactory{config: testConfig}
 	providers := factory.CreateProviders("https://test.example.com/auth/%s/callback")
 
 	// Verify that providers were created
-	// We expect at least 50 providers (all the ones we set environment variables for)
-	if len(providers) < 50 {
-		t.Errorf("Expected at least 50 providers, got %d", len(providers))
+	// We expect many providers (all the ones we configured)
+	expectedMinProviders := 50
+	if len(providers) < expectedMinProviders {
+		t.Errorf("Expected at least %d providers, got %d", expectedMinProviders, len(providers))
 	}
 
 	// Verify some specific providers are present by checking their names
@@ -632,7 +814,7 @@ func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 		"deezer", "discord", "meetup", "auth0", "xero", "vk", "naver",
 		"yandex", "nextcloud", "gitea", "shopify", "apple", "strava",
 		"okta", "mastodon", "wecom", "zoom", "patreon",
-		// Note: openid-connect is excluded as it may fail to initialize with test URLs
+		// Note: openid-connect may fail to initialize with test URLs
 	}
 
 	var missingProviders []string
@@ -649,13 +831,13 @@ func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 	t.Logf("Successfully created %d OAuth providers", len(providers))
 }
 
-func TestProductionProviderFactory_CreateProviders_NoEnvironmentVars(t *testing.T) {
-	// Test with no environment variables set
-	factory := &productionProviderFactory{}
+func TestConfigProviderFactory_CreateProviders_NoConfig(t *testing.T) {
+	// Test with no provider configuration
+	factory := &configProviderFactory{config: make(map[string]ProviderConfig)}
 	providers := factory.CreateProviders("https://test.example.com/auth/%s/callback")
 
-	// Should return empty slice when no environment variables are set
+	// Should return empty slice when no providers are configured
 	if len(providers) != 0 {
-		t.Errorf("Expected 0 providers when no env vars set, got %d", len(providers))
+		t.Errorf("Expected 0 providers when no config set, got %d", len(providers))
 	}
 }

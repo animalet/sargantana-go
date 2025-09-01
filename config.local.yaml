@@ -56,50 +56,304 @@ controllers:
       redirect_on_login: "/"                       # Where to redirect after login
       redirect_on_logout: "/"                       # Where to redirect after logout
       providers: # OAuth provider configurations
+        # OpenID Connect provider
         openid-connect:
-          key: "${OPENID_CONNECT_KEY}"
-          secret: "${OPENID_CONNECT_SECRET}"
-          url: "${OPENID_CONNECT_DISCOVERY_URL}"  # OpenID Connect discovery URL
+          key: "your-openid-connect-key"
+          secret: "your-openid-connect-secret"
+          url: "https://your-provider.com/.well-known/openid_configuration"  # OpenID Connect discovery URL
           scopes:
             - "openid"
             - "profile"
             - "email"
+
+        # Popular OAuth providers
         github:
-          key: "${GITHUB_KEY}"                   # GitHub OAuth app key
-          secret: "${GITHUB_SECRET}"             # GitHub OAuth app secret
+          key: "your-github-key"                   # GitHub OAuth app key
+          secret: "your-github-secret"             # GitHub OAuth app secret
           scopes: # Requested OAuth scopes
             - "read:user"
             - "user:email"
+
         google:
-          key: "${GOOGLE_KEY}"
-          secret: "${GOOGLE_SECRET}"
+          key: "your-google-key"
+          secret: "your-google-secret"
           scopes:
             - "openid"
             - "profile"
             - "email"
-        auth0:
-          key: "${AUTH0_KEY}"
-          secret: "${AUTH0_SECRET}"
-          domain: "${AUTH0_DOMAIN}"              # Auth0 tenant domain
-        discord:
-          key: "${DISCORD_KEY}"
-          secret: "${DISCORD_SECRET}"
-          scopes:
-            - "identify"
-            - "email"
+
         facebook:
-          key: "${FACEBOOK_KEY}"
-          secret: "${FACEBOOK_SECRET}"
+          key: "your-facebook-key"
+          secret: "your-facebook-secret"
           scopes:
             - "email"
             - "public_profile"
+
+        discord:
+          key: "your-discord-key"
+          secret: "your-discord-secret"
+          scopes:
+            - "identify"
+            - "email"
+
+        # Auth0 (requires domain)
+        auth0:
+          key: "your-auth0-key"
+          secret: "your-auth0-secret"
+          domain: "your-tenant.auth0.com"              # Auth0 tenant domain
+
+        # Nextcloud (requires URL)
         nextcloud:
-          key: "${NEXTCLOUD_KEY}"
-          secret: "${NEXTCLOUD_SECRET}"
-          url: "${NEXTCLOUD_URL}"               # Nextcloud instance URL
+          key: "your-nextcloud-key"
+          secret: "your-nextcloud-secret"
+          url: "https://your-nextcloud-instance.com"               # Nextcloud instance URL
+
+        # GitLab
         gitlab:
-          key: "${GITLAB_KEY}"
-          secret: "${GITLAB_SECRET}"
+          key: "your-gitlab-key"
+          secret: "your-gitlab-secret"
           scopes:
             - "read_user"
             - "read_api"
+
+        # Okta (requires org_url)
+        okta:
+          key: "your-okta-key"
+          secret: "your-okta-secret"
+          org_url: "https://your-org.okta.com"
+          scopes:
+            - "openid"
+            - "profile"
+            - "email"
+
+        # WeCom (requires corp_id and agent_id)
+        wecom:
+          corp_id: "your-corp-id"
+          secret: "your-wecom-secret"
+          agent_id: "your-agent-id"
+
+        # Social Media providers
+        twitter:
+          key: "your-twitter-key"
+          secret: "your-twitter-secret"
+
+        tiktok:
+          key: "your-tiktok-key"
+          secret: "your-tiktok-secret"
+
+        linkedin:
+          key: "your-linkedin-key"
+          secret: "your-linkedin-secret"
+
+        spotify:
+          key: "your-spotify-key"
+          secret: "your-spotify-secret"
+
+        twitch:
+          key: "your-twitch-key"
+          secret: "your-twitch-secret"
+
+        # Cloud Storage providers
+        dropbox:
+          key: "your-dropbox-key"
+          secret: "your-dropbox-secret"
+
+        box:
+          key: "your-box-key"
+          secret: "your-box-secret"
+
+        onedrive:
+          key: "your-onedrive-key"
+          secret: "your-onedrive-secret"
+
+        # Development platforms
+        bitbucket:
+          key: "your-bitbucket-key"
+          secret: "your-bitbucket-secret"
+
+        gitea:
+          key: "your-gitea-key"
+          secret: "your-gitea-secret"
+
+        # Business platforms
+        slack:
+          key: "your-slack-key"
+          secret: "your-slack-secret"
+
+        salesforce:
+          key: "your-salesforce-key"
+          secret: "your-salesforce-secret"
+
+        stripe:
+          key: "your-stripe-key"
+          secret: "your-stripe-secret"
+
+        shopify:
+          key: "your-shopify-key"
+          secret: "your-shopify-secret"
+          scopes:
+            - "read_customers"
+            - "read_orders"
+
+        # Microsoft services
+        azuread:
+          key: "your-azuread-key"
+          secret: "your-azuread-secret"
+
+        microsoftonline:
+          key: "your-microsoftonline-key"
+          secret: "your-microsoftonline-secret"
+
+        # Gaming platforms
+        battlenet:
+          key: "your-battlenet-key"
+          secret: "your-battlenet-secret"
+
+        eveonline:
+          key: "your-eveonline-key"
+          secret: "your-eveonline-secret"
+
+        steam:
+          key: "your-steam-key"
+          # Note: Steam only requires a key, no secret
+
+        # International platforms
+        kakao:
+          key: "your-kakao-key"
+          secret: "your-kakao-secret"
+
+        naver:
+          key: "your-naver-key"
+          secret: "your-naver-secret"
+
+        yandex:
+          key: "your-yandex-key"
+          secret: "your-yandex-secret"
+
+        vk:
+          key: "your-vk-key"
+          secret: "your-vk-secret"
+
+        line:
+          key: "your-line-key"
+          secret: "your-line-secret"
+          scopes:
+            - "profile"
+            - "openid"
+            - "email"
+
+        # Additional platforms
+        yahoo:
+          key: "your-yahoo-key"
+          secret: "your-yahoo-secret"
+
+        fitbit:
+          key: "your-fitbit-key"
+          secret: "your-fitbit-secret"
+
+        lastfm:
+          key: "your-lastfm-key"
+          secret: "your-lastfm-secret"
+
+        instagram:
+          key: "your-instagram-key"
+          secret: "your-instagram-secret"
+
+        soundcloud:
+          key: "your-soundcloud-key"
+          secret: "your-soundcloud-secret"
+
+        dailymotion:
+          key: "your-dailymotion-key"
+          secret: "your-dailymotion-secret"
+          scopes:
+            - "email"
+
+        deezer:
+          key: "your-deezer-key"
+          secret: "your-deezer-secret"
+          scopes:
+            - "email"
+
+        meetup:
+          key: "your-meetup-key"
+          secret: "your-meetup-secret"
+
+        uber:
+          key: "your-uber-key"
+          secret: "your-uber-secret"
+
+        heroku:
+          key: "your-heroku-key"
+          secret: "your-heroku-secret"
+
+        digitalocean:
+          key: "your-digitalocean-key"
+          secret: "your-digitalocean-secret"
+          scopes:
+            - "read"
+
+        amazon:
+          key: "your-amazon-key"
+          secret: "your-amazon-secret"
+
+        apple:
+          key: "your-apple-key"
+          secret: "your-apple-secret"
+          scopes:
+            - "name"
+            - "email"
+
+        strava:
+          key: "your-strava-key"
+          secret: "your-strava-secret"
+
+        mastodon:
+          key: "your-mastodon-key"
+          secret: "your-mastodon-secret"
+          scopes:
+            - "read:accounts"
+
+        zoom:
+          key: "your-zoom-key"
+          secret: "your-zoom-secret"
+          scopes:
+            - "read:user"
+
+        patreon:
+          key: "your-patreon-key"
+          secret: "your-patreon-secret"
+
+        # Additional business platforms
+        intercom:
+          key: "your-intercom-key"
+          secret: "your-intercom-secret"
+
+        seatalk:
+          key: "your-seatalk-key"
+          secret: "your-seatalk-secret"
+
+        yammer:
+          key: "your-yammer-key"
+          secret: "your-yammer-secret"
+
+        xero:
+          key: "your-xero-key"
+          secret: "your-xero-secret"
+
+        wepay:
+          key: "your-wepay-key"
+          secret: "your-wepay-secret"
+          scopes:
+            - "view_user"
+
+        paypal:
+          key: "your-paypal-key"
+          secret: "your-paypal-secret"
+
+        typetalk:
+          key: "your-typetalk-key"
+          secret: "your-typetalk-secret"
+          scopes:
+            - "my"
+
