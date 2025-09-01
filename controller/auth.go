@@ -116,7 +116,11 @@ func NewAuthController(configData config.ControllerConfig, serverConfig config.S
 	callbackURLTemplate := callbackEndpoint + "/" + strings.TrimPrefix(callbackPath, "/")
 
 	gob.Register(UserObject{})
-	providers := (&productionProviderFactory{}).CreateProviders(callbackURLTemplate)
+	providerFactory := ProviderFactory
+	if providerFactory == nil {
+		providerFactory = defaultProviderFactory()
+	}
+	providers := providerFactory.CreateProviders(callbackURLTemplate)
 	if len(providers) > 0 {
 		goth.UseProviders(providers...)
 	}
@@ -135,10 +139,15 @@ func providerToGin(str string) string {
 	return strings.ReplaceAll(str, "{provider}", ":provider")
 }
 
-// ProviderFactory is an interface for creating OAuth providers
-type ProviderFactory interface {
+// ProvidersFactory is an interface for creating OAuth providers
+type ProvidersFactory interface {
 	CreateProviders(callbackURLTemplate string) []goth.Provider
 }
+
+// ProviderFactory is the global provider factory instance.
+// Replace it at your convenience by assigning a new factory to it.
+// If it is nil, the default production provider factory will be used.
+var ProviderFactory ProvidersFactory
 
 // productionProviderFactory creates real OAuth providers for production use
 type productionProviderFactory struct{}
@@ -345,7 +354,7 @@ func (f *productionProviderFactory) CreateProviders(callbackURLTemplate string) 
 }
 
 // defaultProviderFactory returns the default provider factory for production use
-func defaultProviderFactory() ProviderFactory {
+func defaultProviderFactory() ProvidersFactory {
 	return &productionProviderFactory{}
 }
 
