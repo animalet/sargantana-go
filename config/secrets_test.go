@@ -545,7 +545,6 @@ func TestLoadSecretsFromVault_WithNamespace(t *testing.T) {
 	if !strings.Contains(err.Error(), "failed to read secret from path") {
 		t.Errorf("Error should mention failed to read secret, got: %v", err)
 	}
-	return
 }
 
 // TestLoadSecretsFromDir_SetenvError tests error handling when os.Setenv fails
