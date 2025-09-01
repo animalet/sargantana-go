@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -544,6 +545,140 @@ controllers:
 			if endpoint != expectedEndpoints[i] {
 				t.Errorf("Expected endpoint[%d] '%s', got '%s'", i, expectedEndpoints[i], endpoint)
 			}
+		}
+	})
+}
+
+func TestExpandEnv(t *testing.T) {
+	// Save original environment variables and restore them after tests
+	originalVars := make(map[string]string)
+	testVars := map[string]string{
+		"TEST_STRING":    "expanded_value",
+		"TEST_PORT":      "8080",
+		"TEST_HOST":      "localhost",
+		"TEST_SECRET":    "my_secret_key",
+		"TEST_BOOL":      "true",
+		"TEST_EMPTY":     "",
+		"NESTED_VAR":     "nested_value",
+		"PARTIAL_EXPAND": "partial_${TEST_STRING}",
+	}
+
+	// Set test environment variables
+	for key, value := range testVars {
+		if original, exists := os.LookupEnv(key); exists {
+			originalVars[key] = original
+		}
+		_ = os.Setenv(key, value)
+	}
+
+	// Clean up after tests
+	defer func() {
+		for key := range testVars {
+			if original, exists := originalVars[key]; exists {
+				_ = os.Setenv(key, original)
+			} else {
+				_ = os.Unsetenv(key)
+			}
+		}
+	}()
+
+	t.Run("expand string fields", func(t *testing.T) {
+		type TestStruct struct {
+			SimpleString string            `yaml:"simple_string"`
+			EnvString    string            `yaml:"env_string"`
+			MixedString  string            `yaml:"mixed_string"`
+			Sliced       []string          `yaml:"sliced"`
+			MapField     map[string]string `yaml:"map_field"`
+			BoolField    bool              `yaml:"bool_field"`
+			IntField     int               `yaml:"int_field"`
+			EmptyField   string            `yaml:"empty_field"`
+			NoExpansion  string            `yaml:"no_expansion"` // should not expand
+			Nested       *TestStruct       `yaml:"nested"`
+		}
+
+		test := ControllerConfig(`simple_string: no_expansion
+env_string: ${TEST_STRING}
+mixed_string: prefix_${TEST_HOST}:${TEST_PORT}_suffix
+sliced:
+  - regular_string
+  - ${TEST_STRING}
+map_field:
+  key1: value1
+  key2: ${TEST_STRING}
+bool_field: true
+int_field: 100
+empty_field: ${TEST_EMPTY}
+no_expansion: regular_string
+nested:
+  simple_string: no_expansion
+  env_string: nested_${TEST_STRING}
+  mixed_string: nested_prefix_${TEST_HOST}:${TEST_PORT}_suffix
+  sliced:
+    - nested_regular_string
+    - ${TEST_STRING}
+  map_field:
+    key1: value1
+    key2: ${TEST_STRING}
+  bool_field: true
+  int_field: 100
+  empty_field: ${TEST_EMPTY}
+  no_expansion: nested_regular_string
+  nested: null`)
+
+		result, err := UnmarshalTo[TestStruct](test)
+		if err != nil {
+			t.Fatalf("UnmarshalTo() error = %v", err)
+		}
+
+		// Define the expected result after environment variable expansion
+		expected := &TestStruct{
+			SimpleString: "no_expansion",
+			EnvString:    "expanded_value",
+			MixedString:  "prefix_localhost:8080_suffix",
+			Sliced: []string{
+				"regular_string",
+				"expanded_value",
+			},
+			MapField: map[string]string{
+				"key1": "value1",
+				"key2": "expanded_value",
+			},
+			BoolField:   true,
+			IntField:    100,
+			EmptyField:  "",
+			NoExpansion: "regular_string",
+			Nested: &TestStruct{
+				SimpleString: "no_expansion",
+				EnvString:    "nested_expanded_value",
+				MixedString:  "nested_prefix_localhost:8080_suffix",
+				Sliced: []string{
+					"nested_regular_string",
+					"expanded_value",
+				},
+				MapField: map[string]string{
+					"key1": "value1",
+					"key2": "expanded_value",
+				},
+				BoolField:   true,
+				IntField:    100,
+				EmptyField:  "",
+				NoExpansion: "nested_regular_string",
+				Nested:      nil,
+			},
+		}
+
+		out, err := yaml.Marshal(result)
+		if err != nil {
+			t.Fatalf("Failed to marshal YAML: %v", err)
+		}
+		expectedOut, err := yaml.Marshal(expected)
+		if err != nil {
+			t.Fatalf("Failed to marshal YAML: %v", err)
+		}
+		t.Logf("YAML Output:\n%s", out)
+		t.Logf("Expected YAML Output:\n%s", expectedOut)
+		if !reflect.DeepEqual(out, expectedOut) {
+			t.Fatalf("Expanded struct does not match expected.\nGot: %v\nWant: %v", out, expectedOut)
 		}
 	})
 }

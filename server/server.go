@@ -170,7 +170,7 @@ func (s *Server) createSessionStore(isReleaseMode bool) (sessions.Store, error) 
 	if secret == "" {
 		return nil, fmt.Errorf("session secret is not set")
 	}
-	sessionSecret := []byte(os.ExpandEnv(secret))
+	sessionSecret := []byte(secret)
 	if s.config.ServerConfig.RedisSessionStore == "" {
 		log.Println("Using cookies for session storage")
 		sessionStore = session.NewCookieStore(isReleaseMode, sessionSecret)

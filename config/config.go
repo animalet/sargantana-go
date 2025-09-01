@@ -4,7 +4,9 @@
 package config
 
 import (
+	"log"
 	"os"
+	"reflect"
 
 	"gopkg.in/yaml.v3"
 )
@@ -93,11 +95,59 @@ func UnmarshalTo[T any](c ControllerConfig) (*T, error) {
 		return nil, nil
 	}
 	var result T
-	data := make([]byte, len(c))
-	copy(data, c)
-	err := yaml.Unmarshal(data, &result)
+	err := yaml.Unmarshal(c, &result)
 	if err != nil {
 		return nil, err
 	}
+
+	// Always try to expand environment variables for structs
+	v := reflect.ValueOf(&result).Elem()
+	if v.Kind() == reflect.Struct {
+		expandEnv(v)
+	}
+
 	return &result, nil
+}
+
+// expandEnv recursively traverses the fields of a struct and expands environment variables in string fields.
+// It handles nested structs, pointers to structs, slices, and maps.
+func expandEnv(val reflect.Value) {
+	switch val.Kind() {
+	case reflect.String:
+		if val.CanSet() {
+			val.SetString(os.ExpandEnv(val.String()))
+		}
+	case reflect.Struct:
+		for i := 0; i < val.NumField(); i++ {
+			expandEnv(val.Field(i))
+		}
+	case reflect.Ptr:
+		if !val.IsNil() {
+			expandEnv(val.Elem())
+		}
+	case reflect.Slice:
+		for j := 0; j < val.Len(); j++ {
+			expandEnv(val.Index(j))
+		}
+	case reflect.Map:
+		if val.Type().Elem().Kind() == reflect.String {
+			for _, key := range val.MapKeys() {
+				mapVal := val.MapIndex(key)
+				if mapVal.Kind() == reflect.String {
+					expanded := os.ExpandEnv(mapVal.String())
+					val.SetMapIndex(key, reflect.ValueOf(expanded))
+				}
+			}
+		} else {
+			// Handle maps with non-string values recursively
+			for _, key := range val.MapKeys() {
+				mapVal := val.MapIndex(key)
+				if mapVal.CanAddr() {
+					expandEnv(mapVal.Addr().Elem())
+				}
+			}
+		}
+	default:
+		log.Panicf("expandEnv: unsupported kind %s", val.Kind())
+	}
 }
