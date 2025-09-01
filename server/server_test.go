@@ -38,7 +38,7 @@ func (m *MockController) Close() error {
 	return m.closeError
 }
 
-func setupTestEnvironment(t *testing.T) {
+func setupTestEnvironment() {
 	// Register a mock controller for testing
 	controller.RegisterController("mock", func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
 		return &MockController{}, nil
@@ -58,7 +58,7 @@ func createTestConfigFile(t *testing.T, content string) string {
 }
 
 func TestServerWithRedisSessionsAndDebugMode(t *testing.T) {
-	setupTestEnvironment(t)
+	setupTestEnvironment()
 
 	// Create a temporary secrets directory
 	tempDir := t.TempDir()
@@ -166,7 +166,7 @@ controllers:
 }
 
 func TestServerBodyLogMiddlewareInDebugMode(t *testing.T) {
-	setupTestEnvironment(t)
+	setupTestEnvironment()
 
 	// Create a temporary secrets directory
 	tempDir := t.TempDir()
@@ -252,7 +252,7 @@ controllers:
 }
 
 func TestServerWithCookieSessionsInReleaseMode(t *testing.T) {
-	setupTestEnvironment(t)
+	setupTestEnvironment()
 
 	// Create a temporary secrets directory
 	tempDir := t.TempDir()
@@ -337,7 +337,7 @@ controllers:
 }
 
 func TestServerShutdown(t *testing.T) {
-	setupTestEnvironment(t)
+	setupTestEnvironment()
 
 	// Create a temporary secrets directory
 	tempDir := t.TempDir()

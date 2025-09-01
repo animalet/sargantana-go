@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/vault/api"
 )
 
 func TestLoadSecretsFromDir(t *testing.T) {
@@ -212,7 +214,7 @@ func TestLoadSecretsFromDir_FilePermissionError(t *testing.T) {
 	// Test should return error due to permission issue
 	err = LoadSecretsFromDir(tempDir)
 	if err == nil {
-		t.Error("Expected error due to file permission, but got none")
+		t.Fatal("Expected error due to file permission, but got none")
 	}
 
 	if !strings.Contains(err.Error(), "permission denied") && !strings.Contains(err.Error(), "SECRET_KEY") {
@@ -291,7 +293,7 @@ func TestLoadSecrets_DirectoryError(t *testing.T) {
 
 	err := config.LoadSecrets()
 	if err == nil {
-		t.Error("LoadSecrets with non-existent directory should return error")
+		t.Fatal("LoadSecrets with non-existent directory should return error")
 	}
 
 	if !strings.Contains(err.Error(), "failed to load secrets from directory") {
@@ -432,4 +434,217 @@ func isVaultReachable(addr string) bool {
 	// Accept any response (2xx, 4xx, 5xx) as "reachable"
 	// Vault might return different status codes based on its state
 	return true
+}
+
+// TestLoadSecretsFromVault_NilSecret tests the case where Vault returns nil secret (no error but secret doesn't exist)
+func TestLoadSecretsFromVault_NilSecret(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	vaultAddr := "http://localhost:8200"
+	if !isVaultReachable(vaultAddr) {
+		t.Skip("Vault container not reachable. Run 'docker-compose up vault' first")
+	}
+
+	// Test with a path that doesn't exist in Vault
+	config := &Config{
+		Vault: VaultConfig{
+			Address: vaultAddr,
+			Token:   "dev-root-token",
+			Path:    "secret/data/nonexistent/path/that/does/not/exist",
+		},
+	}
+
+	err := config.LoadSecretsFromVault()
+	if err != nil {
+		t.Errorf("LoadSecretsFromVault should not return error for nonexistent path, got: %v", err)
+	}
+}
+
+// TestLoadSecretsFromVault_Success tests successful loading of secrets from Vault
+func TestLoadSecretsFromVault_Success(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	vaultAddr := "http://localhost:8200"
+	if !isVaultReachable(vaultAddr) {
+		t.Skip("Vault container not reachable. Run 'docker-compose up vault' first")
+	}
+
+	config := &Config{
+		Vault: VaultConfig{
+			Address: vaultAddr,
+			Token:   "dev-root-token",
+			Path:    "secret/data/sargantana",
+		},
+	}
+
+	// Clear environment variables before test
+	_ = os.Unsetenv("GOOGLE_KEY")
+	_ = os.Unsetenv("GOOGLE_SECRET")
+	_ = os.Unsetenv("SESSION_SECRET")
+
+	defer func() {
+		// Clean up after test
+		_ = os.Unsetenv("GOOGLE_KEY")
+		_ = os.Unsetenv("GOOGLE_SECRET")
+		_ = os.Unsetenv("SESSION_SECRET")
+	}()
+
+	err := config.LoadSecretsFromVault()
+	if err != nil {
+		t.Fatalf("LoadSecretsFromVault failed: %v", err)
+	}
+
+	// Verify that secrets were loaded (assuming the test data exists)
+	googleKey := os.Getenv("GOOGLE_KEY")
+	if googleKey == "" {
+		t.Log("GOOGLE_KEY not found - this might be expected if test data doesn't exist")
+	}
+}
+
+// TestLoadSecretsFromVault_InvalidConfig tests with invalid Vault configuration
+func TestLoadSecretsFromVault_InvalidConfig(t *testing.T) {
+	config := &Config{
+		Vault: VaultConfig{
+			// Missing required fields - should be invalid
+			Address: "",
+			Token:   "",
+			Path:    "",
+		},
+	}
+
+	err := config.LoadSecretsFromVault()
+	if err != nil {
+		t.Errorf("LoadSecretsFromVault with invalid config should not return error (should skip), got: %v", err)
+	}
+}
+
+// TestLoadSecretsFromVault_ConnectionError tests with unreachable Vault server
+func TestLoadSecretsFromVault_ConnectionError(t *testing.T) {
+	config := &Config{
+		Vault: VaultConfig{
+			Address: "http://nonexistent-vault-server:8200",
+			Token:   "test-token",
+			Path:    "secret/data/test",
+		},
+	}
+
+	err := config.LoadSecretsFromVault()
+	if err == nil {
+		t.Fatal("LoadSecretsFromVault with unreachable server should return error")
+	}
+
+	if !strings.Contains(err.Error(), "failed to read secret from path") {
+		t.Errorf("Error should mention failed to read secret, got: %v", err)
+	}
+}
+
+// TestLoadSecretsFromVault_InvalidToken tests with invalid Vault token
+func TestLoadSecretsFromVault_InvalidToken(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	vaultAddr := "http://localhost:8200"
+	if !isVaultReachable(vaultAddr) {
+		t.Skip("Vault container not reachable. Run 'docker-compose up vault' first")
+	}
+
+	config := &Config{
+		Vault: VaultConfig{
+			Address: vaultAddr,
+			Token:   "invalid-token-that-does-not-exist",
+			Path:    "secret/data/sargantana",
+		},
+	}
+
+	err := config.LoadSecretsFromVault()
+	if err == nil {
+		t.Error("LoadSecretsFromVault with invalid token should return error")
+	}
+
+	if !strings.Contains(err.Error(), "failed to read secret from path") {
+		t.Errorf("Error should mention failed to read secret, got: %v", err)
+	}
+}
+
+// TestLoadSecretsFromVault_WithNamespace tests Vault with namespace configuration
+func TestLoadSecretsFromVault_WithNamespace(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	vaultAddr := "http://localhost:8200"
+	if !isVaultReachable(vaultAddr) {
+		t.Skip("Vault container not reachable. Run 'docker-compose up vault' first")
+	}
+
+	config := &Config{
+		Vault: VaultConfig{
+			Address:   vaultAddr,
+			Token:     "dev-root-token",
+			Path:      "secret/data/test",
+			Namespace: "test-namespace", // This namespace likely doesn't exist in dev mode
+		},
+	}
+
+	// This should not panic or crash, even if namespace doesn't exist
+	err := config.LoadSecretsFromVault()
+	// We don't assert on error here because namespace behavior varies in dev mode
+	if err != nil {
+		t.Logf("LoadSecretsFromVault with namespace returned error (expected): %v", err)
+	}
+}
+
+// TestLoadSecretsFromVault_ManualNilSecretSimulation tests the nil secret path using direct API calls
+func TestLoadSecretsFromVault_ManualNilSecretSimulation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	vaultAddr := "http://localhost:8200"
+	if !isVaultReachable(vaultAddr) {
+		t.Skip("Vault container not reachable. Run 'docker-compose up vault' first")
+	}
+
+	// Test the specific scenario directly using Vault API
+	config := api.DefaultConfig()
+	config.Address = vaultAddr
+
+	client, err := api.NewClient(config)
+	if err != nil {
+		t.Fatalf("Failed to create Vault client: %v", err)
+	}
+
+	client.SetToken("dev-root-token")
+
+	// Try to read from a path that definitely doesn't exist
+	nonExistentPath := "secret/data/absolutely/nonexistent/path/for/testing"
+	secret, err := client.Logical().Read(nonExistentPath)
+
+	// This is the exact scenario we want to test
+	if err != nil {
+		t.Fatalf("Expected no error but got: %v", err)
+	}
+
+	if secret != nil {
+		t.Errorf("Expected nil secret for nonexistent path, but got: %+v", secret)
+	}
+
+	// Now test our function handles this case
+	testConfig := &Config{
+		Vault: VaultConfig{
+			Address: vaultAddr,
+			Token:   "dev-root-token",
+			Path:    nonExistentPath,
+		},
+	}
+
+	err = testConfig.LoadSecretsFromVault()
+	if err != nil {
+		t.Errorf("LoadSecretsFromVault should handle nil secret gracefully, got error: %v", err)
+	}
 }
