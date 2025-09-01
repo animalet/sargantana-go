@@ -67,6 +67,20 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
+      vault:
+        image: hashicorp/vault:1.17
+        ports:
+          - 8200:8200
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
+          VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+          VAULT_ADDR: http://0.0.0.0:8200
+        options: >-
+          --cap-add=IPC_LOCK
+          --health-cmd "vault status"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v5
         with:
@@ -76,6 +90,35 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+
+      - name: Initialize Vault with test secrets
+        run: |
+          # Wait for Vault to be ready
+          timeout 60s bash -c 'until curl -s http://localhost:8200/v1/sys/health; do sleep 2; done'
+          
+          # Set Vault environment variables
+          export VAULT_ADDR=http://localhost:8200
+          export VAULT_TOKEN=dev-root-token
+          
+          # Install Vault CLI
+          wget -O vault.zip https://releases.hashicorp.com/vault/1.17.0/vault_1.17.0_linux_amd64.zip
+          unzip vault.zip
+          sudo mv vault /usr/local/bin/
+          
+          # Initialize test secrets for KV v2 (default)
+          vault kv put secret/sargantana \
+            GOOGLE_KEY=test-google-key \
+            GOOGLE_SECRET=test-google-secret \
+            SESSION_SECRET=test-session-secret-that-is-long-enough
+          
+          # Enable KV v1 engine and add test secrets
+          vault secrets enable -version=1 -path=secret-v1 kv
+          vault kv put secret-v1/sargantana \
+            GOOGLE_KEY=test-google-key \
+            GOOGLE_SECRET=test-google-secret \
+            SESSION_SECRET=test-session-secret-that-is-long-enough
+          
+          echo "Vault initialized with test secrets for both KV v1 and KV v2"
 
       - name: Run ci build via Make
         run: make ci
