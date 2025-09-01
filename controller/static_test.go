@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"flag"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,86 +9,69 @@ import (
 
 	"github.com/animalet/sargantana-go/config"
 	"github.com/gin-gonic/gin"
+	"gopkg.in/yaml.v3"
 )
 
-func TestNewStatic(t *testing.T) {
-	tests := []struct {
-		name             string
-		staticsDir       string
-		htmlTemplatesDir string
-	}{
-		{
-			name:             "basic directories",
-			staticsDir:       "./static",
-			htmlTemplatesDir: "./templates",
-		},
-		{
-			name:             "absolute paths",
-			staticsDir:       "/var/www/static",
-			htmlTemplatesDir: "/var/www/templates",
-		},
-		{
-			name:             "empty paths",
-			staticsDir:       "",
-			htmlTemplatesDir: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			static := NewStatic(tt.staticsDir, tt.htmlTemplatesDir)
-
-			if static == nil {
-				t.Fatal("NewStatic returned nil")
-			}
-			if static.staticsDir != tt.staticsDir {
-				t.Errorf("staticsDir = %v, want %v", static.staticsDir, tt.staticsDir)
-			}
-			if static.htmlTemplatesDir != tt.htmlTemplatesDir {
-				t.Errorf("htmlTemplatesDir = %v, want %v", static.htmlTemplatesDir, tt.htmlTemplatesDir)
-			}
-		})
-	}
-}
-
-func TestNewStaticFromFlags(t *testing.T) {
+func TestNewStaticController(t *testing.T) {
 	tests := []struct {
 		name          string
-		args          []string
-		wantFrontend  string
-		wantTemplates string
+		configData    StaticControllerConfig
+		expectedError bool
 	}{
 		{
-			name:          "default values",
-			args:          []string{},
-			wantFrontend:  "./frontend",
-			wantTemplates: "./templates",
+			name: "basic directories",
+			configData: StaticControllerConfig{
+				StaticsDir:       "./static",
+				HtmlTemplatesDir: "./templates",
+			},
+			expectedError: false,
 		},
 		{
-			name:          "custom values",
-			args:          []string{"-frontend=/custom/static", "-templates=/custom/templates"},
-			wantFrontend:  "/custom/static",
-			wantTemplates: "/custom/templates",
+			name: "absolute paths",
+			configData: StaticControllerConfig{
+				StaticsDir:       "/var/www/static",
+				HtmlTemplatesDir: "/var/www/templates",
+			},
+			expectedError: false,
+		},
+		{
+			name: "empty paths",
+			configData: StaticControllerConfig{
+				StaticsDir:       "",
+				HtmlTemplatesDir: "",
+			},
+			expectedError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
-			factory := NewStaticFromFlags(flagSet)
-
-			err := flagSet.Parse(tt.args)
+			configBytes, err := yaml.Marshal(tt.configData)
 			if err != nil {
-				t.Fatalf("Failed to parse flags: %v", err)
+				t.Fatalf("Failed to marshal config: %v", err)
 			}
 
-			controller := factory().(*static)
+			controller, err := NewStaticController(config.ControllerConfig(configBytes), config.ServerConfig{})
 
-			if controller.staticsDir != tt.wantFrontend {
-				t.Errorf("staticsDir = %v, want %v", controller.staticsDir, tt.wantFrontend)
-			}
-			if controller.htmlTemplatesDir != tt.wantTemplates {
-				t.Errorf("htmlTemplatesDir = %v, want %v", controller.htmlTemplatesDir, tt.wantTemplates)
+			if tt.expectedError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				if controller == nil {
+					t.Error("Expected controller but got nil")
+				}
+
+				static := controller.(*static)
+				if static.staticsDir != tt.configData.StaticsDir {
+					t.Errorf("staticsDir = %v, want %v", static.staticsDir, tt.configData.StaticsDir)
+				}
+				if static.htmlTemplatesDir != tt.configData.HtmlTemplatesDir {
+					t.Errorf("htmlTemplatesDir = %v, want %v", static.htmlTemplatesDir, tt.configData.HtmlTemplatesDir)
+				}
 			}
 		})
 	}
@@ -122,10 +104,18 @@ func TestStatic_Bind(t *testing.T) {
 		t.Fatalf("Failed to create test.css: %v", err)
 	}
 
-	static := NewStatic(staticDir, templatesDir)
-	engine := gin.New()
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
+	configData := StaticControllerConfig{
+		StaticsDir:       staticDir,
+		HtmlTemplatesDir: templatesDir,
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	controller, err := NewStaticController(config.ControllerConfig(configBytes), config.ServerConfig{})
+	if err != nil {
+		t.Fatalf("Failed to create static controller: %v", err)
+	}
 
+	static := controller.(*static)
+	engine := gin.New()
 	static.Bind(engine, nil)
 
 	tests := []struct {
@@ -202,9 +192,18 @@ func TestStatic_BindWithTemplates(t *testing.T) {
 		t.Fatalf("Failed to create template: %v", err)
 	}
 
-	static := NewStatic(staticDir, templatesDir)
+	configData := StaticControllerConfig{
+		StaticsDir:       staticDir,
+		HtmlTemplatesDir: templatesDir,
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	controller, err := NewStaticController(config.ControllerConfig(configBytes), config.ServerConfig{})
+	if err != nil {
+		t.Fatalf("Failed to create static controller: %v", err)
+	}
+
+	static := controller.(*static)
 	engine := gin.New()
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 	// This should load templates without error
 	static.Bind(engine, nil)
@@ -234,9 +233,18 @@ func TestStatic_BindWithEmptyTemplatesDir(t *testing.T) {
 		t.Fatalf("Failed to create index.html: %v", err)
 	}
 
-	static := NewStatic(staticDir, templatesDir)
+	configData := StaticControllerConfig{
+		StaticsDir:       staticDir,
+		HtmlTemplatesDir: templatesDir,
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	controller, err := NewStaticController(config.ControllerConfig(configBytes), config.ServerConfig{})
+	if err != nil {
+		t.Fatalf("Failed to create static controller: %v", err)
+	}
+
+	static := controller.(*static)
 	engine := gin.New()
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 	// This should handle empty templates directory gracefully
 	static.Bind(engine, nil)
@@ -261,17 +269,36 @@ func TestStatic_BindWithNonExistentTemplatesDir(t *testing.T) {
 		t.Fatalf("Failed to create index.html: %v", err)
 	}
 
-	static := NewStatic(staticDir, templatesDir)
+	configData := StaticControllerConfig{
+		StaticsDir:       staticDir,
+		HtmlTemplatesDir: templatesDir,
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	controller, err := NewStaticController(configBytes, config.ServerConfig{})
+	if err != nil {
+		t.Fatalf("Failed to create static controller: %v", err)
+	}
+
+	static := controller.(*static)
 	engine := gin.New()
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
 
 	// This should handle non-existent templates directory gracefully
 	static.Bind(engine, nil)
 }
 
 func TestStatic_Close(t *testing.T) {
-	static := NewStatic("./static", "./templates")
-	err := static.Close()
+	configData := StaticControllerConfig{
+		StaticsDir:       "./static",
+		HtmlTemplatesDir: "./templates",
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	controller, err := NewStaticController(configBytes, config.ServerConfig{})
+	if err != nil {
+		t.Fatalf("Failed to create static controller: %v", err)
+	}
+
+	static := controller.(*static)
+	err = static.Close()
 	if err != nil {
 		t.Errorf("Close() returned error: %v", err)
 	}
@@ -294,10 +321,18 @@ func TestStatic_ContentTypeHeader(t *testing.T) {
 		t.Fatalf("Failed to create index.html: %v", err)
 	}
 
-	static := NewStatic(staticDir, "")
-	engine := gin.New()
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session", "")
+	configData := StaticControllerConfig{
+		StaticsDir:       staticDir,
+		HtmlTemplatesDir: "",
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	controller, err := NewStaticController(configBytes, config.ServerConfig{})
+	if err != nil {
+		t.Fatalf("Failed to create static controller: %v", err)
+	}
 
+	static := controller.(*static)
+	engine := gin.New()
 	static.Bind(engine, nil)
 
 	w := httptest.NewRecorder()
