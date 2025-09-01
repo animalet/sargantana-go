@@ -139,8 +139,7 @@ func TestRedisPool_Integration(t *testing.T) {
 	// Test basic Redis operation (will fail if Redis not available)
 	_, err := conn.Do("PING")
 	if err != nil {
-		t.Logf("Redis not available for integration test: %v", err)
-		t.Skip("Redis server not available")
+		t.Fatalf("Redis not available for integration test: %v", err)
 	}
 }
 
