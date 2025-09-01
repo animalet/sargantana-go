@@ -88,14 +88,14 @@ type ProviderConfig struct {
 }
 
 type AuthControllerConfig struct {
-	CallbackURL      string                    `yaml:"callback_url"`
-	CallbackPath     string                    `yaml:"callback_path"`
-	LoginPath        string                    `yaml:"login_path"`
-	LogoutPath       string                    `yaml:"logout_path"`
-	UserInfoPath     string                    `yaml:"user_info_path"`
-	RedirectOnLogin  string                    `yaml:"redirect_on_login"`
-	RedirectOnLogout string                    `yaml:"redirect_on_logout"`
-	Providers        map[string]ProviderConfig `yaml:"providers"`
+	CallbackURL      string                     `yaml:"callback_url"`
+	CallbackPath     string                     `yaml:"callback_path"`
+	LoginPath        string                     `yaml:"login_path"`
+	LogoutPath       string                     `yaml:"logout_path"`
+	UserInfoPath     string                     `yaml:"user_info_path"`
+	RedirectOnLogin  string                     `yaml:"redirect_on_login"`
+	RedirectOnLogout string                     `yaml:"redirect_on_logout"`
+	Providers        map[string]*ProviderConfig `yaml:"providers"`
 }
 
 func NewAuthController(configData config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
@@ -164,7 +164,7 @@ var ProviderFactory ProvidersFactory
 
 // configProviderFactory creates OAuth providers based on configuration
 type configProviderFactory struct {
-	config map[string]ProviderConfig
+	config map[string]*ProviderConfig
 }
 
 // CreateProviders creates OAuth providers from configuration

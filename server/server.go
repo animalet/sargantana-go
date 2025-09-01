@@ -35,6 +35,9 @@ type Server struct {
 	controllers     []controller.IController
 }
 
+// controllerRegistry holds the mapping of controller type names to their factory functions.
+var controllerRegistry = make(map[string]controller.NewController)
+
 // NewServer creates a new Server instance by loading configuration from the specified file.
 //
 // Parameters:
@@ -58,8 +61,6 @@ func NewServer(configFile string) (*Server, error) {
 	return &Server{config: c, controllers: controllers}, nil
 }
 
-var controllerRegistry = make(map[string]controller.NewController)
-
 func AddController(typeName string, factory controller.NewController) {
 	log.Printf("Registering controller type %q", typeName)
 	_, exists := controllerRegistry[typeName]
@@ -72,22 +73,19 @@ func AddController(typeName string, factory controller.NewController) {
 func configureControllers(c *config.Config) ([]controller.IController, error) {
 	var controllers []controller.IController
 	for _, binding := range c.ControllerBindings {
-		forType := binding.TypeName
-		var name string
-		if binding.Name == "" {
-			name = "unnamed"
-		} else {
-			name = "\"" + binding.Name + "\""
+		name := "unnamed"
+		if binding.Name != "" {
+			name = fmt.Sprintf("%q", binding.Name)
 		}
 
-		factory, exists := controllerRegistry[forType]
+		factory, exists := controllerRegistry[binding.TypeName]
 		if !exists {
-			return nil, fmt.Errorf("no configurator found for %s controller type: %s", name, forType)
+			return nil, fmt.Errorf("no configurator found for %s controller type: %s", name, binding.TypeName)
 		}
-		log.Printf("Configuring %s controller of type: %s", name, forType)
+		log.Printf("Configuring %s controller of type: %s", name, binding.TypeName)
 		newController, err := factory(binding.ConfigData, c.ServerConfig)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("failed to configure %s controller of type: %s", name, forType))
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to configure %s controller of type: %s", name, binding.TypeName))
 		}
 		controllers = append(controllers, newController)
 	}
@@ -125,7 +123,7 @@ func (s *Server) Start() error {
 		}
 		log.Printf("Session cookie name: %q\n", s.config.ServerConfig.SessionName)
 		if s.config.Vault != nil {
-			log.Printf("Using Vault for secrets at %s, path: %s, namespace: %s\n", s.config.Vault.Address, s.config.Vault.Path, s.config.Vault.Namespace)
+			log.Printf("Using Vault for secrets at %q, path: %q, namespace: %q\n", s.config.Vault.Address, s.config.Vault.Path, s.config.Vault.Namespace)
 		} else {
 			log.Printf("Not using Vault for secrets\n")
 		}
@@ -146,6 +144,9 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) bootstrap() error {
+	log.Println("Bootstrapping server...")
+
+	// Initialize Gin engine
 	engine := gin.New()
 	isReleaseMode := gin.Mode() == gin.ReleaseMode
 	sessionStore, err := s.createSessionStore(isReleaseMode)

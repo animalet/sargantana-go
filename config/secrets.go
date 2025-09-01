@@ -60,6 +60,7 @@ func (c Config) createVaultManager() error {
 		return nil
 	}
 	config := api.DefaultConfig()
+	config.OutputCurlString = true
 	config.Address = c.Vault.Address
 	client, err := api.NewClient(config)
 	if err != nil {
@@ -136,4 +137,22 @@ func (c Config) LoadSecrets() error {
 	}
 
 	return nil
+}
+
+// secretFromFile reads the content of a file and returns it as a trimmed string.
+// It returns an error if the file cannot be read.
+func secretFromFile(file string) (string, error) {
+	if secretDir == "" {
+		return "", errors.New("no secrets directory configured")
+	}
+	file = strings.TrimSpace(file)
+	if file == "" {
+		return "", errors.New("no file specified for file secret")
+	}
+	file = filepath.Join(secretDir, file)
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return "", errors.Wrap(err, "error reading secret file")
+	}
+	return strings.TrimSpace(string(b)), nil
 }
