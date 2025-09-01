@@ -583,7 +583,7 @@ func TestLoadSecretsFromVault_InvalidToken(t *testing.T) {
 
 	err := config.LoadSecretsFromVault()
 	if err == nil {
-		t.Error("LoadSecretsFromVault with invalid token should return error")
+		t.Fatal("LoadSecretsFromVault with invalid token should return error")
 	}
 
 	if !strings.Contains(err.Error(), "failed to read secret from path") {
