@@ -103,8 +103,7 @@ type AuthControllerConfig struct {
 }
 
 func NewAuthController(configData config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
-	var c AuthControllerConfig
-	err := configData.To(&c)
+	c, err := config.UnmarshalTo[AuthControllerConfig](configData)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal auth controller config")
 	}

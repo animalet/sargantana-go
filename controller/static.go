@@ -20,8 +20,7 @@ type StaticControllerConfig struct {
 }
 
 func NewStaticController(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
-	var c *StaticControllerConfig
-	err := configData.To(&c)
+	c, err := config.UnmarshalTo[StaticControllerConfig](configData)
 	if err != nil {
 		return nil, err
 	}

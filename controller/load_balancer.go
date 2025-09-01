@@ -25,8 +25,7 @@ type LoadBalancerControllerConfig struct {
 }
 
 func NewLoadBalancerController(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
-	var c LoadBalancerControllerConfig
-	err := configData.To(&c)
+	c, err := config.UnmarshalTo[LoadBalancerControllerConfig](configData)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse load balancer controller config")
 	}

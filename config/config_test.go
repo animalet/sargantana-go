@@ -263,8 +263,7 @@ callback_path: "/auth/callback"
 			CallbackPath string `yaml:"callback_path"`
 		}
 
-		var authConfig AuthConfig
-		err = config.To(&authConfig)
+		authConfig, err := UnmarshalTo[AuthConfig](config)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal back: %v", err)
 		}
@@ -290,8 +289,7 @@ templates_dir: "./templates"
 			TemplatesDir string `yaml:"templates_dir"`
 		}
 
-		var staticConfig StaticConfig
-		err := config.To(&staticConfig)
+		staticConfig, err := UnmarshalTo[StaticConfig](config)
 		if err != nil {
 			t.Fatalf("To() error = %v", err)
 		}
@@ -307,26 +305,26 @@ templates_dir: "./templates"
 
 	t.Run("invalid yaml", func(t *testing.T) {
 		invalidYaml := []byte(`invalid: yaml: content: [`)
-		config := ControllerConfig(invalidYaml)
+		c := ControllerConfig(invalidYaml)
 
 		type TestStruct struct {
 			Field string `yaml:"field"`
 		}
 
-		var result TestStruct
-		err := config.To(&result)
+		_, err := UnmarshalTo[TestStruct](c)
 		if err == nil {
 			t.Error("Expected error for invalid YAML, got nil")
 		}
 	})
 
 	t.Run("nil pointer", func(t *testing.T) {
-		yamlData := []byte(`field: "value"`)
-		config := ControllerConfig(yamlData)
+		result, err := UnmarshalTo[ControllerConfig](nil)
+		if err != nil {
+			t.Fatalf("Expected no error for nil pointer, got %v", err)
+		}
 
-		err := config.To(nil)
-		if err == nil {
-			t.Error("Expected error for nil pointer, got nil")
+		if result != nil {
+			t.Fatalf("Expected nil result for nil pointer")
 		}
 	})
 }
@@ -497,7 +495,6 @@ controllers:
 			RedirectOnLogin  string `yaml:"redirect_on_login"`
 			RedirectOnLogout string `yaml:"redirect_on_logout"`
 		}
-
 		authConfig, err := UnmarshalTo[AuthConfig](authBinding.ConfigData)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal auth config: %v", err)
@@ -519,8 +516,8 @@ controllers:
 			Endpoints []string `yaml:"endpoints"`
 		}
 
-		var lbConfig LoadBalancerConfig
-		err = lbBinding.ConfigData.To(&lbConfig)
+		lbConfig, err := UnmarshalTo[LoadBalancerConfig](lbBinding.ConfigData)
+
 		if err != nil {
 			t.Fatalf("Failed to unmarshal load balancer config: %v", err)
 		}

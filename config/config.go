@@ -4,7 +4,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -87,19 +86,12 @@ func (c *ControllerConfig) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-// To unmarshals the raw YAML data from ControllerConfig into a target struct.
-// The 'out' parameter must be a pointer to a struct that can be unmarshalled from YAML.
-func (c *ControllerConfig) To(out any) error {
-	if out == nil {
-		return fmt.Errorf("output parameter cannot be nil")
-	}
-	bytes := []byte(*c)
-	return yaml.Unmarshal(bytes, out)
-}
-
-// UnmarshalTo unmarshals the raw YAML data from ControllerConfig into a new instance of type T.
+// UnmarshalTo unmarshal the raw YAML data from ControllerConfig into a new instance of type T.
 // This method creates a new instance and returns it, avoiding addressability issues.
 func UnmarshalTo[T any](c ControllerConfig) (*T, error) {
+	if c == nil {
+		return nil, nil
+	}
 	var result T
 	data := make([]byte, len(c))
 	copy(data, c)
