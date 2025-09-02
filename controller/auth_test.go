@@ -518,7 +518,7 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 
 func TestConfigProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 	// Create test configuration with all providers
-	testConfig := map[string]*ProviderConfig{
+	testConfig := map[string]ProviderConfig{
 		"twitter": {
 			Key:    "test-twitter-key",
 			Secret: "test-twitter-secret",
@@ -823,7 +823,7 @@ func TestConfigProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 
 func TestConfigProviderFactory_CreateProviders_NoConfig(t *testing.T) {
 	// Test with no provider configuration
-	factory := &configProviderFactory{config: make(map[string]*ProviderConfig)}
+	factory := &configProviderFactory{config: make(map[string]ProviderConfig)}
 	providers := factory.CreateProviders("https://test.example.com/auth/%s/callback")
 
 	// Should return empty slice when no providers are configured

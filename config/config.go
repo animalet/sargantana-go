@@ -195,7 +195,13 @@ func expandVariables(val reflect.Value) {
 	case reflect.Map:
 		for _, key := range val.MapKeys() {
 			mapVal := val.MapIndex(key)
-			expandVariables(mapVal)
+			// Create a new addressable value of the same type
+			newVal := reflect.New(mapVal.Type()).Elem()
+			newVal.Set(mapVal)
+			// Expand variables in the new value
+			expandVariables(newVal)
+			// Set the expanded value back into the map
+			val.SetMapIndex(key, newVal)
 		}
 	default:
 		return

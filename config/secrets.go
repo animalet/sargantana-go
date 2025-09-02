@@ -71,6 +71,7 @@ func (v *vaultManager) secret(name string) (*string, error) {
 	}
 
 	if strValue, ok := data[name].(string); ok {
+		log.Printf("Retrieved secret %q from Vault at path %q", name, v.path)
 		return &strValue, nil
 	} else {
 		return nil, errors.Errorf("secret %q not found in Vault at path %q", name, v.path)
@@ -92,5 +93,7 @@ func secretFromFile(file string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "error reading secret file")
 	}
-	return strings.TrimSpace(string(b)), nil
+	secret := strings.TrimSpace(string(b))
+	log.Printf("Retrieved secret %q from file", file)
+	return secret, nil
 }
