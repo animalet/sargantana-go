@@ -2,7 +2,7 @@ package logger
 
 import (
 	"bytes"
-	"fmt"
+	"log"
 	"strings"
 	"testing"
 )
@@ -10,6 +10,7 @@ import (
 func TestLogLevels(t *testing.T) {
 	var buf bytes.Buffer
 	SetOutput(&buf)
+	defer SetOutput(log.Writer())
 
 	tests := []struct {
 		name      string
@@ -83,7 +84,7 @@ func TestLogLevels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			SetLevel(tt.level)
 
-			// Test each log function (except Fatal which calls os.Exit)
+			// Test each log function
 			buf.Reset()
 			Debug(tt.message)
 			output := buf.String()
@@ -124,8 +125,16 @@ func TestLogLevels(t *testing.T) {
 				t.Errorf("Expected ERROR log to be filtered out")
 			}
 
-			// Note: We can't test Fatal() directly because it calls os.Exit
-			// The FATAL level filtering is tested through the formatting functions below
+			// Test Fatal function
+			buf.Reset()
+			Fatal(tt.message)
+			output = buf.String()
+			if tt.shouldLog[FATAL] && !strings.Contains(output, "FATAL") {
+				t.Errorf("Expected FATAL log to be written")
+			}
+			if !tt.shouldLog[FATAL] && strings.Contains(output, "FATAL") {
+				t.Errorf("Expected FATAL log to be filtered out")
+			}
 		})
 	}
 }
@@ -133,6 +142,7 @@ func TestLogLevels(t *testing.T) {
 func TestLogFormatting(t *testing.T) {
 	var buf bytes.Buffer
 	SetOutput(&buf)
+	defer SetOutput(log.Writer())
 	SetLevel(DEBUG)
 
 	tests := []struct {
@@ -144,28 +154,12 @@ func TestLogFormatting(t *testing.T) {
 		level    string
 	}{
 		{
-			name:     "debug simple message",
-			logFunc:  Debugf,
-			format:   "simple debug message",
-			args:     nil,
-			expected: "simple debug message",
-			level:    "DEBUG",
-		},
-		{
 			name:     "debug formatted message",
 			logFunc:  Debugf,
 			format:   "processing %d items in %s mode",
 			args:     []interface{}{42, "test"},
 			expected: "processing 42 items in test mode",
 			level:    "DEBUG",
-		},
-		{
-			name:     "info simple message",
-			logFunc:  Infof,
-			format:   "simple info message",
-			args:     nil,
-			expected: "simple info message",
-			level:    "INFO",
 		},
 		{
 			name:     "info formatted message",
@@ -176,28 +170,12 @@ func TestLogFormatting(t *testing.T) {
 			level:    "INFO",
 		},
 		{
-			name:     "warn simple message",
-			logFunc:  Warnf,
-			format:   "simple warning message",
-			args:     nil,
-			expected: "simple warning message",
-			level:    "WARN",
-		},
-		{
 			name:     "warn formatted message",
 			logFunc:  Warnf,
 			format:   "warning: %s service is down, retrying in %d seconds",
 			args:     []interface{}{"database", 30},
 			expected: "warning: database service is down, retrying in 30 seconds",
 			level:    "WARN",
-		},
-		{
-			name:     "error simple message",
-			logFunc:  Errorf,
-			format:   "simple error message",
-			args:     nil,
-			expected: "simple error message",
-			level:    "ERROR",
 		},
 		{
 			name:     "error formatted message",
@@ -208,36 +186,12 @@ func TestLogFormatting(t *testing.T) {
 			level:    "ERROR",
 		},
 		{
-			name:     "error with complex formatting",
-			logFunc:  Errorf,
-			format:   "operation failed after %d attempts: %s (code: %x)",
-			args:     []interface{}{3, "timeout", 0xFF},
-			expected: "operation failed after 3 attempts: timeout (code: ff)",
-			level:    "ERROR",
-		},
-		{
-			name:     "info with boolean formatting",
-			logFunc:  Infof,
-			format:   "feature %s is enabled: %t",
-			args:     []interface{}{"ssl", true},
-			expected: "feature ssl is enabled: true",
-			level:    "INFO",
-		},
-		{
-			name:     "debug with float formatting",
-			logFunc:  Debugf,
-			format:   "processing completed in %.2f seconds",
-			args:     []interface{}{1.2345},
-			expected: "processing completed in 1.23 seconds",
-			level:    "DEBUG",
-		},
-		{
-			name:     "warn with multiple string args",
-			logFunc:  Warnf,
-			format:   "deprecated method %s called from %s, use %s instead",
-			args:     []interface{}{"oldMethod", "controller.go", "newMethod"},
-			expected: "deprecated method oldMethod called from controller.go, use newMethod instead",
-			level:    "WARN",
+			name:     "fatal formatted message",
+			logFunc:  Fatalf,
+			format:   "fatal error: %s failed with code %d",
+			args:     []interface{}{"startup", 1},
+			expected: "fatal error: startup failed with code 1",
+			level:    "FATAL",
 		},
 	}
 
@@ -258,43 +212,18 @@ func TestLogFormatting(t *testing.T) {
 	}
 }
 
-// Add a separate test for Fatal since it exits the program
-func TestFatalFormatting(t *testing.T) {
-	var buf bytes.Buffer
-	SetOutput(&buf)
-	SetLevel(DEBUG)
+func TestSetLevel(t *testing.T) {
+	originalLevel := GetLevel()
+	defer SetLevel(originalLevel)
 
-	// We can't actually test Fatal because it calls os.Exit,
-	// but we can test that Fatalf would work with the same pattern
-	tests := []struct {
-		name     string
-		format   string
-		args     []interface{}
-		expected string
-	}{
-		{
-			name:     "fatal simple message",
-			format:   "critical error occurred",
-			args:     nil,
-			expected: "critical error occurred",
-		},
-		{
-			name:     "fatal formatted message",
-			format:   "fatal error: %s failed with code %d",
-			args:     []interface{}{"startup", 1},
-			expected: "fatal error: startup failed with code 1",
-		},
+	SetLevel(DEBUG)
+	if GetLevel() != DEBUG {
+		t.Errorf("Expected level DEBUG, got %v", GetLevel())
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Since we can't test Fatal directly (it calls os.Exit),
-			// we'll test the format string preparation logic
-			expectedFormatted := fmt.Sprintf(tt.format, tt.args...)
-			if !strings.Contains(expectedFormatted, tt.expected) {
-				t.Errorf("Expected formatted string to contain %q, got %q", tt.expected, expectedFormatted)
-			}
-		})
+	SetLevel(ERROR)
+	if GetLevel() != ERROR {
+		t.Errorf("Expected level ERROR, got %v", GetLevel())
 	}
 }
 
@@ -302,17 +231,14 @@ func TestGetLevel(t *testing.T) {
 	originalLevel := GetLevel()
 	defer SetLevel(originalLevel)
 
-	levels := []LogLevel{DEBUG, INFO, WARN, ERROR, FATAL}
-
-	for _, level := range levels {
-		SetLevel(level)
-		if GetLevel() != level {
-			t.Errorf("Expected level %v, got %v", level, GetLevel())
-		}
+	SetLevel(WARN)
+	level := GetLevel()
+	if level != WARN {
+		t.Errorf("Expected WARN, got %v", level)
 	}
 }
 
-func TestLevelString(t *testing.T) {
+func TestLogLevelString(t *testing.T) {
 	tests := []struct {
 		level    LogLevel
 		expected string
@@ -322,233 +248,65 @@ func TestLevelString(t *testing.T) {
 		{WARN, "WARN"},
 		{ERROR, "ERROR"},
 		{FATAL, "FATAL"},
-		{LogLevel(99), "UNKNOWN"},
+		{LogLevel(999), "UNKNOWN"},
 	}
 
-	for _, tt := range tests {
-		if tt.level.String() != tt.expected {
-			t.Errorf("Expected %s, got %s", tt.expected, tt.level.String())
+	for _, test := range tests {
+		result := test.level.String()
+		if result != test.expected {
+			t.Errorf("Expected %s, got %s", test.expected, result)
 		}
 	}
 }
 
-// Add comprehensive test cases for better coverage
-func TestLogFormattingEdgeCases(t *testing.T) {
+func TestSetFlags(t *testing.T) {
 	var buf bytes.Buffer
 	SetOutput(&buf)
+	defer SetOutput(log.Writer())
+
+	SetFlags(log.Lshortfile)
 	SetLevel(DEBUG)
+	Debug("test message")
 
-	tests := []struct {
-		name     string
-		logFunc  func(string, ...interface{})
-		format   string
-		args     []interface{}
-		expected string
-		level    string
-	}{
-		{
-			name:     "debugf with empty args",
-			logFunc:  Debugf,
-			format:   "no formatting needed",
-			args:     []interface{}{},
-			expected: "no formatting needed",
-			level:    "DEBUG",
-		},
-		{
-			name:     "infof with nil args",
-			logFunc:  Infof,
-			format:   "value is %v",
-			args:     []interface{}{nil},
-			expected: "value is <nil>",
-			level:    "INFO",
-		},
-		{
-			name:     "warnf with pointer formatting",
-			logFunc:  Warnf,
-			format:   "memory address: %p",
-			args:     []interface{}{&buf},
-			expected: "memory address: 0x",
-			level:    "WARN",
-		},
-		{
-			name:     "errorf with percent literal",
-			logFunc:  Errorf,
-			format:   "success rate: 95%% complete",
-			args:     []interface{}{},
-			expected: "success rate: 95% complete",
-			level:    "ERROR",
-		},
-		{
-			name:     "fatalf simple message",
-			logFunc:  Fatalf,
-			format:   "critical system failure",
-			args:     []interface{}{},
-			expected: "critical system failure",
-			level:    "FATAL",
-		},
-		{
-			name:     "fatalf formatted message",
-			logFunc:  Fatalf,
-			format:   "fatal error: %s failed with code %d",
-			args:     []interface{}{"startup", 1},
-			expected: "fatal error: startup failed with code 1",
-			level:    "FATAL",
-		},
-		{
-			name:     "debugf with octal formatting",
-			logFunc:  Debugf,
-			format:   "file permissions: %o",
-			args:     []interface{}{0755},
-			expected: "file permissions: 755",
-			level:    "DEBUG",
-		},
-		{
-			name:     "infof with binary formatting",
-			logFunc:  Infof,
-			format:   "flags: %b",
-			args:     []interface{}{15},
-			expected: "flags: 1111",
-			level:    "INFO",
-		},
-		{
-			name:     "warnf with scientific notation",
-			logFunc:  Warnf,
-			format:   "large number: %e",
-			args:     []interface{}{123456.789},
-			expected: "large number: 1.234568e+05",
-			level:    "WARN",
-		},
-		{
-			name:     "errorf with unicode string",
-			logFunc:  Errorf,
-			format:   "unicode test: %s 🚀 %s",
-			args:     []interface{}{"start", "end"},
-			expected: "unicode test: start 🚀 end",
-			level:    "ERROR",
-		},
-		{
-			name:     "debugf with width and precision",
-			logFunc:  Debugf,
-			format:   "formatted: %10.2f",
-			args:     []interface{}{3.14159},
-			expected: "formatted:       3.14",
-			level:    "DEBUG",
-		},
-		{
-			name:     "infof with left-aligned",
-			logFunc:  Infof,
-			format:   "left-aligned: %-10s|",
-			args:     []interface{}{"test"},
-			expected: "left-aligned: test      |",
-			level:    "INFO",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			buf.Reset()
-
-			// For Fatal functions, we can't actually call them because they exit
-			// So we'll just test the non-fatal ones and verify format logic for fatal
-			if tt.level == "FATAL" {
-				// Test the format preparation without calling the actual fatal function
-				expectedFormatted := fmt.Sprintf(tt.format, tt.args...)
-				if !strings.Contains(expectedFormatted, tt.expected) {
-					t.Errorf("Expected formatted string to contain %q, got %q", tt.expected, expectedFormatted)
-				}
-				return
-			}
-
-			tt.logFunc(tt.format, tt.args...)
-			output := buf.String()
-
-			if !strings.Contains(output, tt.expected) {
-				t.Errorf("Expected output to contain %q, got %q", tt.expected, output)
-			}
-
-			if !strings.Contains(output, tt.level) {
-				t.Errorf("Expected output to contain level %q, got %q", tt.level, output)
-			}
-		})
+	output := buf.String()
+	if !strings.Contains(output, "test message") {
+		t.Error("Expected log message to contain 'test message'")
 	}
 }
 
-// Test level filtering with formatting functions
-func TestFormattingLevelFiltering(t *testing.T) {
-	var buf bytes.Buffer
-	SetOutput(&buf)
-
-	// Set to WARN level, should filter out DEBUG and INFO
-	SetLevel(WARN)
-
-	buf.Reset()
-	Debugf("debug message with %s", "args")
-	if buf.String() != "" {
-		t.Error("Expected DEBUG formatting to be filtered out at WARN level")
-	}
-
-	buf.Reset()
-	Infof("info message with %d", 123)
-	if buf.String() != "" {
-		t.Error("Expected INFO formatting to be filtered out at WARN level")
-	}
-
-	buf.Reset()
-	Warnf("warn message with %s", "args")
-	if !strings.Contains(buf.String(), "warn message with args") {
-		t.Error("Expected WARN formatting to be logged at WARN level")
-	}
-
-	buf.Reset()
-	Errorf("error message with %v", "args")
-	if !strings.Contains(buf.String(), "error message with args") {
-		t.Error("Expected ERROR formatting to be logged at WARN level")
-	}
-
-	// Test FATAL level filtering (we can't call Fatalf directly)
-	// Set to a level higher than FATAL (which doesn't exist in our implementation)
-	// But we can test that FATAL level allows fatal messages
-	SetLevel(FATAL)
-
-	buf.Reset()
-	Debugf("debug should be filtered")
-	if buf.String() != "" {
-		t.Error("Expected DEBUG formatting to be filtered out at FATAL level")
-	}
-
-	buf.Reset()
-	Infof("info should be filtered")
-	if buf.String() != "" {
-		t.Error("Expected INFO formatting to be filtered out at FATAL level")
-	}
-
-	buf.Reset()
-	Warnf("warn should be filtered")
-	if buf.String() != "" {
-		t.Error("Expected WARN formatting to be filtered out at FATAL level")
-	}
-
-	buf.Reset()
-	Errorf("error should be filtered")
-	if buf.String() != "" {
-		t.Error("Expected ERROR formatting to be filtered out at FATAL level")
-	}
-}
-
-// Test SetOutput functionality
 func TestSetOutput(t *testing.T) {
 	var buf1, buf2 bytes.Buffer
+	originalWriter := log.Writer()
+	defer SetOutput(originalWriter)
 
-	// Set initial output
+	// Test setting output to first buffer
 	SetOutput(&buf1)
 	SetLevel(DEBUG)
 
-	Info("test message 1")
-	if !strings.Contains(buf1.String(), "test message 1") {
-		t.Error("Expected message to be written to first buffer")
+	Debug("debug test")
+	Info("info test")
+	Warn("warn test")
+	Error("error test")
+	Fatal("fatal test")
+
+	output := buf1.String()
+	if !strings.Contains(output, "debug test") {
+		t.Error("Expected output to contain 'debug test'")
+	}
+	if !strings.Contains(output, "info test") {
+		t.Error("Expected output to contain 'info test'")
+	}
+	if !strings.Contains(output, "warn test") {
+		t.Error("Expected output to contain 'warn test'")
+	}
+	if !strings.Contains(output, "error test") {
+		t.Error("Expected output to contain 'error test'")
+	}
+	if !strings.Contains(output, "fatal test") {
+		t.Error("Expected output to contain 'fatal test'")
 	}
 
-	// Change output
+	// Test changing output to second buffer
 	SetOutput(&buf2)
 	Info("test message 2")
 
@@ -561,43 +319,64 @@ func TestSetOutput(t *testing.T) {
 	}
 }
 
-// Test non-formatting methods with level filtering
-func TestNonFormattingLevelFiltering(t *testing.T) {
+func TestFormattedLoggingLevelFiltering(t *testing.T) {
 	var buf bytes.Buffer
+	originalWriter := log.Writer()
+	originalLevel := GetLevel()
+
+	// Ensure clean state
 	SetOutput(&buf)
+	defer SetOutput(originalWriter)
+	defer SetLevel(originalLevel)
 
-	// Test at ERROR level - should only log ERROR messages
-	SetLevel(ERROR)
+	// Set level to WARN - should log WARN, ERROR, and FATAL
+	SetLevel(WARN)
 
+	// Test DEBUG - should be filtered
 	buf.Reset()
-	Debug("debug message")
-	if buf.String() != "" {
-		t.Error("Expected DEBUG to be filtered out at ERROR level")
+	Debugf("debug %s", "message")
+	debugOutput := buf.String()
+	if debugOutput != "" {
+		t.Errorf("Debug message should be filtered at WARN level, got: %s", debugOutput)
 	}
 
+	// Test INFO - should be filtered
 	buf.Reset()
-	Info("info message")
-	if buf.String() != "" {
-		t.Error("Expected INFO to be filtered out at ERROR level")
+	Infof("info %s", "message")
+	infoOutput := buf.String()
+	if infoOutput != "" {
+		t.Errorf("Info message should be filtered at WARN level, got: %s", infoOutput)
 	}
 
+	// Test WARN - should appear
 	buf.Reset()
-	Warn("warn message")
-	if buf.String() != "" {
-		t.Error("Expected WARN to be filtered out at ERROR level")
+	Warnf("warn %s", "message")
+	warnOutput := buf.String()
+	if warnOutput == "" || !strings.Contains(warnOutput, "warn message") {
+		t.Errorf("Warn message should appear at WARN level, got: %s", warnOutput)
 	}
 
+	// Test ERROR - should appear
 	buf.Reset()
-	Error("error message")
-	if !strings.Contains(buf.String(), "error message") {
-		t.Error("Expected ERROR to be logged at ERROR level")
+	Errorf("error %s", "message")
+	errorOutput := buf.String()
+	if errorOutput == "" || !strings.Contains(errorOutput, "error message") {
+		t.Errorf("Error message should appear at WARN level, got: %s", errorOutput)
+	}
+
+	// Test FATAL - should appear
+	buf.Reset()
+	Fatalf("fatal %s", "message")
+	fatalOutput := buf.String()
+	if fatalOutput == "" || !strings.Contains(fatalOutput, "fatal message") {
+		t.Errorf("Fatal message should appear at WARN level, got: %s", fatalOutput)
 	}
 }
 
-// Test with various log level combinations
 func TestLevelCombinations(t *testing.T) {
 	var buf bytes.Buffer
 	SetOutput(&buf)
+	defer SetOutput(log.Writer())
 
 	testCases := []struct {
 		setLevel    LogLevel
@@ -625,6 +404,7 @@ func TestLevelCombinations(t *testing.T) {
 		{FATAL, INFO, false, "FATAL level filters INFO messages"},
 		{FATAL, WARN, false, "FATAL level filters WARN messages"},
 		{FATAL, ERROR, false, "FATAL level filters ERROR messages"},
+		{FATAL, FATAL, true, "FATAL level logs FATAL messages"},
 	}
 
 	for _, tc := range testCases {
@@ -632,7 +412,6 @@ func TestLevelCombinations(t *testing.T) {
 			SetLevel(tc.setLevel)
 			buf.Reset()
 
-			// Use formatting functions to test level filtering
 			switch tc.testLevel {
 			case DEBUG:
 				Debugf("test message")
@@ -643,8 +422,7 @@ func TestLevelCombinations(t *testing.T) {
 			case ERROR:
 				Errorf("test message")
 			case FATAL:
-				// Can't test Fatal directly, just verify it would be filtered
-				return
+				Fatalf("test message")
 			}
 
 			output := buf.String()

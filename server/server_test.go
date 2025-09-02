@@ -735,3 +735,136 @@ controllers: []`
 		t.Error("Expected nil server for invalid config")
 	}
 }
+
+func TestSetDebugAndGetDebug(t *testing.T) {
+	// Store original values to restore later
+	originalDebug := GetDebug()
+	originalLogLevel := logger.GetLevel()
+	defer func() {
+		SetDebug(originalDebug)
+		logger.SetLevel(originalLogLevel)
+	}()
+
+	// Test setting debug to true
+	SetDebug(true)
+	if !GetDebug() {
+		t.Error("Expected GetDebug() to return true after SetDebug(true)")
+	}
+
+	// Verify logger level is set to DEBUG when debug is enabled
+	if logger.GetLevel() != logger.DEBUG {
+		t.Errorf("Expected logger level to be DEBUG when debug is enabled, got %v", logger.GetLevel())
+	}
+
+	// Test setting debug to false
+	SetDebug(false)
+	if GetDebug() {
+		t.Error("Expected GetDebug() to return false after SetDebug(false)")
+	}
+
+	// Verify logger level is set to INFO when debug is disabled
+	if logger.GetLevel() != logger.INFO {
+		t.Errorf("Expected logger level to be INFO when debug is disabled, got %v", logger.GetLevel())
+	}
+}
+
+func TestSetDebugLoggerFlags(t *testing.T) {
+	// Store original values to restore later
+	originalDebug := GetDebug()
+	defer SetDebug(originalDebug)
+
+	// Test that SetDebug(true) sets appropriate log flags
+	SetDebug(true)
+	// We can't directly test the flags, but we can verify the function runs without error
+	// and that debug mode is properly set
+	if !GetDebug() {
+		t.Error("Expected debug mode to be enabled")
+	}
+
+	// Test that SetDebug(false) sets different log flags
+	SetDebug(false)
+	if GetDebug() {
+		t.Error("Expected debug mode to be disabled")
+	}
+}
+
+func TestGetDebugInitialState(t *testing.T) {
+	// Test that GetDebug returns the current state of the debug variable
+	// Since debug is initialized to false, this should be the initial state
+	// unless modified by other tests
+	currentDebug := GetDebug()
+
+	// Set to a known state and verify
+	SetDebug(true)
+	if !GetDebug() {
+		t.Error("Expected GetDebug() to return true after explicitly setting debug to true")
+	}
+
+	SetDebug(false)
+	if GetDebug() {
+		t.Error("Expected GetDebug() to return false after explicitly setting debug to false")
+	}
+
+	// Restore original state
+	SetDebug(currentDebug)
+}
+
+func TestDebugToggling(t *testing.T) {
+	// Store original values to restore later
+	originalDebug := GetDebug()
+	defer SetDebug(originalDebug)
+
+	// Test multiple toggles
+	SetDebug(true)
+	firstState := GetDebug()
+
+	SetDebug(false)
+	secondState := GetDebug()
+
+	SetDebug(true)
+	thirdState := GetDebug()
+
+	if !firstState {
+		t.Error("Expected first state (after SetDebug(true)) to be true")
+	}
+	if secondState {
+		t.Error("Expected second state (after SetDebug(false)) to be false")
+	}
+	if !thirdState {
+		t.Error("Expected third state (after SetDebug(true)) to be true")
+	}
+}
+
+func TestAddControllerType(t *testing.T) {
+	// Store original registry state
+	originalRegistry := make(map[string]controller.Constructor)
+	for k, v := range controllerRegistry {
+		originalRegistry[k] = v
+	}
+	defer func() {
+		// Restore original registry
+		controllerRegistry = originalRegistry
+	}()
+
+	// Test adding a new controller type
+	mockConstructor := func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
+		return &MockController{}, nil
+	}
+
+	AddControllerType("test-controller", mockConstructor)
+
+	if _, exists := controllerRegistry["test-controller"]; !exists {
+		t.Error("Expected controller type 'test-controller' to be registered")
+	}
+
+	// Test overriding an existing controller type
+	mockConstructor2 := func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
+		return &MockController{}, nil
+	}
+
+	AddControllerType("test-controller", mockConstructor2)
+
+	if _, exists := controllerRegistry["test-controller"]; !exists {
+		t.Error("Expected controller type 'test-controller' to still be registered after override")
+	}
+}
