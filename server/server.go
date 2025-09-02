@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -36,6 +37,22 @@ type Server struct {
 
 // controllerRegistry holds the mapping of controller type names to their factory functions.
 var controllerRegistry = make(map[string]controller.Constructor)
+var debug = false
+
+func SetDebug(debugEnabled bool) {
+	debug = debugEnabled
+	if debug {
+		logger.SetLevel(logger.DEBUG)
+		logger.SetFlags(log.Ldate | log.Ltime | log.Lmsgprefix | log.Lshortfile)
+	} else {
+		logger.SetLevel(logger.INFO)
+		logger.SetFlags(log.Ldate | log.Ltime | log.Lmsgprefix)
+	}
+}
+
+func GetDebug() bool {
+	return debug
+}
 
 // NewServer creates a new Server instance by loading configuration from the specified file.
 //
@@ -64,7 +81,7 @@ func NewServer(configFile string) (*Server, error) {
 	return &Server{config: c, controllers: controllers}, nil
 }
 
-func AddController(typeName string, factory controller.Constructor) {
+func AddControllerType(typeName string, factory controller.Constructor) {
 	logger.Infof("Registering controller type %q", typeName)
 	_, exists := controllerRegistry[typeName]
 	if exists {
@@ -126,8 +143,7 @@ func (s *Server) StartAndWaitForSignal() error {
 // It configures the server based on the provided flags, loads secrets, and sets up the router and middleware.
 // This function must be called before the server can handle requests.
 func (s *Server) Start() error {
-	if s.config.ServerConfig.Debug {
-		logger.SetLevel(logger.DEBUG)
+	if debug {
 		logger.Debug("Debug mode is enabled")
 		if s.config.ServerConfig.SecretsDir == "" {
 			logger.Debug("No secrets directory configured")
@@ -152,7 +168,6 @@ func (s *Server) Start() error {
 		}
 		gin.SetMode(gin.DebugMode)
 	} else {
-		logger.SetLevel(logger.INFO)
 		gin.SetMode(gin.ReleaseMode)
 	}
 
@@ -183,7 +198,6 @@ func (s *Server) bootstrap() error {
 		engine.Use(gin.ErrorLoggerT(gin.ErrorTypePrivate))
 	} else {
 		engine.Use(bodyLogMiddleware, gin.ErrorLogger())
-
 	}
 	engine.Use(
 		gin.Logger(),

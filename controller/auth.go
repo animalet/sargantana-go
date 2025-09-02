@@ -3,13 +3,13 @@ package controller
 import (
 	"encoding/gob"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/animalet/sargantana-go/config"
+	"github.com/animalet/sargantana-go/logger"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
@@ -118,7 +118,7 @@ func NewAuthController(configData config.ControllerConfig, serverConfig config.S
 			return nil, errors.Wrap(err, "failed to parse address")
 		}
 		if u.Hostname() == "0.0.0.0" {
-			log.Println("Auth callback endpoint is set to 0.0.0.0, changing it to localhost")
+			logger.Warn("Auth callback endpoint is set to 0.0.0.0, changing it to localhost")
 			callbackEndpoint = u.Scheme + "://localhost" + ":" + u.Port()
 		} else {
 			callbackEndpoint = u.Scheme + "://" + u.Hostname() + ":" + u.Port()
@@ -407,7 +407,7 @@ func (a *auth) callback(c *gin.Context) {
 func (a *auth) logout(c *gin.Context) {
 	err := gothic.Logout(c.Writer, c.Request)
 	if err != nil {
-		log.Printf("Failed to log out: %v", err)
+		logger.Errorf("Failed to log out: %v", err)
 	}
 	session := sessions.Default(c)
 	session.Clear()

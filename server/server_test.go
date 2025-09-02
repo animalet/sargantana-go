@@ -40,7 +40,7 @@ func (m *MockController) Close() error {
 
 func setupTestEnvironment() {
 	// Register a mock controller for testing
-	AddController("mock", func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
+	AddControllerType("mock", func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
 		return &MockController{}, nil
 	})
 }
@@ -97,14 +97,14 @@ controllers:
 	defer logger.SetOutput(os.Stderr)
 
 	// Create server
+	previousDebug := debug
+	defer func() {
+		debug = previousDebug
+	}()
+	SetDebug(true)
 	server, err := NewServer(configFile)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
-	}
-
-	// Verify the server configuration before starting (this tests the config loading)
-	if server.config.ServerConfig.Debug != true {
-		t.Error("Expected debug mode to be enabled")
 	}
 
 	if server.config.ServerConfig.RedisSessionStore != "redis://localhost:6379" {
@@ -205,6 +205,11 @@ controllers:
 	defer logger.SetOutput(os.Stderr)
 
 	// Create and start server
+	previousDebug := debug
+	defer func() {
+		debug = previousDebug
+	}()
+	SetDebug(true)
 	server, err := NewServer(configFile)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
@@ -316,11 +321,6 @@ controllers:
 		t.Error("Expected cookie session storage message not found in logs")
 	}
 
-	// Verify the server configuration
-	if server.config.ServerConfig.Debug != false {
-		t.Error("Expected debug mode to be disabled")
-	}
-
 	if server.config.ServerConfig.RedisSessionStore != "" {
 		t.Error("Expected Redis session store to be empty")
 	}
@@ -427,7 +427,6 @@ func TestNewServer(t *testing.T) {
 			configData: config.Config{
 				ServerConfig: config.ServerConfig{
 					Address:       "localhost:8080",
-					Debug:         false,
 					SessionName:   "test-session",
 					SessionSecret: "test-secret",
 				},
@@ -442,7 +441,6 @@ func TestNewServer(t *testing.T) {
 					Address:           "0.0.0.0:9000",
 					RedisSessionStore: "localhost:6379",
 					SecretsDir:        "/secrets",
-					Debug:             true,
 					SessionName:       "redis-session",
 					SessionSecret:     "test-secret",
 				},
@@ -462,7 +460,6 @@ func TestNewServer(t *testing.T) {
   address: "` + tt.configData.ServerConfig.Address + `"
   redis_session_store: "` + tt.configData.ServerConfig.RedisSessionStore + `"
   secrets_dir: "` + tt.configData.ServerConfig.SecretsDir + `"
-  debug: ` + boolToString(tt.configData.ServerConfig.Debug) + `
   session_name: "` + tt.configData.ServerConfig.SessionName + `"
   session_secret: "` + tt.configData.ServerConfig.SessionSecret + `"
 controllers: []`
@@ -497,9 +494,6 @@ controllers: []`
 				}
 				if server.config.ServerConfig.SecretsDir != tt.configData.ServerConfig.SecretsDir {
 					t.Errorf("SecretsDir = %v, want %v", server.config.ServerConfig.SecretsDir, tt.configData.ServerConfig.SecretsDir)
-				}
-				if server.config.ServerConfig.Debug != tt.configData.ServerConfig.Debug {
-					t.Errorf("Debug = %v, want %v", server.config.ServerConfig.Debug, tt.configData.ServerConfig.Debug)
 				}
 				if server.config.ServerConfig.SessionName != tt.configData.ServerConfig.SessionName {
 					t.Errorf("SessionName = %v, want %v", server.config.ServerConfig.SessionName, tt.configData.ServerConfig.SessionName)
@@ -548,7 +542,7 @@ func TestNewServer_InvalidConfigFile(t *testing.T) {
 func TestNewServer_WithControllers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	AddController("static", controller.NewStaticController)
+	AddControllerType("static", controller.NewStaticController)
 	// Create a temporary config file with controller bindings
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "config.yaml")

@@ -4,6 +4,7 @@
 package logger
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -22,16 +23,27 @@ const (
 
 var (
 	currentLevel = INFO
-	debugLogger  = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime|log.Lmsgprefix|log.Lshortfile)
-	infoLogger   = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lmsgprefix|log.Lshortfile)
-	warnLogger   = log.New(os.Stdout, "WARN: ", log.Ldate|log.Ltime|log.Lmsgprefix|log.Lshortfile)
-	errorLogger  = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime|log.Lmsgprefix|log.Lshortfile)
-	fatalLogger  = log.New(os.Stderr, "FATAL: ", log.Ldate|log.Ltime|log.Lmsgprefix|log.Lshortfile)
+	debugLogger  = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime|log.Lmsgprefix)
+	infoLogger   = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lmsgprefix)
+	warnLogger   = log.New(os.Stdout, "WARN: ", log.Ldate|log.Ltime|log.Lmsgprefix)
+	errorLogger  = log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime|log.Lmsgprefix)
+	fatalLogger  = log.New(os.Stderr, "FATAL: ", log.Ldate|log.Ltime|log.Lmsgprefix)
 )
+
+const calldepth = 3
 
 // SetLevel sets the minimum log level that will be output
 func SetLevel(level LogLevel) {
 	currentLevel = level
+}
+
+// SetFlags sets the logging flags for all loggers
+func SetFlags(f int) {
+	debugLogger.SetFlags(f)
+	infoLogger.SetFlags(f)
+	warnLogger.SetFlags(f)
+	errorLogger.SetFlags(f)
+	fatalLogger.SetFlags(f)
 }
 
 // SetOutput sets the output destination for all loggers
@@ -45,61 +57,61 @@ func SetOutput(w io.Writer) {
 
 func Debug(msg string) {
 	if currentLevel <= DEBUG {
-		debugLogger.Print(msg)
+		_ = debugLogger.Output(calldepth, msg)
 	}
 }
 
 func Info(msg string) {
 	if currentLevel <= INFO {
-		infoLogger.Print(msg)
+		_ = infoLogger.Output(calldepth, msg)
 	}
 }
 
 func Warn(msg string) {
 	if currentLevel <= WARN {
-		warnLogger.Print(msg)
+		_ = warnLogger.Output(calldepth, msg)
 	}
 }
 
 func Error(msg string) {
 	if currentLevel <= ERROR {
-		errorLogger.Print(msg)
+		_ = errorLogger.Output(calldepth, msg)
 	}
 }
 
 func Fatal(msg string) {
 	if currentLevel <= FATAL {
-		fatalLogger.Fatal(msg)
+		_ = fatalLogger.Output(calldepth, msg)
 	}
 }
 
 func Debugf(format string, v ...interface{}) {
 	if currentLevel <= DEBUG {
-		debugLogger.Printf(format, v...)
+		_ = debugLogger.Output(calldepth, fmt.Sprintf(format, v...))
 	}
 }
 
 func Infof(format string, v ...interface{}) {
 	if currentLevel <= INFO {
-		infoLogger.Printf(format, v...)
+		_ = infoLogger.Output(calldepth, fmt.Sprintf(format, v...))
 	}
 }
 
 func Warnf(format string, v ...interface{}) {
 	if currentLevel <= WARN {
-		warnLogger.Printf(format, v...)
+		_ = warnLogger.Output(calldepth, fmt.Sprintf(format, v...))
 	}
 }
 
 func Errorf(format string, v ...interface{}) {
 	if currentLevel <= ERROR {
-		errorLogger.Printf(format, v...)
+		_ = errorLogger.Output(calldepth, fmt.Sprintf(format, v...))
 	}
 }
 
 func Fatalf(format string, v ...interface{}) {
 	if currentLevel <= FATAL {
-		fatalLogger.Fatalf(format, v...)
+		_ = fatalLogger.Output(calldepth, fmt.Sprintf(format, v...))
 	}
 }
 
