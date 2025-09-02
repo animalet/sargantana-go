@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
+	"github.com/animalet/sargantana-go/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -93,8 +93,8 @@ controllers:
 
 	// Capture log output to verify debug mode and Redis configuration are attempted
 	var logBuffer bytes.Buffer
-	log.SetOutput(&logBuffer)
-	defer log.SetOutput(os.Stderr)
+	logger.SetOutput(&logBuffer)
+	defer logger.SetOutput(os.Stderr)
 
 	// Create server
 	server, err := NewServer(configFile)
@@ -201,8 +201,8 @@ controllers:
 
 	// Capture log output to verify bodyLogMiddleware is working
 	var logBuffer bytes.Buffer
-	log.SetOutput(&logBuffer)
-	defer log.SetOutput(os.Stderr)
+	logger.SetOutput(&logBuffer)
+	defer logger.SetOutput(os.Stderr)
 
 	// Create and start server
 	server, err := NewServer(configFile)
@@ -287,8 +287,8 @@ controllers:
 
 	// Capture log output
 	var logBuffer bytes.Buffer
-	log.SetOutput(&logBuffer)
-	defer log.SetOutput(os.Stderr)
+	logger.SetOutput(&logBuffer)
+	defer logger.SetOutput(os.Stderr)
 
 	// Create and start server
 	server, err := NewServer(configFile)
@@ -372,8 +372,8 @@ controllers:
 
 	// Capture log output
 	var logBuffer bytes.Buffer
-	log.SetOutput(&logBuffer)
-	defer log.SetOutput(os.Stderr)
+	logger.SetOutput(&logBuffer)
+	defer logger.SetOutput(os.Stderr)
 
 	// Create and start server
 	server, err := NewServer(configFile)

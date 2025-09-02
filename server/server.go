@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,6 +16,7 @@ import (
 	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
 	"github.com/animalet/sargantana-go/database"
+	"github.com/animalet/sargantana-go/logger"
 	"github.com/animalet/sargantana-go/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -53,22 +53,22 @@ func NewServer(configFile string) (*Server, error) {
 
 	controllers, configurationErrors := configureControllers(c)
 	if len(configurationErrors) > 0 {
-		log.Println("Configuration errors encountered, affected controllers have been excluded from bootstrap:")
+		logger.Error("Configuration errors encountered, affected controllers have been excluded from bootstrap:")
 		for _, configErr := range configurationErrors {
-			log.Printf(" - %v\n", configErr)
+			logger.Errorf(" - %v", configErr)
 		}
 	} else {
-		log.Println("Configuration loaded successfully")
+		logger.Info("Configuration loaded successfully")
 	}
 
 	return &Server{config: c, controllers: controllers}, nil
 }
 
 func AddController(typeName string, factory controller.Constructor) {
-	log.Printf("Registering controller type %q", typeName)
+	logger.Infof("Registering controller type %q", typeName)
 	_, exists := controllerRegistry[typeName]
 	if exists {
-		log.Printf("Controller type %q is already registered, overriding", typeName)
+		logger.Warnf("Controller type %q is already registered, overriding", typeName)
 	}
 	controllerRegistry[typeName] = factory
 }
@@ -97,7 +97,7 @@ func configureControllers(c *config.Config) (controllers []controller.IControlle
 }
 
 func newController(c *config.Config, name string, binding config.ControllerBinding, factory controller.Constructor) (newController controller.IController, err error) {
-	log.Printf("Configuring %s controller of type: %s", name, binding.TypeName)
+	logger.Infof("Configuring %s controller of type: %s", name, binding.TypeName)
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("panic during %q controller configuration, controller was not added: %v", name, r)
@@ -127,30 +127,32 @@ func (s *Server) StartAndWaitForSignal() error {
 // This function must be called before the server can handle requests.
 func (s *Server) Start() error {
 	if s.config.ServerConfig.Debug {
-		log.Printf("Debug mode is enabled\n")
+		logger.SetLevel(logger.DEBUG)
+		logger.Debug("Debug mode is enabled")
 		if s.config.ServerConfig.SecretsDir == "" {
-			log.Printf("No secrets directory configured\n")
+			logger.Debug("No secrets directory configured")
 		} else {
-			log.Printf("Secrets directory: %q\n", s.config.ServerConfig.SecretsDir)
+			logger.Debugf("Secrets directory: %q", s.config.ServerConfig.SecretsDir)
 		}
-		log.Printf("Listen address: %q\n", s.config.ServerConfig.Address)
+		logger.Debugf("Listen address: %q", s.config.ServerConfig.Address)
 		if s.config.ServerConfig.RedisSessionStore == "" {
-			log.Printf("Use cookies for session storage\n")
+			logger.Debug("Use cookies for session storage")
 		} else {
-			log.Printf("Use Redis for session storage: %s\n", s.config.ServerConfig.RedisSessionStore)
+			logger.Debugf("Use Redis for session storage: %s", s.config.ServerConfig.RedisSessionStore)
 		}
-		log.Printf("Session cookie name: %q\n", s.config.ServerConfig.SessionName)
+		logger.Debugf("Session cookie name: %q", s.config.ServerConfig.SessionName)
 		if s.config.Vault != nil {
-			log.Printf("Using Vault for secrets at %q, path: %q, namespace: %q\n", s.config.Vault.Address, s.config.Vault.Path, s.config.Vault.Namespace)
+			logger.Debugf("Using Vault for secrets at %q, path: %q, namespace: %q", s.config.Vault.Address, s.config.Vault.Path, s.config.Vault.Namespace)
 		} else {
-			log.Printf("Not using Vault for secrets\n")
+			logger.Debug("Not using Vault for secrets")
 		}
-		log.Printf("Expected controllers:\n")
+		logger.Debug("Expected controllers:")
 		for _, binding := range s.config.ControllerBindings {
-			log.Printf(" - Type: %s, Name: %s, Config Type: %s\n", binding.TypeName, binding.Name, string(binding.ConfigData))
+			logger.Debugf(" - Type: %s, Name: %s, Config Type: %s", binding.TypeName, binding.Name, string(binding.ConfigData))
 		}
 		gin.SetMode(gin.DebugMode)
 	} else {
+		logger.SetLevel(logger.INFO)
 		gin.SetMode(gin.ReleaseMode)
 	}
 
@@ -162,7 +164,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) bootstrap() error {
-	log.Println("Bootstrapping server...")
+	logger.Info("Bootstrapping server...")
 
 	// Initialize Gin engine
 	engine := gin.New()
@@ -173,7 +175,7 @@ func (s *Server) bootstrap() error {
 	}
 
 	if isReleaseMode {
-		log.Println("Running in release mode")
+		logger.Info("Running in release mode")
 		err := engine.SetTrustedProxies(nil)
 		if err != nil {
 			return err
@@ -199,7 +201,7 @@ func (s *Server) bootstrap() error {
 		Handler: engine,
 	}
 
-	log.Println("Starting server on " + s.config.ServerConfig.Address)
+	logger.Infof("Starting server on %s", s.config.ServerConfig.Address)
 	s.listenAndServe()
 
 	return nil
@@ -213,10 +215,10 @@ func (s *Server) createSessionStore(isReleaseMode bool) (sessions.Store, error) 
 	}
 	sessionSecret := []byte(secret)
 	if s.config.ServerConfig.RedisSessionStore == "" {
-		log.Println("Using cookies for session storage")
+		logger.Info("Using cookies for session storage")
 		sessionStore = session.NewCookieStore(isReleaseMode, sessionSecret)
 	} else {
-		log.Println("Using Redis for session storage")
+		logger.Info("Using Redis for session storage")
 		pool := database.NewRedisPool(s.config.ServerConfig.RedisSessionStore)
 		s.addShutdownHook(func() error { return pool.Close() })
 		var err error
@@ -234,14 +236,14 @@ func (s *Server) waitForSignal() error {
 	// kill -2 is syscall.SIGINT
 	// kill -9 is syscall.SIGKILL but can't be caught, so don't need to add it
 	signal.Notify(s.shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
-	log.Printf("Shutdown signal received (%s)\n", <-s.shutdownChannel)
+	logger.Infof("Shutdown signal received (%s)", <-s.shutdownChannel)
 	return s.Shutdown()
 }
 
 func (s *Server) listenAndServe() {
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Listen error: %s", err)
+			logger.Fatalf("Listen error: %s", err)
 		}
 	}()
 }
@@ -253,7 +255,7 @@ func (s *Server) addShutdownHook(f func() error) {
 // Shutdown gracefully shuts down the server, waiting for active connections to complete
 // and freeing up resources. It executes registered shutdown hooks in the process.
 func (s *Server) Shutdown() error {
-	log.Println("Shutting down server...")
+	logger.Info("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -263,14 +265,14 @@ func (s *Server) Shutdown() error {
 	}
 
 	// Free up resources used by controllers
-	log.Println("Executing shutdown hooks...")
+	logger.Info("Executing shutdown hooks...")
 	for _, hook := range s.shutdownHooks {
 		if err := hook(); err != nil {
-			log.Printf("Error during shutdown hook: %s", err)
+			logger.Errorf("Error during shutdown hook: %s", err)
 		}
 	}
 
-	log.Println("Server exited gracefully")
+	logger.Info("Server exited gracefully")
 	return nil
 }
 
@@ -288,5 +290,5 @@ func bodyLogMiddleware(c *gin.Context) {
 	blw := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
 	c.Writer = blw
 	c.Next()
-	log.Printf("Response body: %s", blw.body.String())
+	logger.Debugf("Response body: %s", blw.body.String())
 }
