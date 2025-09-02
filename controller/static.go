@@ -2,11 +2,11 @@ package controller
 
 import (
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/animalet/sargantana-go/config"
+	"github.com/animalet/sargantana-go/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,17 +21,17 @@ func NewStaticController(configData config.ControllerConfig, _ config.ServerConf
 		return nil, err
 	}
 
-	log.Printf("Statics directory: %q\n", c.StaticsDir)
-	log.Printf("Templates directory: %q\n", c.HtmlTemplatesDir)
+	logger.Infof("Statics directory: %q", c.StaticsDir)
+	logger.Infof("Templates directory: %q", c.HtmlTemplatesDir)
 
 	// Ensure the statics directory exists
 	if stat, err := os.Stat(c.StaticsDir); err != nil || !stat.IsDir() {
-		log.Printf("Warning: Statics directory %q does not exist or is not a directory. Continuing without statics.", c.StaticsDir)
+		logger.Warnf("Statics directory %q does not exist or is not a directory. Continuing without statics.", c.StaticsDir)
 	}
 
 	// Ensure the templates directory exists (if provided)
 	if stat, err := os.Stat(c.HtmlTemplatesDir); err != nil || !stat.IsDir() {
-		log.Printf("Warning: Templates directory %q does not exist or is not a directory. Continuing without templates.", c.HtmlTemplatesDir)
+		logger.Warnf("Templates directory %q does not exist or is not a directory. Continuing without templates.", c.HtmlTemplatesDir)
 	}
 	return &static{
 		staticsDir:       c.StaticsDir,
@@ -85,17 +85,17 @@ func (s *static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
 			})
 
 			if err != nil {
-				log.Printf("Error walking through templates directory: %v", err)
+				logger.Warnf("Error walking through templates directory: %v", err)
 				return
 			}
 
 			if found {
 				engine.LoadHTMLGlob(s.htmlTemplatesDir + "/**")
 			} else {
-				log.Printf("Templates directory present but no files found, skipping templates.")
+				logger.Warn("Templates directory present but no files found, skipping templates.")
 			}
 		} else {
-			log.Printf("Templates directory not present: %v", err)
+			logger.Warnf("Templates directory not present: %v", err)
 		}
 	}
 }

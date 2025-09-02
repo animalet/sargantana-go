@@ -3,10 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/animalet/sargantana-go/controller"
+	"github.com/animalet/sargantana-go/logger"
 	"github.com/animalet/sargantana-go/server"
 )
 
@@ -17,6 +17,7 @@ var (
 
 func main() {
 	showVersion := flag.Bool("version", false, "Show version information")
+	debugMode := flag.Bool("debug", false, "Enable debug mode")
 	configFile := flag.String("config", "", "Path to configuration file")
 
 	flag.Parse()
@@ -27,20 +28,21 @@ func main() {
 	}
 
 	if *configFile == "" {
-		log.Fatalf("Error: -config is required")
+		logger.Fatal("Error: -config is required")
 	}
 
-	server.AddController("auth", controller.NewAuthController)
-	server.AddController("static", controller.NewStaticController)
-	server.AddController("load_balancer", controller.NewLoadBalancerController)
+	server.SetDebug(*debugMode)
+	server.AddControllerType("auth", controller.NewAuthController)
+	server.AddControllerType("static", controller.NewStaticController)
+	server.AddControllerType("load_balancer", controller.NewLoadBalancerController)
 
 	sargantana, err := server.NewServer(*configFile)
 	if err != nil {
-		log.Fatalf("%v", err)
+		logger.Fatalf("%v", err)
 	}
 
 	err = sargantana.StartAndWaitForSignal()
 	if err != nil {
-		log.Fatalf("%v", err)
+		logger.Fatalf("%v", err)
 	}
 }

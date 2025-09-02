@@ -42,9 +42,6 @@ server:
 	if config.ServerConfig.SessionSecret != "test-secret-key" {
 		t.Errorf("Expected session secret 'test-secret-key', got '%s'", config.ServerConfig.SessionSecret)
 	}
-	if !config.ServerConfig.Debug {
-		t.Error("Expected debug to be true")
-	}
 }
 
 // TestLoadYaml_FileNotFound tests error handling when config file doesn't exist

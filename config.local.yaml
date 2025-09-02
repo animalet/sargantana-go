@@ -6,7 +6,6 @@ server:
   address: "localhost:8080"
   redis_session_store: "localhost:6379"  # Optional: Redis for session storage, default is cookie-based
   secrets_dir: ".secrets"            # Directory containing secret files
-  debug: true                           # Enable debug mode
   session_name: "sargantana_session"    # Session cookie name
   session_secret: "${SESSION_SECRET}"  # Session secret (can use env var)
 

@@ -3,13 +3,13 @@ package controller
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 
 	"github.com/animalet/sargantana-go/config"
+	"github.com/animalet/sargantana-go/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
@@ -31,16 +31,16 @@ func NewLoadBalancerController(configData config.ControllerConfig, _ config.Serv
 	if len(stringEndpoints) == 0 {
 		return nil, errors.New("no endpoints provided for load balancing")
 	} else {
-		log.Printf("Load balancing path: %q\n", c.Path)
-		log.Printf("Load balancing authentication: %t\n", auth)
-		log.Printf("Load balanced endpoints:")
+		logger.Infof("Load balancing path: %q", c.Path)
+		logger.Infof("Load balancing authentication: %t", auth)
+		logger.Infof("Load balanced endpoints:")
 		for _, endpoint := range stringEndpoints {
 			u, err := url.Parse(endpoint)
 			if err != nil {
 				return nil, errors.Wrap(err, fmt.Sprintf("failed to parse load balancer path: %s", c.Path))
 			}
 			endpoints = append(endpoints, *u)
-			log.Printf(" - %s\n", u.String())
+			logger.Infof(" - %s", u.String())
 		}
 	}
 
@@ -74,7 +74,7 @@ type loadBalancer struct {
 
 func (l *loadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 	if len(l.endpoints) == 0 {
-		log.Printf("Load balancer not loaded")
+		logger.Warn("Load balancer not loaded")
 		return
 	}
 
@@ -148,7 +148,7 @@ func (l *loadBalancer) forward(c *gin.Context) {
 	defer func() {
 		err = response.Body.Close()
 		if err != nil {
-			log.Printf("Error closing response body: %v", err)
+			logger.Errorf("Error closing response body: %v", err)
 		}
 	}()
 

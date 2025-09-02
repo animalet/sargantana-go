@@ -28,7 +28,6 @@ type (
 		Address           string `yaml:"address"`
 		RedisSessionStore string `yaml:"redis_session_store"`
 		SecretsDir        string `yaml:"secrets_dir,omitempty"`
-		Debug             bool   `yaml:"debug,omitempty"`
 		SessionName       string `yaml:"session_name"`
 		SessionSecret     string `yaml:"session_secret"`
 	}
@@ -57,7 +56,6 @@ func Load(file string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	expandVariables(reflect.ValueOf(&cfg.ServerConfig).Elem())
 	if cfg.ServerConfig.SessionSecret == "" {
 		return nil, errors.New("session_secret must be set and non-empty")

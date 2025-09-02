@@ -2,11 +2,11 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/animalet/sargantana-go/logger"
 	"github.com/hashicorp/vault/api"
 	"github.com/pkg/errors"
 )
@@ -20,7 +20,7 @@ var vaultManagerInstance *vaultManager
 
 func (c *Config) createVaultManager() error {
 	if !c.Vault.IsValid() {
-		log.Println("Vault configuration incomplete, skipping Vault secrets loading")
+		logger.Info("Vault configuration incomplete, skipping Vault secrets loading")
 		return nil
 	}
 	config := api.DefaultConfig()
@@ -41,7 +41,7 @@ func (c *Config) createVaultManager() error {
 		path:    c.Vault.Path,
 	}
 
-	log.Println("Vault client created successfully")
+	logger.Info("Vault client created successfully")
 	return nil
 }
 
@@ -71,7 +71,7 @@ func (v *vaultManager) secret(name string) (*string, error) {
 	}
 
 	if strValue, ok := data[name].(string); ok {
-		log.Printf("Retrieved secret %q from Vault at path %q", name, v.path)
+		logger.Infof("Retrieved secret %q from Vault at path %q", name, v.path)
 		return &strValue, nil
 	} else {
 		return nil, errors.Errorf("secret %q not found in Vault at path %q", name, v.path)
@@ -94,6 +94,6 @@ func secretFromFile(file string) (string, error) {
 		return "", errors.Wrap(err, "error reading secret file")
 	}
 	secret := strings.TrimSpace(string(b))
-	log.Printf("Retrieved secret %q from file", file)
+	logger.Infof("Retrieved secret %q from file", file)
 	return secret, nil
 }
