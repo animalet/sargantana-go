@@ -35,6 +35,9 @@ services:
       timeout: 5s
       # How many consecutive failures are needed to mark the container as unhealthy
       retries: 10
+    networks:
+      - sargantana-network
+
   valkey:
     hostname: redis
     image: docker.io/bitnami/valkey:8.0
@@ -46,6 +49,9 @@ services:
       - '6379:6379'
     volumes:
       - 'valkey_data:/bitnami/valkey/data'
+    networks:
+      - sargantana-network
+
   mock-oauth2-server:
     image: ghcr.io/navikt/mock-oauth2-server:2.2.1
     ports:
@@ -78,6 +84,38 @@ services:
         }
     networks:
       - sargantana-network
+
+  vault:
+    image: hashicorp/vault:1.17
+    container_name: vault-dev
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "dev-root-token"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+      VAULT_ADDR: "http://0.0.0.0:8200"
+    cap_add:
+      - IPC_LOCK
+    command: >
+      sh -c "
+        vault server -dev -dev-root-token-id=dev-root-token -dev-listen-address=0.0.0.0:8200 &
+        sleep 10 &&
+        export VAULT_ADDR=http://0.0.0.0:8200 &&
+        export VAULT_TOKEN=dev-root-token &&
+        vault kv put secret/sargantana GOOGLE_KEY=test-google-key GOOGLE_SECRET=test-google-secret SESSION_SECRET=test-session-secret-that-is-long-enough &&
+        vault secrets enable -version=1 -path=secret-v1 kv &&
+        vault kv put secret-v1/sargantana GOOGLE_KEY=test-google-key GOOGLE_SECRET=test-google-secret SESSION_SECRET=test-session-secret-that-is-long-enough &&
+        echo 'Vault initialized with test secrets for both KV v1 and KV v2' &&
+        tail -f /dev/null
+      "
+    networks:
+      - sargantana-network
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   valkey_data:
     driver: local

@@ -1,8 +1,9 @@
 package server
 
 import (
-	"flag"
-	"fmt"
+	"bytes"
+	"context"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,215 +15,570 @@ import (
 	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
 	"github.com/gin-gonic/gin"
-	"github.com/markbates/goth"
-	"github.com/markbates/goth/providers/openidConnect"
 )
+
+// MockController implements IController for testing purposes
+type MockController struct {
+	bindCalled  bool
+	closeCalled bool
+	closeError  error
+}
+
+func (m *MockController) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+	_ = loginMiddleware // Suppress unused parameter warning
+	m.bindCalled = true
+	// Add a simple test route
+	engine.GET("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "test response"})
+	})
+}
+
+func (m *MockController) Close() error {
+	m.closeCalled = true
+	return m.closeError
+}
+
+func setupTestEnvironment() {
+	// Register a mock controller for testing
+	AddController("mock", func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
+		return &MockController{}, nil
+	})
+}
+
+func createTestConfigFile(t *testing.T, content string) string {
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "test_config.yaml")
+
+	err := os.WriteFile(configFile, []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	return configFile
+}
+
+func TestServerWithRedisSessionsAndDebugMode(t *testing.T) {
+	setupTestEnvironment()
+
+	// Create a temporary secrets directory
+	tempDir := t.TempDir()
+	secretsDir := filepath.Join(tempDir, "secrets")
+	err := os.MkdirAll(secretsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create secrets directory: %v", err)
+	}
+
+	// Create session secret file
+	secretFile := filepath.Join(secretsDir, "session_secret")
+	err = os.WriteFile(secretFile, []byte("test-session-secret-key"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create session secret file: %v", err)
+	}
+
+	configContent := `
+server:
+  address: "localhost:0"
+  debug: true
+  session_name: "test_session"
+  session_secret: "test-session-secret-key"
+  secrets_dir: "` + secretsDir + `"
+  redis_session_store: "redis://localhost:6379"
+controllers:
+  - type: "mock"
+    name: "test_controller"
+    config: {}
+`
+
+	configFile := createTestConfigFile(t, configContent)
+
+	// Capture log output to verify debug mode and Redis configuration are attempted
+	var logBuffer bytes.Buffer
+	log.SetOutput(&logBuffer)
+	defer log.SetOutput(os.Stderr)
+
+	// Create server
+	server, err := NewServer(configFile)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+
+	// Verify the server configuration before starting (this tests the config loading)
+	if server.config.ServerConfig.Debug != true {
+		t.Error("Expected debug mode to be enabled")
+	}
+
+	if server.config.ServerConfig.RedisSessionStore != "redis://localhost:6379" {
+		t.Error("Expected Redis session store to be configured")
+	}
+
+	if server.config.ServerConfig.SessionName != "test_session" {
+		t.Error("Expected session name to be 'test_session'")
+	}
+
+	// Verify controllers were configured during NewServer
+	if len(server.controllers) != 1 {
+		t.Errorf("Expected 1 controller, got %d", len(server.controllers))
+	}
+
+	// Start server (this will attempt to create Redis session store and may fail)
+	err = server.Start()
+
+	// Check the logs for debug mode and Redis configuration attempts
+	logOutput := logBuffer.String()
+
+	// Verify debug mode messages are present
+	if !strings.Contains(logOutput, "Debug mode is enabled") {
+		t.Error("Expected debug mode message not found in logs")
+	}
+
+	// The server should attempt to use Redis for session storage
+	// Even if Redis connection fails, the configuration should be attempted
+	if !strings.Contains(logOutput, "Use Redis for session storage") {
+		t.Error("Expected Redis session storage message not found in logs")
+	}
+
+	// If server started successfully, verify the mock controller was bound
+	if err == nil && server.httpServer != nil {
+		if mockController, ok := server.controllers[0].(*MockController); ok {
+			if !mockController.bindCalled {
+				t.Error("Expected controller Bind method to be called when server starts successfully")
+			}
+		}
+
+		// Cleanup if server started successfully
+		err := server.Shutdown()
+		if err != nil {
+			t.Errorf("Failed to shutdown server: %v", err)
+		}
+	} else {
+		// If server failed to start (likely due to Redis connection), that's expected in a test environment
+		// The important part is that we verified the configuration was loaded correctly
+		t.Logf("Server failed to start (expected in test environment without Redis): %v", err)
+
+		// Even if server failed to start, we can still verify the controller was configured
+		if mockController, ok := server.controllers[0].(*MockController); ok {
+			// The controller should be created but not bound if server failed to start
+			if mockController.bindCalled {
+				t.Log("Controller was bound despite server start failure (unexpected but not critical)")
+			}
+		}
+	}
+}
+
+func TestServerBodyLogMiddlewareInDebugMode(t *testing.T) {
+	setupTestEnvironment()
+
+	// Create a temporary secrets directory
+	tempDir := t.TempDir()
+	secretsDir := filepath.Join(tempDir, "secrets")
+	err := os.MkdirAll(secretsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create secrets directory: %v", err)
+	}
+
+	// Create session secret file
+	secretFile := filepath.Join(secretsDir, "session_secret")
+	err = os.WriteFile(secretFile, []byte("test-session-secret-key"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create session secret file: %v", err)
+	}
+
+	configContent := `
+server:
+  address: "localhost:0"
+  debug: true
+  session_name: "test_session"
+  session_secret: "test-session-secret-key"
+  secrets_dir: "` + secretsDir + `"
+  redis_session_store: ""
+controllers:
+  - type: "mock"
+    name: "test_controller"
+    config: {}
+`
+
+	configFile := createTestConfigFile(t, configContent)
+
+	// Capture log output to verify bodyLogMiddleware is working
+	var logBuffer bytes.Buffer
+	log.SetOutput(&logBuffer)
+	defer log.SetOutput(os.Stderr)
+
+	// Create and start server
+	server, err := NewServer(configFile)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+
+	err = server.Start()
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+
+	// Make a test request to verify bodyLogMiddleware is working
+	if server.httpServer != nil {
+		// Create a test request
+		req := httptest.NewRequest("GET", "/test", nil)
+		w := httptest.NewRecorder()
+
+		// Send request through the server's handler
+		server.httpServer.Handler.ServeHTTP(w, req)
+
+		// Verify response
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+
+		// Verify bodyLogMiddleware logged the response
+		logOutput := logBuffer.String()
+		if !strings.Contains(logOutput, "Response body:") {
+			t.Error("Expected bodyLogMiddleware to log response body")
+		}
+
+		if !strings.Contains(logOutput, "test response") {
+			t.Error("Expected response body to contain 'test response'")
+		}
+	}
+
+	// Cleanup
+	if server.httpServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err := server.httpServer.Shutdown(ctx)
+		if err != nil {
+			t.Errorf("Failed to shutdown server: %v", err)
+		}
+	}
+}
+
+func TestServerWithCookieSessionsInReleaseMode(t *testing.T) {
+	setupTestEnvironment()
+
+	// Create a temporary secrets directory
+	tempDir := t.TempDir()
+	secretsDir := filepath.Join(tempDir, "secrets")
+	err := os.MkdirAll(secretsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create secrets directory: %v", err)
+	}
+
+	// Create session secret file
+	secretFile := filepath.Join(secretsDir, "session_secret")
+	err = os.WriteFile(secretFile, []byte("test-session-secret-key"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create session secret file: %v", err)
+	}
+
+	configContent := `
+server:
+  address: "localhost:0"
+  debug: false
+  session_name: "test_session"
+  session_secret: "test-session-secret-key"
+  secrets_dir: "` + secretsDir + `"
+  redis_session_store: ""
+controllers:
+  - type: "mock"
+    name: "test_controller"
+    config: {}
+`
+
+	configFile := createTestConfigFile(t, configContent)
+
+	// Capture log output
+	var logBuffer bytes.Buffer
+	log.SetOutput(&logBuffer)
+	defer log.SetOutput(os.Stderr)
+
+	// Create and start server
+	server, err := NewServer(configFile)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+
+	err = server.Start()
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+
+	// Verify release mode configuration
+	logOutput := logBuffer.String()
+
+	if strings.Contains(logOutput, "Debug mode is enabled") {
+		t.Error("Debug mode should not be enabled in release mode")
+	}
+
+	if !strings.Contains(logOutput, "Running in release mode") {
+		t.Error("Expected release mode message not found in logs")
+	}
+
+	if !strings.Contains(logOutput, "Using cookies for session storage") {
+		t.Error("Expected cookie session storage message not found in logs")
+	}
+
+	// Verify the server configuration
+	if server.config.ServerConfig.Debug != false {
+		t.Error("Expected debug mode to be disabled")
+	}
+
+	if server.config.ServerConfig.RedisSessionStore != "" {
+		t.Error("Expected Redis session store to be empty")
+	}
+
+	// Cleanup
+	if server.httpServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err := server.httpServer.Shutdown(ctx)
+		if err != nil {
+			t.Errorf("Failed to shutdown server: %v", err)
+		}
+	}
+}
+
+func TestServerShutdown(t *testing.T) {
+	setupTestEnvironment()
+
+	// Create a temporary secrets directory
+	tempDir := t.TempDir()
+	secretsDir := filepath.Join(tempDir, "secrets")
+	err := os.MkdirAll(secretsDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create secrets directory: %v", err)
+	}
+
+	// Create session secret file
+	secretFile := filepath.Join(secretsDir, "session_secret")
+	err = os.WriteFile(secretFile, []byte("test-session-secret-key"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create session secret file: %v", err)
+	}
+
+	configContent := `
+server:
+  address: "localhost:0"
+  debug: true
+  session_name: "test_session"
+  session_secret: "test-session-secret-key"
+  secrets_dir: "` + secretsDir + `"
+  redis_session_store: ""
+controllers:
+  - type: "mock"
+    name: "test_controller"
+    config: {}
+`
+
+	configFile := createTestConfigFile(t, configContent)
+
+	// Capture log output
+	var logBuffer bytes.Buffer
+	log.SetOutput(&logBuffer)
+	defer log.SetOutput(os.Stderr)
+
+	// Create and start server
+	server, err := NewServer(configFile)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+
+	err = server.Start()
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+
+	// Test shutdown
+	err = server.Shutdown()
+	if err != nil {
+		t.Errorf("Failed to shutdown server: %v", err)
+	}
+
+	// Verify shutdown hooks were called
+	if mockController, ok := server.controllers[0].(*MockController); ok {
+		if !mockController.closeCalled {
+			t.Error("Expected controller Close method to be called during shutdown")
+		}
+	} else {
+		t.Error("Expected mock controller to be configured")
+	}
+
+	// Verify shutdown messages
+	logOutput := logBuffer.String()
+	if !strings.Contains(logOutput, "Shutting down server...") {
+		t.Error("Expected shutdown message not found in logs")
+	}
+
+	if !strings.Contains(logOutput, "Executing shutdown hooks...") {
+		t.Error("Expected shutdown hooks message not found in logs")
+	}
+
+	if !strings.Contains(logOutput, "Server exited gracefully") {
+		t.Error("Expected graceful exit message not found in logs")
+	}
+}
 
 func TestNewServer(t *testing.T) {
 	tests := []struct {
 		name        string
-		host        string
-		port        int
-		redis       string
-		secretsDir  string
-		debug       bool
-		sessionName string
-	}{
-		{
-			name:        "basic server",
-			host:        "localhost",
-			port:        8080,
-			redis:       "",
-			secretsDir:  "",
-			debug:       false,
-			sessionName: "test-session",
-		},
-		{
-			name:        "debug server with redis",
-			host:        "0.0.0.0",
-			port:        9000,
-			redis:       "localhost:6379",
-			secretsDir:  "/secrets",
-			debug:       true,
-			sessionName: "redis-session",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := NewServer(tt.host, tt.port, tt.redis, tt.secretsDir, tt.debug, tt.sessionName)
-
-			if server == nil {
-				t.Fatal("NewServer returned nil")
-			}
-			if server.config == nil {
-				t.Fatal("Server config is nil")
-			}
-
-			expectedAddress := tt.host + ":" + string(rune(tt.port/1000+48)) + string(rune((tt.port%1000)/100+48)) + string(rune((tt.port%100)/10+48)) + string(rune(tt.port%10+48))
-			switch tt.port {
-			case 8080:
-				expectedAddress = tt.host + ":8080"
-			case 9000:
-				expectedAddress = tt.host + ":9000"
-			}
-
-			if server.config.Address() != expectedAddress {
-				t.Errorf("Address = %v, want %v", server.config.Address(), expectedAddress)
-			}
-			if server.config.RedisSessionStore() != tt.redis {
-				t.Errorf("Redis = %v, want %v", server.config.RedisSessionStore(), tt.redis)
-			}
-			if server.config.SecretsDir() != tt.secretsDir {
-				t.Errorf("SecretsDir = %v, want %v", server.config.SecretsDir(), tt.secretsDir)
-			}
-			if server.config.Debug() != tt.debug {
-				t.Errorf("Debug = %v, want %v", server.config.Debug(), tt.debug)
-			}
-			if server.config.SessionName() != tt.sessionName {
-				t.Errorf("SessionName = %v, want %v", server.config.SessionName(), tt.sessionName)
-			}
-		})
-	}
-}
-
-func TestNewServerFromFlags(t *testing.T) {
-	// Save original args
-	originalArgs := os.Args
-	defer func() { os.Args = originalArgs }()
-
-	tests := []struct {
-		name          string
-		args          []string
-		expectedHost  string
-		expectedPort  string
-		expectedDebug bool
-	}{
-		{
-			name:          "default values",
-			args:          []string{"program"},
-			expectedHost:  "localhost",
-			expectedPort:  "8080",
-			expectedDebug: false,
-		},
-		{
-			name:          "custom values",
-			args:          []string{"program", "-host=0.0.0.0", "-port=9090", "-debug=true"},
-			expectedHost:  "0.0.0.0",
-			expectedPort:  "9090",
-			expectedDebug: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			os.Args = tt.args
-
-			// Create a dummy controller initializer
-			dummyInit := func(fs *flag.FlagSet) func() controller.IController {
-				return func() controller.IController {
-					return &mockController{name: "test"}
-				}
-			}
-
-			server, controllers := NewServerFromFlags(dummyInit)
-
-			if server == nil {
-				t.Fatal("NewServerFromFlags returned nil server")
-			}
-			if len(controllers) != 1 {
-				t.Errorf("Expected 1 controller, got %d", len(controllers))
-			}
-
-			expectedAddress := tt.expectedHost + ":" + tt.expectedPort
-			if server.config.Address() != expectedAddress {
-				t.Errorf("Address = %v, want %v", server.config.Address(), expectedAddress)
-			}
-			if server.config.Debug() != tt.expectedDebug {
-				t.Errorf("Debug = %v, want %v", server.config.Debug(), tt.expectedDebug)
-			}
-		})
-	}
-}
-
-func TestServer_LoadSecrets(t *testing.T) {
-	tests := []struct {
-		name        string
-		setupFunc   func(string) error
-		secretsDir  string
+		configData  config.Config
 		expectError bool
 	}{
 		{
-			name: "valid secrets",
-			setupFunc: func(dir string) error {
-				return os.WriteFile(filepath.Join(dir, "TEST_SECRET"), []byte("secret_value"), 0644)
+			name: "basic server config",
+			configData: config.Config{
+				ServerConfig: config.ServerConfig{
+					Address:       "localhost:8080",
+					Debug:         false,
+					SessionName:   "test-session",
+					SessionSecret: "test-secret",
+				},
+				ControllerBindings: []config.ControllerBinding{},
 			},
 			expectError: false,
 		},
 		{
-			name: "empty directory",
-			setupFunc: func(dir string) error {
-				return nil // Create empty directory
+			name: "debug server config",
+			configData: config.Config{
+				ServerConfig: config.ServerConfig{
+					Address:           "0.0.0.0:9000",
+					RedisSessionStore: "localhost:6379",
+					SecretsDir:        "/secrets",
+					Debug:             true,
+					SessionName:       "redis-session",
+					SessionSecret:     "test-secret",
+				},
+				ControllerBindings: []config.ControllerBinding{},
 			},
 			expectError: false,
-		},
-		{
-			name:        "non-existent directory",
-			setupFunc:   nil,
-			secretsDir:  "/non/existent/path",
-			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var secretsDir string
-			if tt.secretsDir != "" {
-				secretsDir = tt.secretsDir
-			} else {
-				secretsDir = t.TempDir()
-				if tt.setupFunc != nil {
-					err := tt.setupFunc(secretsDir)
-					if err != nil {
-						t.Fatalf("Setup failed: %v", err)
-					}
+			// Create a temporary config file
+			tempDir := t.TempDir()
+			configFile := filepath.Join(tempDir, "config.yaml")
+
+			configContent := `server:
+  address: "` + tt.configData.ServerConfig.Address + `"
+  redis_session_store: "` + tt.configData.ServerConfig.RedisSessionStore + `"
+  secrets_dir: "` + tt.configData.ServerConfig.SecretsDir + `"
+  debug: ` + boolToString(tt.configData.ServerConfig.Debug) + `
+  session_name: "` + tt.configData.ServerConfig.SessionName + `"
+  session_secret: "` + tt.configData.ServerConfig.SessionSecret + `"
+controllers: []`
+
+			err := os.WriteFile(configFile, []byte(configContent), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write config file: %v", err)
+			}
+
+			server, err := NewServer(configFile)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
 				}
-			}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				if server == nil {
+					t.Fatal("NewServer returned nil")
+				}
+				if server.config == nil {
+					t.Fatal("Server config is nil")
+				}
 
-			server := &Server{
-				config: config.NewConfig("localhost:8080", "", secretsDir, false, "test"),
-			}
-
-			err := server.loadSecrets()
-
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
+				if server.config.ServerConfig.Address != tt.configData.ServerConfig.Address {
+					t.Errorf("Address = %v, want %v", server.config.ServerConfig.Address, tt.configData.ServerConfig.Address)
+				}
+				if server.config.ServerConfig.RedisSessionStore != tt.configData.ServerConfig.RedisSessionStore {
+					t.Errorf("Redis = %v, want %v", server.config.ServerConfig.RedisSessionStore, tt.configData.ServerConfig.RedisSessionStore)
+				}
+				if server.config.ServerConfig.SecretsDir != tt.configData.ServerConfig.SecretsDir {
+					t.Errorf("SecretsDir = %v, want %v", server.config.ServerConfig.SecretsDir, tt.configData.ServerConfig.SecretsDir)
+				}
+				if server.config.ServerConfig.Debug != tt.configData.ServerConfig.Debug {
+					t.Errorf("Debug = %v, want %v", server.config.ServerConfig.Debug, tt.configData.ServerConfig.Debug)
+				}
+				if server.config.ServerConfig.SessionName != tt.configData.ServerConfig.SessionName {
+					t.Errorf("SessionName = %v, want %v", server.config.ServerConfig.SessionName, tt.configData.ServerConfig.SessionName)
+				}
 			}
 		})
 	}
 }
 
-func TestServer_LoadSecretsWithInvalidFile(t *testing.T) {
+func boolToString(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
+}
+
+func TestNewServer_InvalidConfigFile(t *testing.T) {
+	tests := []struct {
+		name       string
+		configFile string
+	}{
+		{
+			name:       "non-existent file",
+			configFile: "/non/existent/file.yaml",
+		},
+		{
+			name:       "empty path",
+			configFile: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server, err := NewServer(tt.configFile)
+
+			if err == nil {
+				t.Error("Expected error but got none")
+			}
+			if server != nil {
+				t.Error("Expected nil server but got a value")
+			}
+		})
+	}
+}
+
+func TestNewServer_WithControllers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	AddController("static", controller.NewStaticController)
+	// Create a temporary config file with controller bindings
 	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "config.yaml")
 
-	// Create a directory instead of a file to test error handling
-	secretDir := filepath.Join(tempDir, "secret_as_dir")
-	err := os.Mkdir(secretDir, 0755)
+	configContent := `server:
+  address: "localhost:8080"
+  debug: true
+  session_name: "test-session"
+  session_secret: "test-secret"
+controllers:
+  - type: "static"
+    config:
+      statics_dir: "./static"
+      templates_dir: "./templates"`
+
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
 	if err != nil {
-		t.Fatalf("Failed to create directory: %v", err)
+		t.Fatalf("Failed to write config file: %v", err)
 	}
 
-	server := &Server{
-		config: config.NewConfig("localhost:8080", "", tempDir, false, "test"),
+	server, err := NewServer(configFile)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
 	}
 
-	err = server.loadSecrets()
-	// Should not error on directories, they are skipped
-	if err != nil {
-		t.Errorf("loadSecrets should skip directories without error: %v", err)
+	if server == nil {
+		t.Fatal("NewServer returned nil")
+	}
+	if len(server.controllers) == 0 {
+		t.Error("Expected at least one controller to be configured")
 	}
 }
 
@@ -239,47 +595,55 @@ func TestServer_Start(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name        string
-		debug       bool
-		controllers []controller.IController
+		name  string
+		debug bool
 	}{
 		{
-			name:        "debug mode",
-			debug:       true,
-			controllers: []controller.IController{&mockController{name: "test1"}},
-		},
-		{
-			name:        "release mode",
-			debug:       false,
-			controllers: []controller.IController{&mockController{name: "test2"}},
-		},
-		{
-			name:  "multiple controllers",
+			name:  "debug mode",
 			debug: true,
-			controllers: []controller.IController{
-				&mockController{name: "test3"},
-				&mockController{name: "test4"},
-			},
+		},
+		{
+			name:  "release mode",
+			debug: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := NewServer("localhost", 0, "", "", tt.debug, "test-session")
+			// Create a temporary config file
+			tempDir := t.TempDir()
+			configFile := filepath.Join(tempDir, "config.yaml")
 
-			err := server.Start(tt.controllers...)
+			configContent := `server:
+  address: "localhost:0"
+  debug: ` + boolToString(tt.debug) + `
+  session_name: "test-session"
+  session_secret: "test-secret"
+controllers: []`
+
+			err := os.WriteFile(configFile, []byte(configContent), 0644)
 			if err != nil {
-				t.Errorf("Start() returned error: %v", err)
+				t.Fatalf("Failed to write config file: %v", err)
+			}
+
+			server, err := NewServer(configFile)
+			if err != nil {
+				t.Fatalf("Failed to create server: %v", err)
+			}
+
+			err = server.Start()
+			if err != nil {
+				t.Fatalf("Start() returned error: %v", err)
 			}
 
 			if server.httpServer == nil {
-				t.Error("httpServer not initialized")
+				t.Fatalf("httpServer not initialized")
 			}
 
 			// Cleanup
-			err = server.Shutdown() // Force cleanup
+			err = server.Shutdown()
 			if err != nil {
-				t.Errorf("Shutdown() returned error during timeout: %v", err)
+				t.Fatalf("Shutdown() returned error: %v", err)
 			}
 		})
 	}
@@ -297,13 +661,31 @@ func TestServer_StartAndWaitForSignal(t *testing.T) {
 		_ = os.Unsetenv("SESSION_SECRET")
 	}()
 
-	server := NewServer("localhost", 0, "", "", true, "test-session")
-	mockController := &mockController{name: "test"}
+	// Create a temporary config file
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "config.yaml")
+
+	configContent := `server:
+  address: "localhost:0"
+  debug: true
+  session_name: "test-session"
+  session_secret: "test-secret"
+controllers: []`
+
+	err = os.WriteFile(configFile, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	server, err := NewServer(configFile)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
 
 	// Start server in goroutine
 	errorChan := make(chan error, 1)
 	go func() {
-		err := server.StartAndWaitForSignal(mockController)
+		err := server.StartAndWaitForSignal()
 		errorChan <- err
 	}()
 
@@ -315,9 +697,9 @@ func TestServer_StartAndWaitForSignal(t *testing.T) {
 		server.shutdownChannel <- os.Interrupt
 	} else {
 		// Force shutdown if channel not initialized
-		err := server.Shutdown() // Force cleanup
+		err := server.Shutdown()
 		if err != nil {
-			t.Errorf("Shutdown() returned error during timeout: %v", err)
+			t.Errorf("Shutdown() returned error: %v", err)
 		}
 	}
 
@@ -329,345 +711,33 @@ func TestServer_StartAndWaitForSignal(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Error("StartAndWaitForSignal() timed out")
-		err := server.Shutdown() // Force cleanup
+		err := server.Shutdown()
 		if err != nil {
 			t.Errorf("Shutdown() returned error during timeout: %v", err)
 		}
 	}
 }
 
-func TestServer_Shutdown(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	// Set up environment
-	err := os.Setenv("SESSION_SECRET", "test-secret")
-	if err != nil {
-		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
-	}
-	defer func() {
-		_ = os.Unsetenv("SESSION_SECRET")
-	}()
-
-	server := NewServer("localhost", 0, "", "", false, "test-session")
-	mockController := &mockController{name: "test"}
-
-	// Start server
-	err = server.Start(mockController)
-	if err != nil {
-		t.Fatalf("Failed to start server: %v", err)
-	}
-
-	// Test shutdown
-	err = server.Shutdown()
-	if err != nil {
-		t.Errorf("Shutdown() returned error: %v", err)
-	}
-
-	// Verify controller was closed
-	if !mockController.closed {
-		t.Error("Controller Close() was not called during shutdown")
-	}
-}
-
-func TestServer_Bootstrap(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	// Set up environment
-	err := os.Setenv("SESSION_SECRET", "test-secret")
-	if err != nil {
-		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
-	}
-	defer func() {
-		_ = os.Unsetenv("SESSION_SECRET")
-	}()
-
+func TestServer_InvalidConfig(t *testing.T) {
+	// Create a temporary config file with invalid YAML
 	tempDir := t.TempDir()
-	server := NewServer("localhost", 0, "", tempDir, true, "test-session")
+	configFile := filepath.Join(tempDir, "config.yaml")
 
-	controllers := []controller.IController{
-		&mockController{name: "controller1"},
-		&mockController{name: "controller2"},
-	}
+	invalidConfigContent := `server:
+  address: "localhost:8080"
+  debug: not-a-boolean
+controllers: []`
 
-	err = server.bootstrap(controllers...)
+	err := os.WriteFile(configFile, []byte(invalidConfigContent), 0644)
 	if err != nil {
-		t.Errorf("bootstrap() returned error: %v", err)
+		t.Fatalf("Failed to write config file: %v", err)
 	}
 
-	// Verify controllers were bound
-	for _, ctrl := range controllers {
-		mockCtrl := ctrl.(*mockController)
-		if !mockCtrl.bound {
-			t.Errorf("Controller %s was not bound", mockCtrl.name)
-		}
-	}
-
-	// Cleanup
-	err = server.Shutdown() // Force cleanup
-	if err != nil {
-		t.Errorf("Shutdown() returned error during timeout: %v", err)
-	}
-}
-
-func TestServer_BootstrapWithSecretsError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	// Use a non-existent directory to trigger secrets loading error
-	server := &Server{
-		config: config.NewConfig("localhost:8080", "", "/non/existent/path", false, "test"),
-	}
-
-	err := server.bootstrap()
+	server, err := NewServer(configFile)
 	if err == nil {
-		t.Error("Expected error for non-existent secrets directory")
+		t.Error("Expected error for invalid config but got none")
 	}
-
-	if err != nil && err.Error() != "error reading secrets directory /non/existent/path: open /non/existent/path: no such file or directory" {
-		t.Errorf("Unexpected error message: %v", err)
-	}
-}
-
-func TestServer_BootstrapWithReleaseMode(t *testing.T) {
-	gin.SetMode(gin.ReleaseMode)
-
-	// Set up environment
-	err := os.Setenv("SESSION_SECRET", "test-secret")
-	if err != nil {
-		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
-	}
-	defer func() {
-		_ = os.Unsetenv("SESSION_SECRET")
-	}()
-
-	server := NewServer("localhost", 0, "", "", false, "test-session")
-
-	// This test verifies the trusted proxies setting doesn't cause errors
-	err = server.bootstrap()
-	if err != nil {
-		t.Errorf("bootstrap() returned error: %v", err)
-	}
-
-	// Cleanup
-	if server.httpServer != nil {
-		err = server.Shutdown()
-		if err != nil {
-			t.Errorf("Shutdown() returned error: %v", err)
-		}
-	}
-}
-
-func TestServer_BootstrapWithRedisSession(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	// Set up environment
-	err := os.Setenv("SESSION_SECRET", "test-secret")
-	if err != nil {
-		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
-	}
-	defer func() {
-		_ = os.Unsetenv("SESSION_SECRET")
-	}()
-
-	// Test with Redis session store
-	server := NewServer("localhost", 0, "localhost:6379", "", false, "test-session")
-	mockController := &mockController{name: "test"}
-
-	err = server.bootstrap(mockController)
-	if err != nil {
-		t.Errorf("bootstrap() with Redis returned error: %v", err)
-	}
-
-	// Verify Redis pool shutdown hook was added
-	if len(server.shutdownHooks) == 0 {
-		t.Error("Expected shutdown hooks to be registered for Redis")
-	}
-
-	// Cleanup
-	err = server.Shutdown()
-	if err != nil {
-		t.Errorf("Shutdown() returned error: %v", err)
-	}
-}
-
-func TestServer_ShutdownWithHookError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	server := NewServer("localhost", 0, "", "", false, "test-session")
-
-	// Add a shutdown hook that returns an error
-	server.addShutdownHook(func() error {
-		return os.ErrNotExist
-	})
-
-	// Set up environment
-	err := os.Setenv("SESSION_SECRET", "test-secret")
-	if err != nil {
-		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
-	}
-	defer func() {
-		_ = os.Unsetenv("SESSION_SECRET")
-	}()
-
-	// Start server
-	err = server.Start()
-	if err != nil {
-		t.Fatalf("Failed to start server: %v", err)
-	}
-
-	// Shutdown should not fail even if hooks return errors
-	err = server.Shutdown()
-	if err != nil {
-		t.Errorf("Shutdown() returned error: %v", err)
-	}
-}
-
-func TestServer_GinBodyLogMiddleware(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	engine := gin.New()
-	engine.Use(ginBodyLogMiddleware)
-	engine.GET("/test", func(c *gin.Context) {
-		c.String(http.StatusOK, "test response")
-	})
-
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/test", nil)
-	engine.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Status = %v, want %v", w.Code, http.StatusOK)
-	}
-
-	if w.Body.String() != "test response" {
-		t.Errorf("Body = %v, want %v", w.Body.String(), "test response")
-	}
-}
-
-func TestServer_WaitForSignalTimeout(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	// Set up environment
-	err := os.Setenv("SESSION_SECRET", "test-secret")
-	if err != nil {
-		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
-	}
-	defer func() {
-		_ = os.Unsetenv("SESSION_SECRET")
-	}()
-
-	server := NewServer("localhost", 0, "", "", false, "test-session")
-
-	// Start server
-	err = server.Start()
-	if err != nil {
-		t.Fatalf("Failed to start server: %v", err)
-	}
-
-	// Test that we can shutdown without waiting for signal
-	err = server.Shutdown()
-	if err != nil {
-		t.Errorf("Shutdown() returned error: %v", err)
-	}
-}
-
-// Mock controller for testing
-type mockController struct {
-	name   string
-	bound  bool
-	closed bool
-}
-
-func (m *mockController) Bind(engine *gin.Engine, cfg config.Config, loginMiddleware gin.HandlerFunc) {
-	m.bound = true
-	engine.GET("/"+m.name, func(c *gin.Context) {
-		c.String(http.StatusOK, "Hello from "+m.name)
-	})
-}
-
-func (m *mockController) Close() error {
-	m.closed = true
-	return nil
-}
-
-type MockProviderFactory struct {
-}
-
-func TestAuth_IntegrationTest(t *testing.T) {
-	// Set up environment
-	err := os.Setenv("SESSION_SECRET", "test-secret")
-	if err != nil {
-		t.Fatalf("Failed to set SESSION_SECRET: %v", err)
-	}
-	defer func() {
-		_ = os.Unsetenv("SESSION_SECRET")
-	}()
-
-	callbackEndpoint := "http://localhost:8081"
-	auth := controller.NewAuthWithFactory(callbackEndpoint, &MockProviderFactory{})
-	s := NewServer("localhost", 8081, "", "", true, "test-session")
-	err = s.Start(auth)
-	if err != nil {
-		t.Fatalf("Failed to start server: %v", err)
-	}
-
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/auth/openid-connect", nil)
-	s.httpServer.Handler.ServeHTTP(w, req)
-
-	// Assert that the user is redirected to the mock server's auth URL
-	if w.Code != http.StatusTemporaryRedirect {
-		t.Errorf("Expected status 307 Found, got %d", w.Code)
-	}
-
-	location := w.Header().Get("Location")
-	cookie := w.Header().Get("Set-Cookie")
-
-	// Mock OAuth2 Server Sign-in in non interactive mode
-	req, _ = http.NewRequest("GET", location, nil)
-	cl := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// Don't follow redirects
-			return http.ErrUseLastResponse
-		},
-	}
-	res, err := cl.Do(req)
-	if err != nil {
-		t.Fatalf("Failed to perform OAuth2 callback: %v", err)
-	}
-	if res.StatusCode != http.StatusFound {
-		t.Fatalf("Expected status 302 Found after OAuth2 callback, got %d", res.StatusCode)
-	}
-
-	location = strings.Replace(res.Header.Get("Location"), callbackEndpoint, "", 1)
-	req, err = http.NewRequest("GET", location, nil)
-	if err != nil {
-		t.Fatalf("Failed to create request to callback URL: %v", err)
-	}
-	req.Header.Set("Cookie", cookie)
-
-	w = httptest.NewRecorder()
-	s.httpServer.Handler.ServeHTTP(w, req)
-	if w.Code != http.StatusFound {
-		t.Errorf("Expected status 302 OK, got %d", w.Code)
-	}
-}
-
-func (m *MockProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
-	// OpenID Connect is based on OpenID Connect Auto Discovery URL (https://openid.net/specs/openid-connect-discovery-1_0-17.html)
-	// because the OpenID Connect provider initialize itself in the New(), it can return an error which should be handled or ignored
-	// ignore the error for now
-	openidConnect, _ := openidConnect.New(
-		"sargantana",
-		"someSecret",
-		fmt.Sprintf(callbackURLTemplate, "openid-connect"),
-		"http://localhost:8080/default/.well-known/openid-configuration",
-		"email", "profile",
-	)
-	if openidConnect != nil {
-		goth.UseProviders(openidConnect)
-	}
-
-	return []goth.Provider{
-		openidConnect,
+	if server != nil {
+		t.Error("Expected nil server for invalid config")
 	}
 }

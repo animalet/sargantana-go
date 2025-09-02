@@ -2,10 +2,9 @@ package controller
 
 import (
 	"encoding/gob"
-	"flag"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,84 +13,95 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
+	"github.com/markbates/goth/gothic"
+	"github.com/markbates/goth/providers/openidConnect"
+	"gopkg.in/yaml.v3"
 )
 
 func init() {
 	gob.Register(UserObject{})
 }
 
-func TestNewAuth(t *testing.T) {
+func TestNewAuthController(t *testing.T) {
 	tests := []struct {
-		name             string
-		callbackEndpoint string
+		name          string
+		configData    AuthControllerConfig
+		serverConfig  config.ServerConfig
+		expectedError bool
 	}{
 		{
-			name:             "empty callback",
-			callbackEndpoint: "",
+			name: "valid config with localhost",
+			configData: AuthControllerConfig{
+				CallbackPath:     "/auth/{provider}/callback",
+				LoginPath:        "/auth/{provider}",
+				LogoutPath:       "/auth/{provider}/logout",
+				UserInfoPath:     "/auth/user",
+				RedirectOnLogin:  "/",
+				RedirectOnLogout: "/",
+			},
+			serverConfig: config.ServerConfig{
+				Address: "localhost:8080",
+			},
+			expectedError: false,
 		},
 		{
-			name:             "with callback",
-			callbackEndpoint: "https://example.com",
-		},
-		{
-			name:             "localhost callback",
-			callbackEndpoint: "http://localhost:8080",
+			name: "valid config with 0.0.0.0",
+			configData: AuthControllerConfig{
+				CallbackPath:     "/auth/{provider}/callback",
+				LoginPath:        "/auth/{provider}",
+				LogoutPath:       "/auth/{provider}/logout",
+				UserInfoPath:     "/auth/user",
+				RedirectOnLogin:  "/",
+				RedirectOnLogout: "/",
+			},
+			serverConfig: config.ServerConfig{
+				Address: "0.0.0.0:9000",
+			},
+			expectedError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			auth := NewAuth(tt.callbackEndpoint)
-
-			if auth == nil {
-				t.Fatal("NewAuth returned nil")
-			}
-			if auth.callbackEndpoint != tt.callbackEndpoint {
-				t.Errorf("callbackEndpoint = %v, want %v", auth.callbackEndpoint, tt.callbackEndpoint)
-			}
-		})
-	}
-}
-
-func TestNewAuthFromFlags(t *testing.T) {
-	tests := []struct {
-		name     string
-		args     []string
-		expected string
-	}{
-		{
-			name:     "default callback",
-			args:     []string{},
-			expected: "",
-		},
-		{
-			name:     "custom callback",
-			args:     []string{"-callback=https://myapp.com"},
-			expected: "https://myapp.com",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
-			factory := NewAuthFromFlags(flagSet)
-
-			err := flagSet.Parse(tt.args)
+			// Marshal the config to YAML bytes as expected by the ControllerConfig type
+			configBytes, err := yaml.Marshal(tt.configData)
 			if err != nil {
-				t.Fatalf("Failed to parse flags: %v", err)
+				t.Fatalf("Failed to marshal config: %v", err)
 			}
 
-			controller := factory().(*Auth)
+			authController, err := NewAuthController(configBytes, tt.serverConfig)
 
-			if controller.callbackEndpoint != tt.expected {
-				t.Errorf("callbackEndpoint = %v, want %v", controller.callbackEndpoint, tt.expected)
+			if tt.expectedError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.expectedError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if !tt.expectedError && authController == nil {
+				t.Error("Expected controller but got nil")
 			}
 		})
 	}
 }
 
 func TestAuth_UserFactory(t *testing.T) {
-	auth := NewAuth("test")
+	configData := AuthControllerConfig{
+		CallbackPath:     "/auth/{provider}/callback",
+		LoginPath:        "/auth/{provider}",
+		LogoutPath:       "/auth/{provider}/logout",
+		UserInfoPath:     "/auth/user",
+		RedirectOnLogin:  "/",
+		RedirectOnLogout: "/",
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+
+	controller, err := NewAuthController(configBytes, serverConfig)
+	if err != nil {
+		t.Fatalf("Failed to create auth controller: %v", err)
+	}
+
+	auth := controller.(*auth)
 
 	tests := []struct {
 		name       string
@@ -160,8 +170,8 @@ func TestLoginFunc(t *testing.T) {
 				session.Set("user", userObj)
 				err := session.Save()
 				if err != nil {
-					err = c.AbortWithError(http.StatusInternalServerError, err)
 					c.String(http.StatusInternalServerError, "Failed to save session: %v", err)
+					return
 				}
 			},
 			expectedStatus: http.StatusOK,
@@ -179,8 +189,8 @@ func TestLoginFunc(t *testing.T) {
 				session.Set("user", userObj)
 				err := session.Save()
 				if err != nil {
-					err = c.AbortWithError(http.StatusInternalServerError, err)
 					c.String(http.StatusInternalServerError, "Failed to save session: %v", err)
+					return
 				}
 			},
 			expectedStatus: http.StatusUnauthorized,
@@ -212,8 +222,24 @@ func TestLoginFunc(t *testing.T) {
 }
 
 func TestAuth_Close(t *testing.T) {
-	auth := NewAuth("test")
-	err := auth.Close()
+	configData := AuthControllerConfig{
+		CallbackPath:     "/auth/{provider}/callback",
+		LoginPath:        "/auth/{provider}",
+		LogoutPath:       "/auth/{provider}/logout",
+		UserInfoPath:     "/auth/user",
+		RedirectOnLogin:  "/",
+		RedirectOnLogout: "/",
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+
+	controller, err := NewAuthController(configBytes, serverConfig)
+	if err != nil {
+		t.Fatalf("Failed to create auth controller: %v", err)
+	}
+
+	auth := controller.(*auth)
+	err = auth.Close()
 	if err != nil {
 		t.Errorf("Close() returned error: %v", err)
 	}
@@ -222,13 +248,27 @@ func TestAuth_Close(t *testing.T) {
 func TestAuth_Routes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	auth := NewAuth("http://localhost:8080")
+	configData := AuthControllerConfig{
+		CallbackPath:     "/auth/{provider}/callback",
+		LoginPath:        "/auth/{provider}",
+		LogoutPath:       "/auth/{provider}/logout",
+		UserInfoPath:     "/auth/user",
+		RedirectOnLogin:  "/",
+		RedirectOnLogout: "/",
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+
+	authController, err := NewAuthController(configBytes, serverConfig)
+	if err != nil {
+		t.Fatalf("Failed to create auth controller: %v", err)
+	}
+
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
 
-	auth.Bind(engine, *cfg, LoginFunc)
+	authController.Bind(engine, LoginFunc)
 
 	// Test that routes are registered
 	routes := engine.Routes()
@@ -256,13 +296,27 @@ func TestAuth_Routes(t *testing.T) {
 func TestAuth_UserRoute_NoAuth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	auth := NewAuth("http://localhost:8080")
+	configData := AuthControllerConfig{
+		CallbackPath:     "/auth/{provider}/callback",
+		LoginPath:        "/auth/{provider}",
+		LogoutPath:       "/auth/{provider}/logout",
+		UserInfoPath:     "/auth/user",
+		RedirectOnLogin:  "/",
+		RedirectOnLogout: "/",
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+
+	authController, err := NewAuthController(configBytes, serverConfig)
+	if err != nil {
+		t.Fatalf("Failed to create auth controller: %v", err)
+	}
+
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
 
-	auth.Bind(engine, *cfg, LoginFunc)
+	authController.Bind(engine, LoginFunc)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/auth/user", nil)
@@ -276,13 +330,27 @@ func TestAuth_UserRoute_NoAuth(t *testing.T) {
 func TestAuth_AuthRouteHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	auth := NewAuth("http://localhost:8080")
+	configData := AuthControllerConfig{
+		CallbackPath:     "/auth/{provider}/callback",
+		LoginPath:        "/auth/{provider}",
+		LogoutPath:       "/auth/{provider}/logout",
+		UserInfoPath:     "/auth/user",
+		RedirectOnLogin:  "/",
+		RedirectOnLogout: "/",
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+
+	authController, err := NewAuthController(configBytes, serverConfig)
+	if err != nil {
+		t.Fatalf("Failed to create auth controller: %v", err)
+	}
+
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
 
-	auth.Bind(engine, *cfg, LoginFunc)
+	authController.Bind(engine, LoginFunc)
 
 	// Test auth route without provider
 	w := httptest.NewRecorder()
@@ -298,35 +366,63 @@ func TestAuth_AuthRouteHandler(t *testing.T) {
 func TestAuth_CallbackRouteHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	auth := NewAuth("http://localhost:8080")
+	configData := AuthControllerConfig{
+		CallbackPath:     "/auth/{provider}/callback",
+		LoginPath:        "/auth/{provider}",
+		LogoutPath:       "/auth/{provider}/logout",
+		UserInfoPath:     "/auth/user",
+		RedirectOnLogin:  "/",
+		RedirectOnLogout: "/",
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+
+	authController, err := NewAuthController(configBytes, serverConfig)
+	if err != nil {
+		t.Fatalf("Failed to create auth controller: %v", err)
+	}
+
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
 
-	auth.Bind(engine, *cfg, LoginFunc)
+	authController.Bind(engine, LoginFunc)
 
 	// Test callback route without provider
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/auth//callback", nil)
 	engine.ServeHTTP(w, req)
 
-	// Should return 404 since no provider specified
+	// Should return 400 since no provider specified
 	if w.Code != http.StatusBadRequest {
-		t.Errorf("Expected 404 for missing provider callback, got %d", w.Code)
+		t.Errorf("Expected 400 for missing provider callback, got %d", w.Code)
 	}
 }
 
 func TestAuth_LogoutRouteHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	auth := NewAuth("http://localhost:8080")
+	configData := AuthControllerConfig{
+		CallbackPath:     "/auth/{provider}/callback",
+		LoginPath:        "/auth/{provider}",
+		LogoutPath:       "/auth/{provider}/logout",
+		UserInfoPath:     "/auth/user",
+		RedirectOnLogin:  "/",
+		RedirectOnLogout: "/",
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+
+	authController, err := NewAuthController(configBytes, serverConfig)
+	if err != nil {
+		t.Fatalf("Failed to create auth controller: %v", err)
+	}
+
 	engine := gin.New()
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
-	cfg := config.NewConfig("localhost:8080", "", "", false, "test-session")
 
-	auth.Bind(engine, *cfg, LoginFunc)
+	authController.Bind(engine, LoginFunc)
 
 	// Test logout route
 	w := httptest.NewRecorder()
@@ -395,102 +491,295 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			auth := NewAuth("")
+			configData := AuthControllerConfig{
+				CallbackPath:     "/auth/{provider}/callback",
+				LoginPath:        "/auth/{provider}",
+				LogoutPath:       "/auth/{provider}/logout",
+				UserInfoPath:     "/auth/user",
+				RedirectOnLogin:  "/",
+				RedirectOnLogout: "/",
+			}
+			configBytes, _ := yaml.Marshal(configData)
+			serverConfig := config.ServerConfig{Address: tt.configAddress}
+
+			authController, err := NewAuthController(configBytes, serverConfig)
+			if err != nil {
+				t.Fatalf("Failed to create auth controller: %v", err)
+			}
+
 			engine := gin.New()
 			store := cookie.NewStore([]byte("secret"))
 			engine.Use(sessions.Sessions("test", store))
-			cfg := config.NewConfig(tt.configAddress, "", "", false, "test-session")
 
-			auth.Bind(engine, *cfg, LoginFunc)
-
-			if auth.callbackEndpoint != tt.expectedPrefix {
-				t.Errorf("callbackEndpoint = %v, want %v", auth.callbackEndpoint, tt.expectedPrefix)
-			}
+			authController.Bind(engine, LoginFunc)
 		})
 	}
 }
 
-func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
-	// Set test values for all environment variables
-	testValues := map[string]string{
-		"TWITTER_KEY": "test-twitter-key", "TWITTER_SECRET": "test-twitter-secret",
-		"TIKTOK_KEY": "test-tiktok-key", "TIKTOK_SECRET": "test-tiktok-secret",
-		"FACEBOOK_KEY": "test-facebook-key", "FACEBOOK_SECRET": "test-facebook-secret",
-		"FITBIT_KEY": "test-fitbit-key", "FITBIT_SECRET": "test-fitbit-secret",
-		"GOOGLE_KEY": "test-google-key", "GOOGLE_SECRET": "test-google-secret",
-		"GITHUB_KEY": "test-github-key", "GITHUB_SECRET": "test-github-secret",
-		"SPOTIFY_KEY": "test-spotify-key", "SPOTIFY_SECRET": "test-spotify-secret",
-		"LINKEDIN_KEY": "test-linkedin-key", "LINKEDIN_SECRET": "test-linkedin-secret",
-		"LINE_KEY": "test-line-key", "LINE_SECRET": "test-line-secret",
-		"LASTFM_KEY": "test-lastfm-key", "LASTFM_SECRET": "test-lastfm-secret",
-		"TWITCH_KEY": "test-twitch-key", "TWITCH_SECRET": "test-twitch-secret",
-		"DROPBOX_KEY": "test-dropbox-key", "DROPBOX_SECRET": "test-dropbox-secret",
-		"DIGITALOCEAN_KEY": "test-do-key", "DIGITALOCEAN_SECRET": "test-do-secret",
-		"BITBUCKET_KEY": "test-bitbucket-key", "BITBUCKET_SECRET": "test-bitbucket-secret",
-		"INSTAGRAM_KEY": "test-instagram-key", "INSTAGRAM_SECRET": "test-instagram-secret",
-		"INTERCOM_KEY": "test-intercom-key", "INTERCOM_SECRET": "test-intercom-secret",
-		"BOX_KEY": "test-box-key", "BOX_SECRET": "test-box-secret",
-		"SALESFORCE_KEY": "test-salesforce-key", "SALESFORCE_SECRET": "test-salesforce-secret",
-		"SEATALK_KEY": "test-seatalk-key", "SEATALK_SECRET": "test-seatalk-secret",
-		"AMAZON_KEY": "test-amazon-key", "AMAZON_SECRET": "test-amazon-secret",
-		"YAMMER_KEY": "test-yammer-key", "YAMMER_SECRET": "test-yammer-secret",
-		"ONEDRIVE_KEY": "test-onedrive-key", "ONEDRIVE_SECRET": "test-onedrive-secret",
-		"AZUREAD_KEY": "test-azuread-key", "AZUREAD_SECRET": "test-azuread-secret",
-		"MICROSOFTONLINE_KEY": "test-msonline-key", "MICROSOFTONLINE_SECRET": "test-msonline-secret",
-		"BATTLENET_KEY": "test-battlenet-key", "BATTLENET_SECRET": "test-battlenet-secret",
-		"EVEONLINE_KEY": "test-eve-key", "EVEONLINE_SECRET": "test-eve-secret",
-		"KAKAO_KEY": "test-kakao-key", "KAKAO_SECRET": "test-kakao-secret",
-		"YAHOO_KEY": "test-yahoo-key", "YAHOO_SECRET": "test-yahoo-secret",
-		"TYPETALK_KEY": "test-typetalk-key", "TYPETALK_SECRET": "test-typetalk-secret",
-		"SLACK_KEY": "test-slack-key", "SLACK_SECRET": "test-slack-secret",
-		"STRIPE_KEY": "test-stripe-key", "STRIPE_SECRET": "test-stripe-secret",
-		"WEPAY_KEY": "test-wepay-key", "WEPAY_SECRET": "test-wepay-secret",
-		"PAYPAL_KEY": "test-paypal-key", "PAYPAL_SECRET": "test-paypal-secret",
-		"STEAM_KEY":  "test-steam-key",
-		"HEROKU_KEY": "test-heroku-key", "HEROKU_SECRET": "test-heroku-secret",
-		"UBER_KEY": "test-uber-key", "UBER_SECRET": "test-uber-secret",
-		"SOUNDCLOUD_KEY": "test-soundcloud-key", "SOUNDCLOUD_SECRET": "test-soundcloud-secret",
-		"GITLAB_KEY": "test-gitlab-key", "GITLAB_SECRET": "test-gitlab-secret",
-		"DAILYMOTION_KEY": "test-dailymotion-key", "DAILYMOTION_SECRET": "test-dailymotion-secret",
-		"DEEZER_KEY": "test-deezer-key", "DEEZER_SECRET": "test-deezer-secret",
-		"DISCORD_KEY": "test-discord-key", "DISCORD_SECRET": "test-discord-secret",
-		"MEETUP_KEY": "test-meetup-key", "MEETUP_SECRET": "test-meetup-secret",
-		"AUTH0_KEY": "test-auth0-key", "AUTH0_SECRET": "test-auth0-secret", "AUTH0_DOMAIN": "test.auth0.com",
-		"XERO_KEY": "test-xero-key", "XERO_SECRET": "test-xero-secret",
-		"VK_KEY": "test-vk-key", "VK_SECRET": "test-vk-secret",
-		"NAVER_KEY": "test-naver-key", "NAVER_SECRET": "test-naver-secret",
-		"YANDEX_KEY": "test-yandex-key", "YANDEX_SECRET": "test-yandex-secret",
-		"NEXTCLOUD_KEY": "test-nextcloud-key", "NEXTCLOUD_SECRET": "test-nextcloud-secret", "NEXTCLOUD_URL": "https://test.nextcloud.com",
-		"GITEA_KEY": "test-gitea-key", "GITEA_SECRET": "test-gitea-secret",
-		"SHOPIFY_KEY": "test-shopify-key", "SHOPIFY_SECRET": "test-shopify-secret",
-		"APPLE_KEY": "test-apple-key", "APPLE_SECRET": "test-apple-secret",
-		"STRAVA_KEY": "test-strava-key", "STRAVA_SECRET": "test-strava-secret",
-		"OKTA_ID": "test-okta-id", "OKTA_SECRET": "test-okta-secret", "OKTA_ORG_URL": "https://test.okta.com",
-		"MASTODON_KEY": "test-mastodon-key", "MASTODON_SECRET": "test-mastodon-secret",
-		"WECOM_CORP_ID": "test-wecom-corp", "WECOM_SECRET": "test-wecom-secret", "WECOM_AGENT_ID": "test-wecom-agent",
-		"ZOOM_KEY": "test-zoom-key", "ZOOM_SECRET": "test-zoom-secret",
-		"PATREON_KEY": "test-patreon-key", "PATREON_SECRET": "test-patreon-secret",
-		"OPENID_CONNECT_KEY": "test-oidc-key", "OPENID_CONNECT_SECRET": "test-oidc-secret", "OPENID_CONNECT_DISCOVERY_URL": "https://test.example.com/.well-known/openid_configuration",
+func TestConfigProviderFactory_CreateProviders_AllProviders(t *testing.T) {
+	// Create test configuration with all providers
+	testConfig := map[string]ProviderConfig{
+		"twitter": {
+			Key:    "test-twitter-key",
+			Secret: "test-twitter-secret",
+		},
+		"tiktok": {
+			Key:    "test-tiktok-key",
+			Secret: "test-tiktok-secret",
+		},
+		"facebook": {
+			Key:    "test-facebook-key",
+			Secret: "test-facebook-secret",
+			Scopes: []string{"email", "public_profile"},
+		},
+		"fitbit": {
+			Key:    "test-fitbit-key",
+			Secret: "test-fitbit-secret",
+		},
+		"google": {
+			Key:    "test-google-key",
+			Secret: "test-google-secret",
+		},
+		"github": {
+			Key:    "test-github-key",
+			Secret: "test-github-secret",
+			Scopes: []string{"read:user", "user:email"},
+		},
+		"spotify": {
+			Key:    "test-spotify-key",
+			Secret: "test-spotify-secret",
+		},
+		"linkedin": {
+			Key:    "test-linkedin-key",
+			Secret: "test-linkedin-secret",
+		},
+		"line": {
+			Key:    "test-line-key",
+			Secret: "test-line-secret",
+			Scopes: []string{"profile", "openid", "email"},
+		},
+		"lastfm": {
+			Key:    "test-lastfm-key",
+			Secret: "test-lastfm-secret",
+		},
+		"twitch": {
+			Key:    "test-twitch-key",
+			Secret: "test-twitch-secret",
+		},
+		"dropbox": {
+			Key:    "test-dropbox-key",
+			Secret: "test-dropbox-secret",
+		},
+		"digitalocean": {
+			Key:    "test-do-key",
+			Secret: "test-do-secret",
+			Scopes: []string{"read"},
+		},
+		"bitbucket": {
+			Key:    "test-bitbucket-key",
+			Secret: "test-bitbucket-secret",
+		},
+		"instagram": {
+			Key:    "test-instagram-key",
+			Secret: "test-instagram-secret",
+		},
+		"intercom": {
+			Key:    "test-intercom-key",
+			Secret: "test-intercom-secret",
+		},
+		"box": {
+			Key:    "test-box-key",
+			Secret: "test-box-secret",
+		},
+		"salesforce": {
+			Key:    "test-salesforce-key",
+			Secret: "test-salesforce-secret",
+		},
+		"seatalk": {
+			Key:    "test-seatalk-key",
+			Secret: "test-seatalk-secret",
+		},
+		"amazon": {
+			Key:    "test-amazon-key",
+			Secret: "test-amazon-secret",
+		},
+		"yammer": {
+			Key:    "test-yammer-key",
+			Secret: "test-yammer-secret",
+		},
+		"onedrive": {
+			Key:    "test-onedrive-key",
+			Secret: "test-onedrive-secret",
+		},
+		"azuread": {
+			Key:    "test-azuread-key",
+			Secret: "test-azuread-secret",
+		},
+		"microsoftonline": {
+			Key:    "test-msonline-key",
+			Secret: "test-msonline-secret",
+		},
+		"battlenet": {
+			Key:    "test-battlenet-key",
+			Secret: "test-battlenet-secret",
+		},
+		"eveonline": {
+			Key:    "test-eve-key",
+			Secret: "test-eve-secret",
+		},
+		"kakao": {
+			Key:    "test-kakao-key",
+			Secret: "test-kakao-secret",
+		},
+		"yahoo": {
+			Key:    "test-yahoo-key",
+			Secret: "test-yahoo-secret",
+		},
+		"typetalk": {
+			Key:    "test-typetalk-key",
+			Secret: "test-typetalk-secret",
+			Scopes: []string{"my"},
+		},
+		"slack": {
+			Key:    "test-slack-key",
+			Secret: "test-slack-secret",
+		},
+		"stripe": {
+			Key:    "test-stripe-key",
+			Secret: "test-stripe-secret",
+		},
+		"wepay": {
+			Key:    "test-wepay-key",
+			Secret: "test-wepay-secret",
+			Scopes: []string{"view_user"},
+		},
+		"paypal": {
+			Key:    "test-paypal-key",
+			Secret: "test-paypal-secret",
+		},
+		"steam": {
+			Key: "test-steam-key",
+			// Note: Steam only requires a key, no secret
+		},
+		"heroku": {
+			Key:    "test-heroku-key",
+			Secret: "test-heroku-secret",
+		},
+		"uber": {
+			Key:    "test-uber-key",
+			Secret: "test-uber-secret",
+		},
+		"soundcloud": {
+			Key:    "test-soundcloud-key",
+			Secret: "test-soundcloud-secret",
+		},
+		"gitlab": {
+			Key:    "test-gitlab-key",
+			Secret: "test-gitlab-secret",
+		},
+		"dailymotion": {
+			Key:    "test-dailymotion-key",
+			Secret: "test-dailymotion-secret",
+			Scopes: []string{"email"},
+		},
+		"deezer": {
+			Key:    "test-deezer-key",
+			Secret: "test-deezer-secret",
+			Scopes: []string{"email"},
+		},
+		"discord": {
+			Key:    "test-discord-key",
+			Secret: "test-discord-secret",
+			Scopes: []string{"identify", "email"},
+		},
+		"meetup": {
+			Key:    "test-meetup-key",
+			Secret: "test-meetup-secret",
+		},
+		"auth0": {
+			Key:    "test-auth0-key",
+			Secret: "test-auth0-secret",
+			Domain: "test.auth0.com",
+		},
+		"xero": {
+			Key:    "test-xero-key",
+			Secret: "test-xero-secret",
+		},
+		"vk": {
+			Key:    "test-vk-key",
+			Secret: "test-vk-secret",
+		},
+		"naver": {
+			Key:    "test-naver-key",
+			Secret: "test-naver-secret",
+		},
+		"yandex": {
+			Key:    "test-yandex-key",
+			Secret: "test-yandex-secret",
+		},
+		"nextcloud": {
+			Key:    "test-nextcloud-key",
+			Secret: "test-nextcloud-secret",
+			URL:    "https://test.nextcloud.com",
+		},
+		"gitea": {
+			Key:    "test-gitea-key",
+			Secret: "test-gitea-secret",
+		},
+		"shopify": {
+			Key:    "test-shopify-key",
+			Secret: "test-shopify-secret",
+			Scopes: []string{"read_customers", "read_orders"},
+		},
+		"apple": {
+			Key:    "test-apple-key",
+			Secret: "test-apple-secret",
+			Scopes: []string{"name", "email"},
+		},
+		"strava": {
+			Key:    "test-strava-key",
+			Secret: "test-strava-secret",
+		},
+		"okta": {
+			Key:    "test-okta-key",
+			Secret: "test-okta-secret",
+			OrgURL: "https://test.okta.com",
+			Scopes: []string{"openid", "profile", "email"},
+		},
+		"mastodon": {
+			Key:    "test-mastodon-key",
+			Secret: "test-mastodon-secret",
+			Scopes: []string{"read:accounts"},
+		},
+		"wecom": {
+			CorpID:  "test-wecom-corp",
+			Secret:  "test-wecom-secret",
+			AgentID: "test-wecom-agent",
+		},
+		"zoom": {
+			Key:    "test-zoom-key",
+			Secret: "test-zoom-secret",
+			Scopes: []string{"read:user"},
+		},
+		"patreon": {
+			Key:    "test-patreon-key",
+			Secret: "test-patreon-secret",
+		},
+		"openid-connect": {
+			Key:    "test-oidc-key",
+			Secret: "test-oidc-secret",
+			URL:    "http://localhost:8080/.well-known/openid_configuration",
+		},
 	}
 
-	defer func() {
-		for k := range testValues {
-			_ = os.Unsetenv(k)
-		}
-	}()
-
-	// Set all test environment variables
-	for env, val := range testValues {
-		_ = os.Setenv(env, val)
-	}
-
-	factory := &ProductionProviderFactory{}
+	factory := &configProviderFactory{config: testConfig}
 	providers := factory.CreateProviders("https://test.example.com/auth/%s/callback")
 
 	// Verify that providers were created
-	// We expect at least 50 providers (all the ones we set environment variables for)
-	if len(providers) < 50 {
-		t.Errorf("Expected at least 50 providers, got %d", len(providers))
+	// We expect many providers (all the ones we configured)
+	expectedMinProviders := 50
+	if len(providers) < expectedMinProviders {
+		t.Errorf("Expected at least %d providers, got %d", expectedMinProviders, len(providers))
 	}
 
 	// Verify some specific providers are present by checking their names
@@ -516,7 +805,6 @@ func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 		"deezer", "discord", "meetup", "auth0", "xero", "vk", "naver",
 		"yandex", "nextcloud", "gitea", "shopify", "apple", "strava",
 		"okta", "mastodon", "wecom", "zoom", "patreon",
-		// Note: openid-connect is excluded as it may fail to initialize with test URLs
 	}
 
 	var missingProviders []string
@@ -533,13 +821,100 @@ func TestProductionProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 	t.Logf("Successfully created %d OAuth providers", len(providers))
 }
 
-func TestProductionProviderFactory_CreateProviders_NoEnvironmentVars(t *testing.T) {
-	// Test with no environment variables set
-	factory := &ProductionProviderFactory{}
+func TestConfigProviderFactory_CreateProviders_NoConfig(t *testing.T) {
+	// Test with no provider configuration
+	factory := &configProviderFactory{config: make(map[string]ProviderConfig)}
 	providers := factory.CreateProviders("https://test.example.com/auth/%s/callback")
 
-	// Should return empty slice when no environment variables are set
+	// Should return empty slice when no providers are configured
 	if len(providers) != 0 {
-		t.Errorf("Expected 0 providers when no env vars set, got %d", len(providers))
+		t.Errorf("Expected 0 providers when no config set, got %d", len(providers))
+	}
+}
+
+type MockProviderFactory struct {
+}
+
+func TestAuth_IntegrationTest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	engine := gin.New()
+	store := cookie.NewStore([]byte("test-secret"))
+	engine.Use(sessions.Sessions("test", store))
+	gothic.Store = store
+
+	configData := AuthControllerConfig{
+		CallbackPath:     "/auth/{provider}/callback",
+		LoginPath:        "/auth/{provider}",
+		LogoutPath:       "/auth/{provider}/logout",
+		UserInfoPath:     "/auth/user",
+		RedirectOnLogin:  "/auth/user",
+		RedirectOnLogout: "/",
+	}
+
+	address := "localhost:8081"
+	ProviderFactory = &MockProviderFactory{}
+	serverConfig := config.ServerConfig{Address: address}
+	configBytes, _ := yaml.Marshal(configData)
+	authController, err := NewAuthController(configBytes, serverConfig)
+	if err != nil {
+		t.Fatalf("Failed to create auth controller: %v", err)
+	}
+
+	authController.Bind(engine, LoginFunc)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/auth/openid-connect", nil)
+	engine.ServeHTTP(w, req)
+
+	// Assert that the user is redirected to the mock server's auth URL
+	if w.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("Expected status 307 Found, got %d", w.Code)
+	}
+
+	location := w.Header().Get("Location")
+	theCookie := w.Header().Get("Set-Cookie")
+
+	// Mock OAuth2 Server Sign-in in non-interactive mode
+	req, _ = http.NewRequest("GET", location, nil)
+	cl := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Don't follow redirects
+			return http.ErrUseLastResponse
+		},
+	}
+	res, err := cl.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to perform OAuth2 callback: %v", err)
+	}
+	if res.StatusCode != http.StatusFound {
+		t.Fatalf("Expected status 302 Found after OAuth2 callback, got %d", res.StatusCode)
+	}
+
+	location = strings.Replace(res.Header.Get("Location"), "http://"+address, "", 1)
+	req, err = http.NewRequest("GET", location, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request to callback URL: %v", err)
+	}
+	req.Header.Set("Cookie", theCookie)
+
+	w = httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusFound {
+		t.Errorf("Expected status 302 OK, got %d", w.Code)
+	}
+}
+
+func (m *MockProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
+	provider, _ := openidConnect.New(
+		"sargantana",
+		"someSecret",
+		strings.ReplaceAll(callbackURLTemplate, "{provider}", "openid-connect"),
+		"http://localhost:8080/default/.well-known/openid-configuration",
+		"email", "profile",
+	)
+
+	return []goth.Provider{
+		provider,
 	}
 }
