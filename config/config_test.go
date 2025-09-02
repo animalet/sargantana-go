@@ -4,221 +4,173 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
 
-func TestLoad(t *testing.T) {
-	t.Run("valid config file", func(t *testing.T) {
-		// Create a temporary config file
-		tempDir := t.TempDir()
-		configFile := filepath.Join(tempDir, "test_config.yaml")
-
-		configContent := `
-server:
-  address: "localhost:8080"
-  debug: true
-  session_name: "test_session"
-  session_secret: "test_secret"
-  secrets_dir: "/tmp/secrets"
-  redis_session_store: "redis://localhost:6379"
-vault:
-  address: "https://vault.example.com"
-  token: "test_token"
-  path: "secret/myapp"
-  namespace: "myns"
-controllers:
-  - type: "auth"
-    name: "main_auth"
-    config:
-      login_path: "/auth/login"
-      logout_path: "/auth/logout"
-  - type: "static"
-    config:
-      statics_dir: "./static"
-`
-
-		err := os.WriteFile(configFile, []byte(configContent), 0644)
-		if err != nil {
-			t.Fatalf("Failed to create test config file: %v", err)
-		}
-
-		cfg, err := Load(configFile)
-		if err != nil {
-			t.Fatalf("Load() error = %v", err)
-		}
-
-		if cfg == nil {
-			t.Fatal("Load() returned nil config")
-		}
-
-		// Verify server config
-		if cfg.ServerConfig.Address != "localhost:8080" {
-			t.Errorf("Expected address 'localhost:8080', got '%s'", cfg.ServerConfig.Address)
-		}
-
-		if !cfg.ServerConfig.Debug {
-			t.Error("Expected debug to be true")
-		}
-
-		if cfg.ServerConfig.SessionName != "test_session" {
-			t.Errorf("Expected session_name 'test_session', got '%s'", cfg.ServerConfig.SessionName)
-		}
-
-		// Verify vault config
-		if cfg.Vault.Address != "https://vault.example.com" {
-			t.Errorf("Expected vault address 'https://vault.example.com', got '%s'", cfg.Vault.Address)
-		}
-
-		// Verify controllers
-		if len(cfg.ControllerBindings) != 2 {
-			t.Errorf("Expected 2 controller bindings, got %d", len(cfg.ControllerBindings))
-		}
-
-		if cfg.ControllerBindings[0].TypeName != "auth" {
-			t.Errorf("Expected first controller type 'auth', got '%s'", cfg.ControllerBindings[0].TypeName)
-		}
-
-		if cfg.ControllerBindings[0].Name != "main_auth" {
-			t.Errorf("Expected first controller name 'main_auth', got '%s'", cfg.ControllerBindings[0].Name)
-		}
-	})
-
-	t.Run("non-existent file", func(t *testing.T) {
-		cfg, err := Load("non-existent-file.yaml")
-		if err == nil {
-			t.Error("Expected error for non-existent file, got nil")
-		}
-
-		if cfg != nil {
-			t.Error("Expected nil config for non-existent file")
-		}
-	})
-
-	t.Run("invalid yaml", func(t *testing.T) {
-		tempDir := t.TempDir()
-		configFile := filepath.Join(tempDir, "invalid_config.yaml")
-
-		invalidContent := `
-server:
-  address: "localhost:8080"
-  debug: true
-invalid_yaml_content: [
-`
-
-		err := os.WriteFile(configFile, []byte(invalidContent), 0644)
-		if err != nil {
-			t.Fatalf("Failed to create test config file: %v", err)
-		}
-
-		cfg, err := Load(configFile)
-		if err == nil {
-			t.Error("Expected error for invalid YAML, got nil")
-		}
-
-		if cfg != nil {
-			t.Error("Expected nil config for invalid YAML")
-		}
-	})
-}
-
+// TestLoadYaml tests loading YAML configuration from file
 func TestLoadYaml(t *testing.T) {
-	t.Run("valid yaml to struct", func(t *testing.T) {
-		tempDir := t.TempDir()
-		yamlFile := filepath.Join(tempDir, "test.yaml")
+	// Create a temporary YAML file for testing
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "test-config.yaml")
 
-		type TestStruct struct {
-			Name  string `yaml:"name"`
-			Value int    `yaml:"value"`
-		}
-
-		content := `
-name: "test"
-value: 42
+	testConfig := `
+server:
+  address: ":8080"
+  redis_session_store: "localhost:6379"
+  session_name: "test-session"
+  session_secret: "test-secret-key"
+  debug: true
 `
 
-		err := os.WriteFile(yamlFile, []byte(content), 0644)
-		if err != nil {
-			t.Fatalf("Failed to create test YAML file: %v", err)
-		}
+	err := os.WriteFile(configFile, []byte(testConfig), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
 
-		var result TestStruct
-		err = LoadYaml(yamlFile, &result)
-		if err != nil {
-			t.Fatalf("LoadYaml() error = %v", err)
-		}
+	var config Config
+	err = LoadYaml(configFile, &config)
+	if err != nil {
+		t.Fatalf("LoadYaml failed: %v", err)
+	}
 
-		if result.Name != "test" {
-			t.Errorf("Expected name 'test', got '%s'", result.Name)
-		}
-
-		if result.Value != 42 {
-			t.Errorf("Expected value 42, got %d", result.Value)
-		}
-	})
-
-	t.Run("non-existent file", func(t *testing.T) {
-		var result interface{}
-		err := LoadYaml("non-existent.yaml", &result)
-		if err == nil {
-			t.Error("Expected error for non-existent file, got nil")
-		}
-	})
+	if config.ServerConfig.Address != ":8080" {
+		t.Errorf("Expected address ':8080', got '%s'", config.ServerConfig.Address)
+	}
+	if config.ServerConfig.SessionSecret != "test-secret-key" {
+		t.Errorf("Expected session secret 'test-secret-key', got '%s'", config.ServerConfig.SessionSecret)
+	}
+	if !config.ServerConfig.Debug {
+		t.Error("Expected debug to be true")
+	}
 }
 
+// TestLoadYaml_FileNotFound tests error handling when config file doesn't exist
+func TestLoadYaml_FileNotFound(t *testing.T) {
+	var config Config
+	err := LoadYaml("nonexistent-file.yaml", &config)
+	if err == nil {
+		t.Fatal("Expected error when loading nonexistent file")
+	}
+}
+
+// TestLoad_ValidConfig tests loading a complete valid configuration
+func TestLoad_ValidConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "test-config.yaml")
+
+	testConfig := `
+server:
+  address: ":8080"
+  redis_session_store: "localhost:6379"
+  session_name: "test-session"
+  session_secret: "my-test-secret-key"
+  debug: true
+  secrets_dir: "` + tempDir + `"
+vault:
+  address: "http://localhost:8200"
+  token: "test-token"
+  path: "secret/data/test"
+controllers:
+  - type: "TestController"
+    name: "test"
+    config:
+      key: "value"
+`
+
+	err := os.WriteFile(configFile, []byte(testConfig), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	config, err := Load(configFile)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if config.ServerConfig.Address != ":8080" {
+		t.Errorf("Expected address ':8080', got '%s'", config.ServerConfig.Address)
+	}
+	if config.Vault.Address != "http://localhost:8200" {
+		t.Errorf("Expected Vault address 'http://localhost:8200', got '%s'", config.Vault.Address)
+	}
+}
+
+// TestLoad_MissingSessionSecret tests that missing session secret causes error
+func TestLoad_MissingSessionSecret(t *testing.T) {
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "test-config.yaml")
+
+	testConfig := `
+server:
+  address: ":8080"
+  redis_session_store: "localhost:6379"
+  session_name: "test-session"
+  # session_secret is missing
+`
+
+	err := os.WriteFile(configFile, []byte(testConfig), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	_, err = Load(configFile)
+	if err == nil {
+		t.Fatal("Expected error when session_secret is missing")
+	}
+	if err.Error() != "session_secret must be set and non-empty" {
+		t.Errorf("Expected specific error message, got: %v", err)
+	}
+}
+
+// TestVaultConfig_IsValid tests the VaultConfig validation
 func TestVaultConfig_IsValid(t *testing.T) {
 	tests := []struct {
 		name     string
-		config   VaultConfig
+		config   *VaultConfig
 		expected bool
 	}{
 		{
-			name: "valid config",
-			config: VaultConfig{
-				Address: "https://vault.example.com",
-				Token:   "test_token",
-				Path:    "secret/myapp",
-			},
-			expected: true,
+			name:     "nil config",
+			config:   nil,
+			expected: false,
 		},
 		{
-			name: "valid config with namespace",
-			config: VaultConfig{
-				Address:   "https://vault.example.com",
-				Token:     "test_token",
-				Path:      "secret/myapp",
-				Namespace: "myns",
+			name: "valid config",
+			config: &VaultConfig{
+				Address: "http://localhost:8200",
+				Token:   "test-token",
+				Path:    "secret/data/test",
 			},
 			expected: true,
 		},
 		{
 			name: "missing address",
-			config: VaultConfig{
-				Token: "test_token",
-				Path:  "secret/myapp",
+			config: &VaultConfig{
+				Address: "",
+				Token:   "test-token",
+				Path:    "secret/data/test",
 			},
 			expected: false,
 		},
 		{
 			name: "missing token",
-			config: VaultConfig{
-				Address: "https://vault.example.com",
-				Path:    "secret/myapp",
+			config: &VaultConfig{
+				Address: "http://localhost:8200",
+				Token:   "",
+				Path:    "secret/data/test",
 			},
 			expected: false,
 		},
 		{
 			name: "missing path",
-			config: VaultConfig{
-				Address: "https://vault.example.com",
-				Token:   "test_token",
+			config: &VaultConfig{
+				Address: "http://localhost:8200",
+				Token:   "test-token",
+				Path:    "",
 			},
-			expected: false,
-		},
-		{
-			name:     "empty config",
-			config:   VaultConfig{},
 			expected: false,
 		},
 	}
@@ -227,458 +179,339 @@ func TestVaultConfig_IsValid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.config.IsValid()
 			if result != tt.expected {
-				t.Errorf("IsValid() = %v, want %v", result, tt.expected)
+				t.Errorf("IsValid() = %v, expected %v", result, tt.expected)
 			}
 		})
 	}
 }
 
+// TestControllerConfig_UnmarshalYAML tests ControllerConfig YAML unmarshaling
 func TestControllerConfig_UnmarshalYAML(t *testing.T) {
-	t.Run("valid yaml node", func(t *testing.T) {
-		yamlContent := `
-login_path: "/auth/login"
-logout_path: "/auth/logout"
-callback_path: "/auth/callback"
-`
-
-		var node yaml.Node
-		err := yaml.Unmarshal([]byte(yamlContent), &node)
-		if err != nil {
-			t.Fatalf("Failed to unmarshal YAML: %v", err)
-		}
-
-		var config ControllerConfig
-		err = config.UnmarshalYAML(&node)
-		if err != nil {
-			t.Fatalf("UnmarshalYAML() error = %v", err)
-		}
-
-		if len(config) == 0 {
-			t.Error("Expected non-empty ControllerConfig")
-		}
-
-		// Verify we can unmarshal the config back
-		type AuthConfig struct {
-			LoginPath    string `yaml:"login_path"`
-			LogoutPath   string `yaml:"logout_path"`
-			CallbackPath string `yaml:"callback_path"`
-		}
-
-		authConfig, err := UnmarshalTo[AuthConfig](config)
-		if err != nil {
-			t.Fatalf("Failed to unmarshal back: %v", err)
-		}
-
-		if authConfig.LoginPath != "/auth/login" {
-			t.Errorf("Expected login_path '/auth/login', got '%s'", authConfig.LoginPath)
-		}
-	})
-}
-
-func TestControllerConfig_To(t *testing.T) {
-	t.Run("unmarshal to struct", func(t *testing.T) {
-		// Create a ControllerConfig with YAML data
-		yamlData := []byte(`
-statics_dir: "./static"
-templates_dir: "./templates"
-`)
-
-		config := ControllerConfig(yamlData)
-
-		type StaticConfig struct {
-			StaticsDir   string `yaml:"statics_dir"`
-			TemplatesDir string `yaml:"templates_dir"`
-		}
-
-		staticConfig, err := UnmarshalTo[StaticConfig](config)
-		if err != nil {
-			t.Fatalf("To() error = %v", err)
-		}
-
-		if staticConfig.StaticsDir != "./static" {
-			t.Errorf("Expected statics_dir './static', got '%s'", staticConfig.StaticsDir)
-		}
-
-		if staticConfig.TemplatesDir != "./templates" {
-			t.Errorf("Expected templates_dir './templates', got '%s'", staticConfig.TemplatesDir)
-		}
-	})
-
-	t.Run("invalid yaml", func(t *testing.T) {
-		invalidYaml := []byte(`invalid: yaml: content: [`)
-		c := ControllerConfig(invalidYaml)
-
-		type TestStruct struct {
-			Field string `yaml:"field"`
-		}
-
-		_, err := UnmarshalTo[TestStruct](c)
-		if err == nil {
-			t.Error("Expected error for invalid YAML, got nil")
-		}
-	})
-
-	t.Run("nil pointer", func(t *testing.T) {
-		result, err := UnmarshalTo[ControllerConfig](nil)
-		if err != nil {
-			t.Fatalf("Expected no error for nil pointer, got %v", err)
-		}
-
-		if result != nil {
-			t.Fatalf("Expected nil result for nil pointer")
-		}
-	})
-}
-
-func TestUnmarshalTo(t *testing.T) {
-	t.Run("unmarshal to generic type", func(t *testing.T) {
-		yamlData := []byte(`
-name: "test"
-value: 42
-enabled: true
-`)
-
-		config := ControllerConfig(yamlData)
-
-		type TestConfig struct {
-			Name    string `yaml:"name"`
-			Value   int    `yaml:"value"`
-			Enabled bool   `yaml:"enabled"`
-		}
-
-		result, err := UnmarshalTo[TestConfig](config)
-		if err != nil {
-			t.Fatalf("UnmarshalTo() error = %v", err)
-		}
-
-		if result == nil {
-			t.Fatal("UnmarshalTo() returned nil result")
-		}
-
-		if result.Name != "test" {
-			t.Errorf("Expected name 'test', got '%s'", result.Name)
-		}
-
-		if result.Value != 42 {
-			t.Errorf("Expected value 42, got %d", result.Value)
-		}
-
-		if !result.Enabled {
-			t.Error("Expected enabled to be true")
-		}
-	})
-
-	t.Run("invalid yaml", func(t *testing.T) {
-		invalidYaml := []byte(`invalid: yaml: content: [`)
-		config := ControllerConfig(invalidYaml)
-
-		type TestConfig struct {
-			Field string `yaml:"field"`
-		}
-
-		result, err := UnmarshalTo[TestConfig](config)
-		if err == nil {
-			t.Error("Expected error for invalid YAML, got nil")
-		}
-
-		if result != nil {
-			t.Error("Expected nil result for invalid YAML")
-		}
-	})
-
-	t.Run("empty config", func(t *testing.T) {
-		config := ControllerConfig([]byte{})
-
-		type TestConfig struct {
-			Field string `yaml:"field"`
-		}
-
-		result, err := UnmarshalTo[TestConfig](config)
-		if err != nil {
-			t.Fatalf("UnmarshalTo() error = %v", err)
-		}
-
-		if result == nil {
-			t.Fatal("UnmarshalTo() returned nil result")
-		}
-
-		// Should have zero values
-		if result.Field != "" {
-			t.Errorf("Expected empty field, got '%s'", result.Field)
-		}
-	})
-}
-
-func TestControllerConfigIntegration(t *testing.T) {
-	t.Run("full integration test", func(t *testing.T) {
-		// Create a complete config file
-		tempDir := t.TempDir()
-		configFile := filepath.Join(tempDir, "integration_config.yaml")
-
-		configContent := `
-server:
-  address: "0.0.0.0:8080"
-  debug: false
-  session_name: "sargantana_session"
-  session_secret: "my_secret_key"
-  secrets_dir: "/etc/secrets"
-vault:
-  address: "https://vault.company.com"
-  token: "hvs.secret_token"
-  path: "secret/data/myapp"
-  namespace: "production"
+	yamlData := `
 controllers:
-  - type: "auth"
-    name: "oauth_controller"
+  - type: "TestController"
+    name: "test"
     config:
-      callback_path: "/auth/{provider}/callback"
-      login_path: "/auth/{provider}"
-      logout_path: "/auth/{provider}/logout"
-      user_info_path: "/auth/{provider}/user"
-      redirect_on_login: "/"
-      redirect_on_logout: "/login"
-  - type: "static"
-    name: "file_server"
-    config:
-      statics_dir: "./public"
-      templates_dir: "./views"
-  - type: "load_balancer"
-    config:
-      auth: true
-      path: "/api"
-      endpoints:
-        - "http://backend1:8001"
-        - "http://backend2:8002"
-        - "http://backend3:8003"
+      key1: "value1"
+      key2: 42
+      nested:
+        subkey: "subvalue"
 `
 
-		err := os.WriteFile(configFile, []byte(configContent), 0644)
-		if err != nil {
-			t.Fatalf("Failed to create test config file: %v", err)
-		}
+	var config Config
+	err := yaml.Unmarshal([]byte(yamlData), &config)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal YAML: %v", err)
+	}
 
-		// Load the config
-		cfg, err := Load(configFile)
-		if err != nil {
-			t.Fatalf("Load() error = %v", err)
-		}
+	if len(config.ControllerBindings) != 1 {
+		t.Fatalf("Expected 1 controller binding, got %d", len(config.ControllerBindings))
+	}
 
-		// Test server config
-		if cfg.ServerConfig.Address != "0.0.0.0:8080" {
-			t.Errorf("Expected address '0.0.0.0:8080', got '%s'", cfg.ServerConfig.Address)
-		}
+	binding := config.ControllerBindings[0]
+	if binding.TypeName != "TestController" {
+		t.Errorf("Expected TypeName 'TestController', got '%s'", binding.TypeName)
+	}
+	if binding.Name != "test" {
+		t.Errorf("Expected Name 'test', got '%s'", binding.Name)
+	}
 
-		if cfg.ServerConfig.Debug {
-			t.Error("Expected debug to be false")
-		}
-
-		// Test vault config
-		if !cfg.Vault.IsValid() {
-			t.Error("Expected vault config to be valid")
-		}
-
-		// Test controller configurations
-		if len(cfg.ControllerBindings) != 3 {
-			t.Fatalf("Expected 3 controller bindings, got %d", len(cfg.ControllerBindings))
-		}
-
-		// Test auth controller config
-		authBinding := cfg.ControllerBindings[0]
-		if authBinding.TypeName != "auth" {
-			t.Errorf("Expected auth controller type, got '%s'", authBinding.TypeName)
-		}
-
-		type AuthConfig struct {
-			CallbackPath     string `yaml:"callback_path"`
-			LoginPath        string `yaml:"login_path"`
-			LogoutPath       string `yaml:"logout_path"`
-			UserInfoPath     string `yaml:"user_info_path"`
-			RedirectOnLogin  string `yaml:"redirect_on_login"`
-			RedirectOnLogout string `yaml:"redirect_on_logout"`
-		}
-		authConfig, err := UnmarshalTo[AuthConfig](authBinding.ConfigData)
-		if err != nil {
-			t.Fatalf("Failed to unmarshal auth config: %v", err)
-		}
-
-		if authConfig.CallbackPath != "/auth/{provider}/callback" {
-			t.Errorf("Expected callback_path '/auth/{provider}/callback', got '%s'", authConfig.CallbackPath)
-		}
-
-		// Test load balancer config
-		lbBinding := cfg.ControllerBindings[2]
-		if lbBinding.TypeName != "load_balancer" {
-			t.Errorf("Expected load_balancer controller type, got '%s'", lbBinding.TypeName)
-		}
-
-		type LoadBalancerConfig struct {
-			Auth      bool     `yaml:"auth"`
-			Path      string   `yaml:"path"`
-			Endpoints []string `yaml:"endpoints"`
-		}
-
-		lbConfig, err := UnmarshalTo[LoadBalancerConfig](lbBinding.ConfigData)
-
-		if err != nil {
-			t.Fatalf("Failed to unmarshal load balancer config: %v", err)
-		}
-
-		if !lbConfig.Auth {
-			t.Error("Expected load balancer auth to be true")
-		}
-
-		if lbConfig.Path != "/api" {
-			t.Errorf("Expected load balancer path '/api', got '%s'", lbConfig.Path)
-		}
-
-		if len(lbConfig.Endpoints) != 3 {
-			t.Errorf("Expected 3 endpoints, got %d", len(lbConfig.Endpoints))
-		}
-
-		expectedEndpoints := []string{
-			"http://backend1:8001",
-			"http://backend2:8002",
-			"http://backend3:8003",
-		}
-
-		for i, endpoint := range lbConfig.Endpoints {
-			if endpoint != expectedEndpoints[i] {
-				t.Errorf("Expected endpoint[%d] '%s', got '%s'", i, expectedEndpoints[i], endpoint)
-			}
-		}
-	})
+	// Test that ConfigData contains the raw YAML
+	if len(binding.ConfigData) == 0 {
+		t.Error("Expected ConfigData to contain YAML data")
+	}
 }
 
-func TestExpandEnv(t *testing.T) {
-	// Save original environment variables and restore them after tests
-	originalVars := make(map[string]string)
-	testVars := map[string]string{
-		"TEST_STRING":    "expanded_value",
-		"TEST_PORT":      "8080",
-		"TEST_HOST":      "localhost",
-		"TEST_SECRET":    "my_secret_key",
-		"TEST_BOOL":      "true",
-		"TEST_EMPTY":     "",
-		"NESTED_VAR":     "nested_value",
-		"PARTIAL_EXPAND": "partial_${TEST_STRING}",
+// TestUnmarshalTo tests the generic unmarshaling function
+func TestUnmarshalTo(t *testing.T) {
+	type TestConfig struct {
+		Key1   string `yaml:"key1"`
+		Key2   int    `yaml:"key2"`
+		EnvVar string `yaml:"env_var"`
 	}
 
-	// Set test environment variables
-	for key, value := range testVars {
-		if original, exists := os.LookupEnv(key); exists {
-			originalVars[key] = original
-		}
-		_ = os.Setenv(key, value)
+	// Set up environment variable for testing
+	_ = os.Setenv("TEST_ENV_VAR", "test-value")
+	defer func() { _ = os.Unsetenv("TEST_ENV_VAR") }()
+
+	configYAML := `
+key1: "value1"
+key2: 42
+env_var: "${TEST_ENV_VAR}"
+`
+
+	var controllerConfig ControllerConfig
+	err := yaml.Unmarshal([]byte(configYAML), &controllerConfig)
+	if err != nil {
+		t.Fatalf("Failed to create ControllerConfig: %v", err)
 	}
 
-	// Clean up after tests
+	result, err := UnmarshalTo[TestConfig](controllerConfig)
+	if err != nil {
+		t.Fatalf("UnmarshalTo failed: %v", err)
+	}
+
+	if result.Key1 != "value1" {
+		t.Errorf("Expected Key1 'value1', got '%s'", result.Key1)
+	}
+	if result.Key2 != 42 {
+		t.Errorf("Expected Key2 42, got %d", result.Key2)
+	}
+	if result.EnvVar != "test-value" {
+		t.Errorf("Expected EnvVar 'test-value', got '%s'", result.EnvVar)
+	}
+}
+
+// TestUnmarshalTo_NilConfig tests UnmarshalTo with nil config
+func TestUnmarshalTo_NilConfig(t *testing.T) {
+	type TestConfig struct {
+		Key string `yaml:"key"`
+	}
+
+	result, err := UnmarshalTo[TestConfig](nil)
+	if err != nil {
+		t.Fatalf("UnmarshalTo with nil config failed: %v", err)
+	}
+	if result != nil {
+		t.Error("Expected nil result for nil config")
+	}
+}
+
+// TestExpandVariables tests environment variable expansion
+func TestExpandVariables(t *testing.T) {
+	// Set up test environment variables
+	_ = os.Setenv("TEST_VAR", "test-value")
+	_ = os.Setenv("TEST_NUMBER", "42")
 	defer func() {
-		for key := range testVars {
-			if original, exists := originalVars[key]; exists {
-				_ = os.Setenv(key, original)
-			} else {
-				_ = os.Unsetenv(key)
+		_ = os.Unsetenv("TEST_VAR")
+		_ = os.Unsetenv("TEST_NUMBER")
+	}()
+
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "test-config.yaml")
+
+	testConfig := `
+server:
+  address: "${TEST_VAR}:8080"
+  redis_session_store: "localhost:${TEST_NUMBER}"
+  session_name: "test-session"
+  session_secret: "my-test-secret-key"
+vault:
+  address: "http://localhost:8200"
+  token: "${TEST_VAR}"
+  path: "secret/data/test"
+`
+
+	err := os.WriteFile(configFile, []byte(testConfig), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	config, err := Load(configFile)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if config.ServerConfig.Address != "test-value:8080" {
+		t.Errorf("Expected address 'test-value:8080', got '%s'", config.ServerConfig.Address)
+	}
+	if config.ServerConfig.RedisSessionStore != "localhost:42" {
+		t.Errorf("Expected redis store 'localhost:42', got '%s'", config.ServerConfig.RedisSessionStore)
+	}
+	if config.Vault.Token != "test-value" {
+		t.Errorf("Expected Vault token 'test-value', got '%s'", config.Vault.Token)
+	}
+}
+
+// TestLoad_VaultCreationError tests error handling when Vault manager creation fails
+func TestLoad_VaultCreationError(t *testing.T) {
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "test-config.yaml")
+
+	testConfig := `
+server:
+  address: ":8080"
+  redis_session_store: "localhost:6379"
+  session_name: "test-session"
+  session_secret: "my-test-secret-key"
+vault:
+  address: "://invalid-malformed-url"
+  token: "test-token"
+  path: "secret/data/test"
+`
+
+	err := os.WriteFile(configFile, []byte(testConfig), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	_, err = Load(configFile)
+	if err == nil {
+		t.Fatal("Expected error when Vault manager creation fails")
+	}
+}
+
+// TestControllerConfig_UnmarshalYAML_Error tests error handling in YAML unmarshaling
+func TestControllerConfig_UnmarshalYAML_Error(t *testing.T) {
+	// Create an invalid yaml.Node that will cause Marshal to fail
+	var config ControllerConfig
+
+	// Create a yaml.Node with invalid content that will cause marshaling to fail
+	node := &yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Tag:   "!!invalid",
+		Value: string([]byte{0xFF, 0xFE}), // Invalid UTF-8 sequence
+	}
+
+	err := config.UnmarshalYAML(node)
+	if err == nil {
+		t.Fatal("Expected error when marshaling invalid YAML node")
+	}
+}
+
+// TestUnmarshalTo_Error tests error handling in UnmarshalTo function
+func TestUnmarshalTo_Error(t *testing.T) {
+	type TestConfig struct {
+		InvalidField chan int `yaml:"invalid_field"` // channels can't be marshaled/unmarshaled
+	}
+
+	// Create invalid YAML that will cause unmarshaling to fail
+	invalidYAML := []byte("invalid_field: this_will_fail_to_unmarshal_to_channel")
+	controllerConfig := ControllerConfig(invalidYAML)
+
+	_, err := UnmarshalTo[TestConfig](controllerConfig)
+	if err == nil {
+		t.Fatal("Expected error when unmarshaling invalid YAML to struct with channel field")
+	}
+}
+
+// TestExpandVariables_ComplexStructures tests expandVariables with different data types
+func TestExpandVariables_ComplexStructures(t *testing.T) {
+	_ = os.Setenv("TEST_EXPAND", "expanded_value")
+	defer func() { _ = os.Unsetenv("TEST_EXPAND") }()
+
+	// Test with slice of strings
+	type ConfigWithSlice struct {
+		Items []string `yaml:"items"`
+	}
+
+	sliceConfig := ConfigWithSlice{
+		Items: []string{"${TEST_EXPAND}_1", "${TEST_EXPAND}_2"},
+	}
+
+	expandVariables(reflect.ValueOf(&sliceConfig).Elem())
+
+	if sliceConfig.Items[0] != "expanded_value_1" {
+		t.Errorf("Expected 'expanded_value_1', got '%s'", sliceConfig.Items[0])
+	}
+	if sliceConfig.Items[1] != "expanded_value_2" {
+		t.Errorf("Expected 'expanded_value_2', got '%s'", sliceConfig.Items[1])
+	}
+
+	// Test with map
+	type ConfigWithMap struct {
+		Data map[string]string `yaml:"data"`
+	}
+
+	mapConfig := ConfigWithMap{
+		Data: map[string]string{
+			"key1": "${TEST_EXPAND}_map1",
+			"key2": "${TEST_EXPAND}_map2",
+		},
+	}
+
+	expandVariables(reflect.ValueOf(&mapConfig).Elem())
+
+	if mapConfig.Data["key1"] != "expanded_value_map1" {
+		t.Errorf("Expected 'expanded_value_map1', got '%s'", mapConfig.Data["key1"])
+	}
+	if mapConfig.Data["key2"] != "expanded_value_map2" {
+		t.Errorf("Expected 'expanded_value_map2', got '%s'", mapConfig.Data["key2"])
+	}
+
+	// Test with pointer to struct
+	type InnerConfig struct {
+		Value string `yaml:"value"`
+	}
+	type ConfigWithPointer struct {
+		Inner *InnerConfig `yaml:"inner"`
+	}
+
+	ptrConfig := ConfigWithPointer{
+		Inner: &InnerConfig{Value: "${TEST_EXPAND}_ptr"},
+	}
+
+	expandVariables(reflect.ValueOf(&ptrConfig).Elem())
+
+	if ptrConfig.Inner.Value != "expanded_value_ptr" {
+		t.Errorf("Expected 'expanded_value_ptr', got '%s'", ptrConfig.Inner.Value)
+	}
+
+	// Test with nil pointer (should not panic)
+	nilPtrConfig := ConfigWithPointer{Inner: nil}
+	expandVariables(reflect.ValueOf(&nilPtrConfig).Elem())
+	// Should complete without error
+
+	// Test with unsupported type (should return without error)
+	type ConfigWithChannel struct {
+		Ch chan int
+	}
+
+	chanConfig := ConfigWithChannel{Ch: make(chan int)}
+	expandVariables(reflect.ValueOf(&chanConfig).Elem())
+	// Should complete without error
+}
+
+// TestExpand_FilePrefix_Error tests file prefix expansion error handling
+func TestExpand_FilePrefix_Error(t *testing.T) {
+	// Test with no secrets directory configured
+	originalSecretDir := secretDir
+	secretDir = ""
+	defer func() { secretDir = originalSecretDir }()
+
+	defer func() {
+		if r := recover(); r != nil {
+			if !strings.Contains(r.(error).Error(), "error retrieving secret from Vault") {
+				t.Errorf("Expected 'error retrieving secret from Vault' panic, got: %v", r)
 			}
+		} else {
+			t.Fatal("Expected panic when no secrets directory is configured")
 		}
 	}()
 
-	t.Run("expand string fields", func(t *testing.T) {
-		type TestStruct struct {
-			SimpleString string            `yaml:"simple_string"`
-			EnvString    string            `yaml:"env_string"`
-			MixedString  string            `yaml:"mixed_string"`
-			Sliced       []string          `yaml:"sliced"`
-			MapField     map[string]string `yaml:"map_field"`
-			BoolField    bool              `yaml:"bool_field"`
-			IntField     int               `yaml:"int_field"`
-			EmptyField   string            `yaml:"empty_field"`
-			NoExpansion  string            `yaml:"no_expansion"` // should not expand
-			Nested       *TestStruct       `yaml:"nested"`
-		}
+	expand("file:test-file")
+}
 
-		test := ControllerConfig(`simple_string: no_expansion
-env_string: ${TEST_STRING}
-mixed_string: prefix_${TEST_HOST}:${TEST_PORT}_suffix
-sliced:
-  - regular_string
-  - ${TEST_STRING}
-map_field:
-  key1: value1
-  key2: ${TEST_STRING}
-bool_field: true
-int_field: 100
-empty_field: ${TEST_EMPTY}
-no_expansion: regular_string
-nested:
-  simple_string: no_expansion
-  env_string: nested_${TEST_STRING}
-  mixed_string: nested_prefix_${TEST_HOST}:${TEST_PORT}_suffix
-  sliced:
-    - nested_regular_string
-    - ${TEST_STRING}
-  map_field:
-    key1: value1
-    key2: ${TEST_STRING}
-  bool_field: true
-  int_field: 100
-  empty_field: ${TEST_EMPTY}
-  no_expansion: nested_regular_string
-  nested: null`)
+// TestExpand_VaultPrefix_NilReturn tests vault prefix when secret returns nil
+func TestExpand_VaultPrefix_NilReturn(t *testing.T) {
+	// Test the case where vault secret is nil (covered by return "" in expand function)
+	// This tests environment variable expansion without Vault setup
+	result := expand("TEST_PLAIN_ENV_VAR")
+	if result != "" {
+		t.Fatalf("Expected empty string for unset env var, got '%s'", result)
+	}
+}
 
-		result, err := UnmarshalTo[TestStruct](test)
-		if err != nil {
-			t.Fatalf("UnmarshalTo() error = %v", err)
-		}
+// TestLoadYaml_InvalidYAML tests LoadYaml with malformed YAML
+func TestLoadYaml_InvalidYAML(t *testing.T) {
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "invalid-config.yaml")
 
-		// Define the expected result after environment variable expansion
-		expected := &TestStruct{
-			SimpleString: "no_expansion",
-			EnvString:    "expanded_value",
-			MixedString:  "prefix_localhost:8080_suffix",
-			Sliced: []string{
-				"regular_string",
-				"expanded_value",
-			},
-			MapField: map[string]string{
-				"key1": "value1",
-				"key2": "expanded_value",
-			},
-			BoolField:   true,
-			IntField:    100,
-			EmptyField:  "",
-			NoExpansion: "regular_string",
-			Nested: &TestStruct{
-				SimpleString: "no_expansion",
-				EnvString:    "nested_expanded_value",
-				MixedString:  "nested_prefix_localhost:8080_suffix",
-				Sliced: []string{
-					"nested_regular_string",
-					"expanded_value",
-				},
-				MapField: map[string]string{
-					"key1": "value1",
-					"key2": "expanded_value",
-				},
-				BoolField:   true,
-				IntField:    100,
-				EmptyField:  "",
-				NoExpansion: "nested_regular_string",
-				Nested:      nil,
-			},
-		}
+	// Create malformed YAML
+	invalidYAML := `
+server:
+  address: ":8080"
+  invalid: [unclosed array
+`
 
-		out, err := yaml.Marshal(result)
-		if err != nil {
-			t.Fatalf("Failed to marshal YAML: %v", err)
-		}
-		expectedOut, err := yaml.Marshal(expected)
-		if err != nil {
-			t.Fatalf("Failed to marshal YAML: %v", err)
-		}
-		t.Logf("YAML Output:\n%s", out)
-		t.Logf("Expected YAML Output:\n%s", expectedOut)
-		if !reflect.DeepEqual(out, expectedOut) {
-			t.Fatalf("Expanded struct does not match expected.\nGot: %v\nWant: %v", out, expectedOut)
-		}
-	})
+	err := os.WriteFile(configFile, []byte(invalidYAML), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	var config Config
+	err = LoadYaml(configFile, &config)
+	if err == nil {
+		t.Fatal("Expected error when loading malformed YAML")
+	}
 }

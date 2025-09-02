@@ -58,7 +58,7 @@ func Load(file string) (*Config, error) {
 		return nil, err
 	}
 
-	expandVariables(reflect.ValueOf(cfg.ServerConfig))
+	expandVariables(reflect.ValueOf(&cfg.ServerConfig).Elem())
 	if cfg.ServerConfig.SessionSecret == "" {
 		return nil, errors.New("session_secret must be set and non-empty")
 	}
@@ -68,7 +68,9 @@ func Load(file string) (*Config, error) {
 	}
 	secretDir = cfg.ServerConfig.SecretsDir
 
-	expandVariables(reflect.ValueOf(cfg.Vault).Elem())
+	if cfg.Vault != nil {
+		expandVariables(reflect.ValueOf(cfg.Vault).Elem())
+	}
 	if cfg.Vault.IsValid() {
 		err = cfg.createVaultManager()
 		if err != nil {
