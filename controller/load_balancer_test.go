@@ -463,10 +463,10 @@ func TestNewLoadBalancerController_InvalidURL(t *testing.T) {
 	controller, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
 
 	if err == nil {
-		t.Error("Expected error for invalid URL, but got none")
+		t.Fatal("Expected error for invalid URL, but got none")
 	}
 	if controller != nil {
-		t.Error("Expected nil controller for invalid URL")
+		t.Fatal("Expected nil controller for invalid URL")
 	}
 
 	// Verify the error message contains the expected format
