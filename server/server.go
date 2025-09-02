@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"reflect"
 	"syscall"
 	"time"
 
@@ -36,7 +35,7 @@ type Server struct {
 }
 
 // controllerRegistry holds the mapping of controller type names to their factory functions.
-var controllerRegistry = make(map[string]controller.NewController)
+var controllerRegistry = make(map[string]controller.Constructor)
 
 // NewServer creates a new Server instance by loading configuration from the specified file.
 //
@@ -52,16 +51,20 @@ func NewServer(configFile string) (*Server, error) {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to load config file: %s", configFile))
 	}
 
-	controllers, err := configureControllers(c)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to configure controllers")
+	controllers, configurationErrors := configureControllers(c)
+	if len(configurationErrors) > 0 {
+		log.Println("Configuration errors encountered, affected controllers have been excluded from bootstrap:")
+		for _, configErr := range configurationErrors {
+			log.Printf(" - %v\n", configErr)
+		}
+	} else {
+		log.Println("Configuration loaded successfully")
 	}
 
-	log.Println("Configuration loaded successfully")
 	return &Server{config: c, controllers: controllers}, nil
 }
 
-func AddController(typeName string, factory controller.NewController) {
+func AddController(typeName string, factory controller.Constructor) {
 	log.Printf("Registering controller type %q", typeName)
 	_, exists := controllerRegistry[typeName]
 	if exists {
@@ -70,8 +73,7 @@ func AddController(typeName string, factory controller.NewController) {
 	controllerRegistry[typeName] = factory
 }
 
-func configureControllers(c *config.Config) ([]controller.IController, error) {
-	var controllers []controller.IController
+func configureControllers(c *config.Config) (controllers []controller.IController, configErrors []error) {
 	for _, binding := range c.ControllerBindings {
 		name := "unnamed"
 		if binding.Name != "" {
@@ -80,16 +82,32 @@ func configureControllers(c *config.Config) ([]controller.IController, error) {
 
 		factory, exists := controllerRegistry[binding.TypeName]
 		if !exists {
-			return nil, fmt.Errorf("no configurator found for %s controller type: %s", name, binding.TypeName)
+			configErrors = append(configErrors, fmt.Errorf("no configurator found for %s controller type: %q", name, binding.TypeName))
+			continue
 		}
-		log.Printf("Configuring %s controller of type: %s", name, binding.TypeName)
-		newController, err := factory(binding.ConfigData, c.ServerConfig)
-		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("failed to configure %s controller of type: %s", name, binding.TypeName))
+
+		newController, err := newController(c, name, binding, factory)
+		if err == nil {
+			controllers = append(controllers, newController)
+		} else {
+			configErrors = append(configErrors, fmt.Errorf("error configuring %q controller of type %q: %v", name, binding.TypeName, err))
 		}
-		controllers = append(controllers, newController)
 	}
-	return controllers, nil
+	return controllers, configErrors
+}
+
+func newController(c *config.Config, name string, binding config.ControllerBinding, factory controller.Constructor) (newController controller.IController, err error) {
+	log.Printf("Configuring %s controller of type: %s", name, binding.TypeName)
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic during %q controller configuration, controller was not added: %v", name, r)
+			newController = nil
+		}
+	}()
+	if newController, err = factory(binding.ConfigData, c.ServerConfig); err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to configure %s controller of type: %s", name, binding.TypeName))
+	}
+	return newController, err
 }
 
 // StartAndWaitForSignal starts the HTTP server and waits for an OS signal to gracefully shut it down.
@@ -127,9 +145,9 @@ func (s *Server) Start() error {
 		} else {
 			log.Printf("Not using Vault for secrets\n")
 		}
-		log.Printf("Registered controllers:\n")
+		log.Printf("Expected controllers:\n")
 		for _, binding := range s.config.ControllerBindings {
-			log.Printf(" - Type: %s, Name: %s, Config Type: %s\n", binding.TypeName, binding.Name, reflect.TypeOf(binding.ConfigData))
+			log.Printf(" - Type: %s, Name: %s, Config Type: %s\n", binding.TypeName, binding.Name, string(binding.ConfigData))
 		}
 		gin.SetMode(gin.DebugMode)
 	} else {

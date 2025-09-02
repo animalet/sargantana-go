@@ -13,7 +13,7 @@ server:
 vault:
   address: "http://localhost:8200"  # Vault server address
   token: "${VAULT_TOKEN}"                     # Vault authentication token (can use env var)
-  path: "secret/sargantana"                   # Path to secrets in Vault (for KV v2 engine)
+  path: "secret/data/sargantana"              # Path to secrets in Vault (for KV v2 engine)
   namespace: ""                               # Optional: Vault namespace for Enterprise (leave empty for OSS)
 
 # Controller configurations

@@ -30,5 +30,5 @@ type IController interface {
 	Close() error
 }
 
-// NewController is a factory function that creates a new controller instance.
-type NewController func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (IController, error)
+// Constructor is a factory function that creates a new controller instance.
+type Constructor func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (IController, error)
