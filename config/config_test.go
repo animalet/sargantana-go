@@ -19,7 +19,10 @@ func TestLoadYaml(t *testing.T) {
 	testConfig := `
 server:
   address: ":8080"
-  redis_session_store: "localhost:6379"
+  redis_session_store:
+    address: "localhost:6379"
+    max_idle: 10
+    idle_timeout: 240s
   session_name: "test-session"
   session_secret: "test-secret-key"
   debug: true
@@ -61,7 +64,10 @@ func TestLoad_ValidConfig(t *testing.T) {
 	testConfig := `
 server:
   address: ":8080"
-  redis_session_store: "localhost:6379"
+  redis_session_store:
+    address: "localhost:6379"
+    max_idle: 10
+    idle_timeout: 240s
   session_name: "test-session"
   session_secret: "my-test-secret-key"
   debug: true
@@ -103,7 +109,10 @@ func TestLoad_MissingSessionSecret(t *testing.T) {
 	testConfig := `
 server:
   address: ":8080"
-  redis_session_store: "localhost:6379"
+  redis_session_store:
+    address: "localhost:6379"
+    max_idle: 10
+    idle_timeout: 240s
   session_name: "test-session"
   # session_secret is missing
 `
@@ -290,7 +299,10 @@ func TestExpandVariables(t *testing.T) {
 	testConfig := `
 server:
   address: "${TEST_VAR}:8080"
-  redis_session_store: "localhost:${TEST_NUMBER}"
+  redis_session_store:
+    address: "localhost:${TEST_NUMBER}"
+    max_idle: 10
+    idle_timeout: 240s
   session_name: "test-session"
   session_secret: "my-test-secret-key"
 vault:
@@ -312,8 +324,11 @@ vault:
 	if config.ServerConfig.Address != "test-value:8080" {
 		t.Errorf("Expected address 'test-value:8080', got '%s'", config.ServerConfig.Address)
 	}
-	if config.ServerConfig.RedisSessionStore != "localhost:42" {
-		t.Errorf("Expected redis store 'localhost:42', got '%s'", config.ServerConfig.RedisSessionStore)
+	if config.ServerConfig.RedisSessionStore == nil {
+		t.Fatal("Expected RedisSessionStore to be configured")
+	}
+	if config.ServerConfig.RedisSessionStore.Address != "localhost:42" {
+		t.Errorf("Expected redis store address 'localhost:42', got '%s'", config.ServerConfig.RedisSessionStore.Address)
 	}
 	if config.Vault.Token != "test-value" {
 		t.Errorf("Expected Vault token 'test-value', got '%s'", config.Vault.Token)
@@ -328,7 +343,10 @@ func TestLoad_VaultCreationError(t *testing.T) {
 	testConfig := `
 server:
   address: ":8080"
-  redis_session_store: "localhost:6379"
+  redis_session_store:
+    address: "localhost:6379"
+    max_idle: 10
+    idle_timeout: 240s
   session_name: "test-session"
   session_secret: "my-test-secret-key"
 vault:

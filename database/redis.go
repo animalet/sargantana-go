@@ -4,25 +4,38 @@
 package database
 
 import (
+	"crypto/tls"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
 )
 
-// NewRedisPool creates a new Redis connection pool with optimized settings for web applications.
-// The pool includes connection health checking, idle connection management, and automatic reconnection.
-// This pool is primarily used for session storage but can also be used for general Redis operations.
+// RedisConfig holds configuration options for Redis connection pool
+type RedisConfig struct {
+	Address     string        `yaml:"address"`
+	Password    string        `yaml:"password,omitempty"`
+	Database    *int          `yaml:"database,omitempty"`
+	MaxIdle     int           `yaml:"max_idle"`
+	IdleTimeout time.Duration `yaml:"idle_timeout"`
+	TLS         *TLSConfig    `yaml:"tls,omitempty"`
+}
+
+// TLSConfig holds TLS configuration for Redis connections
+type TLSConfig struct {
+	InsecureSkipVerify bool
+	CertFile           string
+	KeyFile            string
+	CAFile             string
+}
+
+// NewRedisPoolWithConfig creates a new Redis connection pool with custom configuration.
+// This function provides full control over connection parameters including TLS settings.
 //
 // Parameters:
-//   - address: Redis server address in "host:port" format (e.g., "localhost:6379")
+//   - config: RedisConfig struct containing all connection parameters
 //
 // Returns a configured Redis connection pool ready for use.
-// The pool automatically manages connections and includes:
-//   - Health checking with PING commands for connections older than 1 minute
-//   - Maximum of 10 idle connections
-//   - 240-second idle timeout for unused connections
-//   - Automatic TCP connection establishment
-func NewRedisPool(address string) *redis.Pool {
+func NewRedisPoolWithConfig(config *RedisConfig) *redis.Pool {
 	return &redis.Pool{
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
 			if time.Since(t) < time.Minute {
@@ -31,8 +44,47 @@ func NewRedisPool(address string) *redis.Pool {
 			_, err := c.Do("PING")
 			return err
 		},
-		MaxIdle:     10,
-		IdleTimeout: 240 * time.Second,
-		Dial:        func() (redis.Conn, error) { return redis.Dial("tcp", address) },
+		MaxIdle:     config.MaxIdle,
+		IdleTimeout: config.IdleTimeout,
+		Dial: func() (redis.Conn, error) {
+			return dialRedis(config)
+		},
 	}
+}
+
+// dialRedis establishes a Redis connection with the given configuration
+func dialRedis(config *RedisConfig) (redis.Conn, error) {
+	var opts []redis.DialOption
+
+	// Add password authentication if provided
+	if config.Password != "" {
+		opts = append(opts, redis.DialPassword(config.Password))
+	}
+
+	// Add database selection if specified
+	if config.Database != nil {
+		opts = append(opts, redis.DialDatabase(*config.Database))
+	}
+
+	// Configure TLS if enabled
+	if config.TLS != nil {
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: config.TLS.InsecureSkipVerify,
+		}
+
+		// Load client certificates if provided
+		if config.TLS.CertFile != "" && config.TLS.KeyFile != "" {
+			cert, err := tls.LoadX509KeyPair(config.TLS.CertFile, config.TLS.KeyFile)
+			if err != nil {
+				return nil, err
+			}
+			tlsConfig.Certificates = []tls.Certificate{cert}
+		}
+
+		opts = append(opts, redis.DialTLSConfig(tlsConfig))
+		return redis.Dial("tcp", config.Address, opts...)
+	}
+
+	// Default TCP connection
+	return redis.Dial("tcp", config.Address, opts...)
 }

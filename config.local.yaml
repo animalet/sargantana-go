@@ -4,7 +4,12 @@
 # Server configuration
 server:
   address: "localhost:8080"
-  redis_session_store: "localhost:6379"  # Optional: Redis for session storage, default is cookie-based
+  redis_session_store:  # Optional: Redis for session storage, default is cookie-based
+    address: "localhost:6379"  # Redis server address
+    password: ""           # Redis password (if any)
+    db: 0                  # Redis database number
+    max_idle: 10          # Max idle connections
+    idle_timeout: "2m"     # Idle timeout in seconds
   secrets_dir: ".secrets"            # Directory containing secret files
   session_name: "sargantana_session"    # Session cookie name
   session_secret: "${SESSION_SECRET}"  # Session secret (can use env var)

@@ -82,7 +82,10 @@ server:
   session_name: "test_session"
   session_secret: "test-session-secret-key"
   secrets_dir: "` + secretsDir + `"
-  redis_session_store: "redis://localhost:6379"
+  redis_session_store:
+    address: "localhost:6379"
+    max_idle: 10
+    idle_timeout: 240s
 controllers:
   - type: "mock"
     name: "test_controller"
@@ -107,8 +110,10 @@ controllers:
 		t.Fatalf("Failed to create server: %v", err)
 	}
 
-	if server.config.ServerConfig.RedisSessionStore != "redis://localhost:6379" {
+	if server.config.ServerConfig.RedisSessionStore == nil {
 		t.Error("Expected Redis session store to be configured")
+	} else if server.config.ServerConfig.RedisSessionStore.Address != "localhost:6379" {
+		t.Errorf("Expected Redis address to be 'localhost:6379', got '%s'", server.config.ServerConfig.RedisSessionStore.Address)
 	}
 
 	if server.config.ServerConfig.SessionName != "test_session" {
@@ -190,7 +195,6 @@ server:
   session_name: "test_session"
   session_secret: "test-session-secret-key"
   secrets_dir: "` + secretsDir + `"
-  redis_session_store: ""
 controllers:
   - type: "mock"
     name: "test_controller"
@@ -281,7 +285,6 @@ server:
   session_name: "test_session"
   session_secret: "test-session-secret-key"
   secrets_dir: "` + secretsDir + `"
-  redis_session_store: ""
 controllers:
   - type: "mock"
     name: "test_controller"
@@ -321,8 +324,8 @@ controllers:
 		t.Error("Expected cookie session storage message not found in logs")
 	}
 
-	if server.config.ServerConfig.RedisSessionStore != "" {
-		t.Error("Expected Redis session store to be empty")
+	if server.config.ServerConfig.RedisSessionStore != nil {
+		t.Error("Expected Redis session store to be nil when not configured")
 	}
 
 	// Cleanup
@@ -361,7 +364,6 @@ server:
   session_name: "test_session"
   session_secret: "test-session-secret-key"
   secrets_dir: "` + secretsDir + `"
-  redis_session_store: ""
 controllers:
   - type: "mock"
     name: "test_controller"
@@ -434,20 +436,6 @@ func TestNewServer(t *testing.T) {
 			},
 			expectError: false,
 		},
-		{
-			name: "debug server config",
-			configData: config.Config{
-				ServerConfig: config.ServerConfig{
-					Address:           "0.0.0.0:9000",
-					RedisSessionStore: "localhost:6379",
-					SecretsDir:        "/secrets",
-					SessionName:       "redis-session",
-					SessionSecret:     "test-secret",
-				},
-				ControllerBindings: []config.ControllerBinding{},
-			},
-			expectError: false,
-		},
 	}
 
 	for _, tt := range tests {
@@ -458,7 +446,6 @@ func TestNewServer(t *testing.T) {
 
 			configContent := `server:
   address: "` + tt.configData.ServerConfig.Address + `"
-  redis_session_store: "` + tt.configData.ServerConfig.RedisSessionStore + `"
   secrets_dir: "` + tt.configData.ServerConfig.SecretsDir + `"
   session_name: "` + tt.configData.ServerConfig.SessionName + `"
   session_secret: "` + tt.configData.ServerConfig.SessionSecret + `"
@@ -489,9 +476,12 @@ controllers: []`
 				if server.config.ServerConfig.Address != tt.configData.ServerConfig.Address {
 					t.Errorf("Address = %v, want %v", server.config.ServerConfig.Address, tt.configData.ServerConfig.Address)
 				}
-				if server.config.ServerConfig.RedisSessionStore != tt.configData.ServerConfig.RedisSessionStore {
-					t.Errorf("Redis = %v, want %v", server.config.ServerConfig.RedisSessionStore, tt.configData.ServerConfig.RedisSessionStore)
+
+				// Redis session store should be nil for basic config
+				if server.config.ServerConfig.RedisSessionStore != nil {
+					t.Error("Expected Redis session store to be nil for basic config")
 				}
+
 				if server.config.ServerConfig.SecretsDir != tt.configData.ServerConfig.SecretsDir {
 					t.Errorf("SecretsDir = %v, want %v", server.config.ServerConfig.SecretsDir, tt.configData.ServerConfig.SecretsDir)
 				}
