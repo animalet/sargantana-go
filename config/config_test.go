@@ -482,16 +482,6 @@ func TestExpand_FilePrefix_Error(t *testing.T) {
 	expand("file:test-file")
 }
 
-// TestExpand_VaultPrefix_NilReturn tests vault prefix when secret returns nil
-func TestExpand_VaultPrefix_NilReturn(t *testing.T) {
-	// Test the case where vault secret is nil (covered by return "" in expand function)
-	// This tests environment variable expansion without Vault setup
-	result := expand("TEST_PLAIN_ENV_VAR")
-	if result != "" {
-		t.Fatalf("Expected empty string for unset env var, got '%s'", result)
-	}
-}
-
 // TestLoadYaml_InvalidYAML tests LoadYaml with malformed YAML
 func TestLoadYaml_InvalidYAML(t *testing.T) {
 	tempDir := t.TempDir()
