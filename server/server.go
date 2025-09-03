@@ -154,7 +154,11 @@ func (s *Server) Start() error {
 		if s.config.ServerConfig.RedisSessionStore == nil {
 			logger.Debug("Use cookies for session storage")
 		} else {
-			logger.Debugf("Use Redis for session storage: %v", s.config.ServerConfig.RedisSessionStore)
+			logger.Debugf(
+				"Use Redis for session storage at %q, DB: %d, TLS: %+v",
+				s.config.ServerConfig.RedisSessionStore.Address,
+				s.config.ServerConfig.RedisSessionStore.Database,
+				s.config.ServerConfig.RedisSessionStore.TLS)
 		}
 		logger.Debugf("Session cookie name: %q", s.config.ServerConfig.SessionName)
 		if s.config.Vault != nil {
