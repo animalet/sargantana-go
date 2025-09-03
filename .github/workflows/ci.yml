@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0
 
       - name: Start services
-        run: docker-compose up -d --build
+        run: docker compose up -d --build
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -76,4 +76,4 @@ jobs:
 
       - name: Stop and remove containers
         if: always()
-        run: docker-compose down
+        run: docker compose down
