@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,11 +16,12 @@ import (
 	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
 	"github.com/animalet/sargantana-go/database"
-	"github.com/animalet/sargantana-go/logger"
 	"github.com/animalet/sargantana-go/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // Server represents the main HTTP server instance for the Sargantana Go framework.
@@ -42,11 +42,9 @@ var debug = false
 func SetDebug(debugEnabled bool) {
 	debug = debugEnabled
 	if debug {
-		logger.SetLevel(logger.DEBUG)
-		logger.SetFlags(log.Ldate | log.Ltime | log.Lmsgprefix | log.Lshortfile)
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	} else {
-		logger.SetLevel(logger.INFO)
-		logger.SetFlags(log.Ldate | log.Ltime | log.Lmsgprefix)
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 }
 
@@ -70,22 +68,22 @@ func NewServer(configFile string) (*Server, error) {
 
 	controllers, configurationErrors := configureControllers(c)
 	if len(configurationErrors) > 0 {
-		logger.Error("Configuration errors encountered, affected controllers have been excluded from bootstrap:")
+		log.Error().Msg("Configuration errors encountered, affected controllers have been excluded from bootstrap:")
 		for _, configErr := range configurationErrors {
-			logger.Errorf(" - %v", configErr)
+			log.Error().Msgf(" - %v", configErr)
 		}
 	} else {
-		logger.Info("Configuration loaded successfully")
+		log.Info().Msg("Configuration loaded successfully")
 	}
 
 	return &Server{config: c, controllers: controllers}, nil
 }
 
 func AddControllerType(typeName string, factory controller.Constructor) {
-	logger.Infof("Registering controller type %q", typeName)
+	log.Info().Msgf("Registering controller type %q", typeName)
 	_, exists := controllerRegistry[typeName]
 	if exists {
-		logger.Warnf("Controller type %q is already registered, overriding", typeName)
+		log.Warn().Msgf("Controller type %q is already registered, overriding", typeName)
 	}
 	controllerRegistry[typeName] = factory
 }
@@ -114,7 +112,7 @@ func configureControllers(c *config.Config) (controllers []controller.IControlle
 }
 
 func newController(c *config.Config, name string, binding config.ControllerBinding, factory controller.Constructor) (newController controller.IController, err error) {
-	logger.Infof("Configuring %s controller of type: %s", name, binding.TypeName)
+	log.Info().Msgf("Configuring %s controller of type: %s", name, binding.TypeName)
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("panic during %q controller configuration, controller was not added: %v", name, r)
@@ -144,31 +142,31 @@ func (s *Server) StartAndWaitForSignal() error {
 // This function must be called before the server can handle requests.
 func (s *Server) Start() error {
 	if debug {
-		logger.Debug("Debug mode is enabled")
+		log.Debug().Msg("Debug mode is enabled")
 		if s.config.ServerConfig.SecretsDir == "" {
-			logger.Debug("No secrets directory configured")
+			log.Debug().Msg("No secrets directory configured")
 		} else {
-			logger.Debugf("Secrets directory: %q", s.config.ServerConfig.SecretsDir)
+			log.Debug().Msgf("Secrets directory: %q", s.config.ServerConfig.SecretsDir)
 		}
-		logger.Debugf("Listen address: %q", s.config.ServerConfig.Address)
+		log.Debug().Msgf("Listen address: %q", s.config.ServerConfig.Address)
 		if s.config.ServerConfig.RedisSessionStore == nil {
-			logger.Debug("Use cookies for session storage")
+			log.Debug().Msg("Use cookies for session storage")
 		} else {
-			logger.Debugf(
+			log.Debug().Msgf(
 				"Use Redis for session storage at %q, DB: %d, TLS: %+v",
 				s.config.ServerConfig.RedisSessionStore.Address,
 				s.config.ServerConfig.RedisSessionStore.Database,
 				s.config.ServerConfig.RedisSessionStore.TLS)
 		}
-		logger.Debugf("Session cookie name: %q", s.config.ServerConfig.SessionName)
+		log.Debug().Msgf("Session cookie name: %q", s.config.ServerConfig.SessionName)
 		if s.config.Vault != nil {
-			logger.Debugf("Using Vault for secrets at %q, path: %q, namespace: %q", s.config.Vault.Address, s.config.Vault.Path, s.config.Vault.Namespace)
+			log.Debug().Msgf("Using Vault for secrets at %q, path: %q, namespace: %q", s.config.Vault.Address, s.config.Vault.Path, s.config.Vault.Namespace)
 		} else {
-			logger.Debug("Not using Vault for secrets")
+			log.Debug().Msg("Not using Vault for secrets")
 		}
-		logger.Debug("Expected controllers:")
+		log.Debug().Msg("Expected controllers:")
 		for _, binding := range s.config.ControllerBindings {
-			logger.Debugf(" - Type: %s, Name: %s, Config Type: %s", binding.TypeName, binding.Name, string(binding.ConfigData))
+			log.Debug().Msgf(" - Type: %s, Name: %s, Config Type: %s", binding.TypeName, binding.Name, string(binding.ConfigData))
 		}
 		gin.SetMode(gin.DebugMode)
 	} else {
@@ -183,7 +181,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) bootstrap() error {
-	logger.Info("Bootstrapping server...")
+	log.Info().Msg("Bootstrapping server...")
 
 	// Initialize Gin engine
 	engine := gin.New()
@@ -194,7 +192,7 @@ func (s *Server) bootstrap() error {
 	}
 
 	if isReleaseMode {
-		logger.Info("Running in release mode")
+		log.Info().Msg("Running in release mode")
 		err := engine.SetTrustedProxies(nil)
 		if err != nil {
 			return err
@@ -219,7 +217,7 @@ func (s *Server) bootstrap() error {
 		Handler: engine,
 	}
 
-	logger.Infof("Starting server on %s", s.config.ServerConfig.Address)
+	log.Info().Msgf("Starting server on %s", s.config.ServerConfig.Address)
 	s.listenAndServe()
 
 	return nil
@@ -233,10 +231,10 @@ func (s *Server) createSessionStore(isReleaseMode bool) (sessions.Store, error) 
 	}
 	sessionSecret := []byte(secret)
 	if s.config.ServerConfig.RedisSessionStore == nil {
-		logger.Info("Using cookies for session storage")
+		log.Info().Msg("Using cookies for session storage")
 		sessionStore = session.NewCookieStore(isReleaseMode, sessionSecret)
 	} else {
-		logger.Info("Using Redis for session storage")
+		log.Info().Msg("Using Redis for session storage")
 		pool := database.NewRedisPoolWithConfig(s.config.ServerConfig.RedisSessionStore)
 		s.addShutdownHook(func() error { return pool.Close() })
 		var err error
@@ -254,14 +252,14 @@ func (s *Server) waitForSignal() error {
 	// kill -2 is syscall.SIGINT
 	// kill -9 is syscall.SIGKILL but can't be caught, so don't need to add it
 	signal.Notify(s.shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
-	logger.Infof("Shutdown signal received (%s)", <-s.shutdownChannel)
+	log.Info().Msgf("Shutdown signal received (%s)", <-s.shutdownChannel)
 	return s.Shutdown()
 }
 
 func (s *Server) listenAndServe() {
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Fatalf("Listen error: %s", err)
+			log.Fatal().Msgf("Listen error: %s", err)
 		}
 	}()
 }
@@ -273,7 +271,7 @@ func (s *Server) addShutdownHook(f func() error) {
 // Shutdown gracefully shuts down the server, waiting for active connections to complete
 // and freeing up resources. It executes registered shutdown hooks in the process.
 func (s *Server) Shutdown() error {
-	logger.Info("Shutting down server...")
+	log.Info().Msg("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -283,14 +281,14 @@ func (s *Server) Shutdown() error {
 	}
 
 	// Free up resources used by controllers
-	logger.Info("Executing shutdown hooks...")
+	log.Info().Msg("Executing shutdown hooks...")
 	for _, hook := range s.shutdownHooks {
 		if err := hook(); err != nil {
-			logger.Errorf("Error during shutdown hook: %s", err)
+			log.Error().Msgf("Error during shutdown hook: %s", err)
 		}
 	}
 
-	logger.Info("Server exited gracefully")
+	log.Info().Msg("Server exited gracefully")
 	return nil
 }
 
@@ -308,5 +306,5 @@ func bodyLogMiddleware(c *gin.Context) {
 	blw := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
 	c.Writer = blw
 	c.Next()
-	logger.Debugf("Response body: %s", blw.body.String())
+	log.Debug().Msgf("Response body: %s", blw.body.String())
 }

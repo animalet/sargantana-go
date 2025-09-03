@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/animalet/sargantana-go/config"
-	"github.com/animalet/sargantana-go/logger"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
@@ -73,6 +72,7 @@ import (
 	"github.com/markbates/goth/providers/yandex"
 	"github.com/markbates/goth/providers/zoom"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 )
 
 // ProviderConfig represents the configuration for an OAuth provider
@@ -118,7 +118,6 @@ func NewAuthController(configData config.ControllerConfig, serverConfig config.S
 			return nil, errors.Wrap(err, "failed to parse address")
 		}
 		if u.Hostname() == "0.0.0.0" {
-			logger.Warn("Auth callback endpoint is set to 0.0.0.0, changing it to localhost")
 			callbackEndpoint = u.Scheme + "://localhost" + ":" + u.Port()
 		} else {
 			callbackEndpoint = u.Scheme + "://" + u.Hostname() + ":" + u.Port()
@@ -407,7 +406,7 @@ func (a *auth) callback(c *gin.Context) {
 func (a *auth) logout(c *gin.Context) {
 	err := gothic.Logout(c.Writer, c.Request)
 	if err != nil {
-		logger.Errorf("Failed to log out: %v", err)
+		log.Error().Err(err).Msg("Failed to log out")
 	}
 	session := sessions.Default(c)
 	session.Clear()

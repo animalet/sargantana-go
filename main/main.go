@@ -6,8 +6,9 @@ import (
 	"os"
 
 	"github.com/animalet/sargantana-go/controller"
-	"github.com/animalet/sargantana-go/logger"
 	"github.com/animalet/sargantana-go/server"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // Version information set during build
@@ -22,13 +23,23 @@ func main() {
 
 	flag.Parse()
 
+	// Set up zerolog
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
+	if *debugMode {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
+
 	if *showVersion {
 		fmt.Printf("%s %s\n", "sargantana-go", version)
 		os.Exit(0)
 	}
 
 	if *configFile == "" {
-		logger.Fatal("Error: -config is required")
+		log.Fatal().Msg("Error: -config is required")
 	}
 
 	server.SetDebug(*debugMode)
@@ -38,12 +49,12 @@ func main() {
 
 	sargantana, err := server.NewServer(*configFile)
 	if err != nil {
-		logger.Fatalf("%v", err)
+		log.Fatal().Err(err).Msg("Failed to create server")
 		os.Exit(1)
 	}
 
 	err = sargantana.StartAndWaitForSignal()
 	if err != nil {
-		logger.Fatalf("%v", err)
+		log.Fatal().Err(err).Msg("Server error")
 	}
 }

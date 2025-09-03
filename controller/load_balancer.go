@@ -9,9 +9,9 @@ import (
 	"sync"
 
 	"github.com/animalet/sargantana-go/config"
-	"github.com/animalet/sargantana-go/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 )
 
 type LoadBalancerControllerConfig struct {
@@ -31,16 +31,15 @@ func NewLoadBalancerController(configData config.ControllerConfig, _ config.Serv
 	if len(stringEndpoints) == 0 {
 		return nil, errors.New("no endpoints provided for load balancing")
 	} else {
-		logger.Infof("Load balancing path: %q", c.Path)
-		logger.Infof("Load balancing authentication: %t", auth)
-		logger.Infof("Load balanced endpoints:")
+		log.Info().Str("path", c.Path).Msg("Load balancing path configured")
+		log.Info().Bool("auth", auth).Msg("Load balancing authentication configured")
+		log.Info().Strs("endpoints", stringEndpoints).Msg("Load balancing endpoints configured")
 		for _, endpoint := range stringEndpoints {
 			u, err := url.Parse(endpoint)
 			if err != nil {
 				return nil, errors.Wrap(err, fmt.Sprintf("failed to parse load balancer path: %s", c.Path))
 			}
 			endpoints = append(endpoints, *u)
-			logger.Infof(" - %s", u.String())
 		}
 	}
 
@@ -74,7 +73,7 @@ type loadBalancer struct {
 
 func (l *loadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 	if len(l.endpoints) == 0 {
-		logger.Warn("Load balancer not loaded")
+		log.Warn().Msg("Load balancer not loaded")
 		return
 	}
 
@@ -148,7 +147,7 @@ func (l *loadBalancer) forward(c *gin.Context) {
 	defer func() {
 		err = response.Body.Close()
 		if err != nil {
-			logger.Errorf("Error closing response body: %v", err)
+			log.Error().Err(err).Msg("Error closing response body")
 		}
 	}()
 
@@ -161,8 +160,9 @@ func (l *loadBalancer) forward(c *gin.Context) {
 			c.Writer.Header().Add(k, vv)
 		}
 	}
-	// Copy response body
-	if _, err := io.Copy(c.Writer, response.Body); err != nil {
-		_ = c.AbortWithError(http.StatusInternalServerError, err)
+
+	_, err = io.Copy(c.Writer, response.Body)
+	if err != nil {
+		log.Error().Err(err).Msg("Error copying response body")
 	}
 }

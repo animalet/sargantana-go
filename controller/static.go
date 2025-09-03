@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/animalet/sargantana-go/config"
-	"github.com/animalet/sargantana-go/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
 )
 
 type StaticControllerConfig struct {
@@ -21,17 +21,17 @@ func NewStaticController(configData config.ControllerConfig, _ config.ServerConf
 		return nil, err
 	}
 
-	logger.Infof("Statics directory: %q", c.StaticsDir)
-	logger.Infof("Templates directory: %q", c.HtmlTemplatesDir)
+	log.Info().Str("statics_dir", c.StaticsDir).Msg("Statics directory configured")
+	log.Info().Str("templates_dir", c.HtmlTemplatesDir).Msg("Templates directory configured")
 
 	// Ensure the statics directory exists
 	if stat, err := os.Stat(c.StaticsDir); err != nil || !stat.IsDir() {
-		logger.Warnf("Statics directory %q does not exist or is not a directory. Continuing without statics.", c.StaticsDir)
+		log.Warn().Str("statics_dir", c.StaticsDir).Msg("Statics directory does not exist or is not a directory. Continuing without statics.")
 	}
 
 	// Ensure the templates directory exists (if provided)
 	if stat, err := os.Stat(c.HtmlTemplatesDir); err != nil || !stat.IsDir() {
-		logger.Warnf("Templates directory %q does not exist or is not a directory. Continuing without templates.", c.HtmlTemplatesDir)
+		log.Warn().Str("templates_dir", c.HtmlTemplatesDir).Msg("Templates directory does not exist or is not a directory. Continuing without templates.")
 	}
 	return &static{
 		staticsDir:       c.StaticsDir,
@@ -85,17 +85,17 @@ func (s *static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
 			})
 
 			if err != nil {
-				logger.Warnf("Error walking through templates directory: %v", err)
+				log.Warn().Err(err).Msg("Error walking through templates directory")
 				return
 			}
 
 			if found {
 				engine.LoadHTMLGlob(s.htmlTemplatesDir + "/**")
 			} else {
-				logger.Warn("Templates directory present but no files found, skipping templates.")
+				log.Warn().Msg("Templates directory present but no files found, skipping templates.")
 			}
 		} else {
-			logger.Warnf("Templates directory not present: %v", err)
+			log.Warn().Err(err).Msg("Templates directory not present")
 		}
 	}
 }

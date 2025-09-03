@@ -13,9 +13,19 @@ import (
 
 	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
-	"github.com/animalet/sargantana-go/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
+
+// LogWriter is a helper to capture log output
+type LogWriter struct {
+	buffer *bytes.Buffer
+}
+
+func (lw *LogWriter) Write(p []byte) (n int, err error) {
+	return lw.buffer.Write(p)
+}
 
 // MockController implements IController for testing purposes
 type MockController struct {
@@ -98,8 +108,10 @@ controllers:
 
 	// Capture log output to verify debug mode and Redis configuration are attempted
 	var logBuffer bytes.Buffer
-	logger.SetOutput(&logBuffer)
-	defer logger.SetOutput(os.Stderr)
+	logWriter := &LogWriter{buffer: &logBuffer}
+	originalWriter := log.Logger
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: logWriter})
+	defer func() { log.Logger = originalWriter }()
 
 	// Create server
 	previousDebug := debug
@@ -207,8 +219,10 @@ controllers:
 
 	// Capture log output to verify bodyLogMiddleware is working
 	var logBuffer bytes.Buffer
-	logger.SetOutput(&logBuffer)
-	defer logger.SetOutput(os.Stderr)
+	logWriter := &LogWriter{buffer: &logBuffer}
+	originalWriter := log.Logger
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: logWriter})
+	defer func() { log.Logger = originalWriter }()
 
 	// Create and start server
 	previousDebug := debug
@@ -297,8 +311,10 @@ controllers:
 
 	// Capture log output
 	var logBuffer bytes.Buffer
-	logger.SetOutput(&logBuffer)
-	defer logger.SetOutput(os.Stderr)
+	logWriter := &LogWriter{buffer: &logBuffer}
+	originalWriter := log.Logger
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: logWriter})
+	defer func() { log.Logger = originalWriter }()
 
 	// Create and start server
 	server, err := NewServer(configFile)
@@ -376,8 +392,10 @@ controllers:
 
 	// Capture log output
 	var logBuffer bytes.Buffer
-	logger.SetOutput(&logBuffer)
-	defer logger.SetOutput(os.Stderr)
+	logWriter := &LogWriter{buffer: &logBuffer}
+	originalWriter := log.Logger
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: logWriter})
+	defer func() { log.Logger = originalWriter }()
 
 	// Create and start server
 	server, err := NewServer(configFile)
@@ -731,10 +749,10 @@ controllers: []`
 func TestSetDebugAndGetDebug(t *testing.T) {
 	// Store original values to restore later
 	originalDebug := GetDebug()
-	originalLogLevel := logger.GetLevel()
+	originalLogLevel := zerolog.GlobalLevel()
 	defer func() {
 		SetDebug(originalDebug)
-		logger.SetLevel(originalLogLevel)
+		zerolog.SetGlobalLevel(originalLogLevel)
 	}()
 
 	// Test setting debug to true
@@ -744,8 +762,8 @@ func TestSetDebugAndGetDebug(t *testing.T) {
 	}
 
 	// Verify logger level is set to DEBUG when debug is enabled
-	if logger.GetLevel() != logger.DEBUG {
-		t.Errorf("Expected logger level to be DEBUG when debug is enabled, got %v", logger.GetLevel())
+	if zerolog.GlobalLevel() != zerolog.DebugLevel {
+		t.Errorf("Expected logger level to be DEBUG when debug is enabled, got %v", zerolog.GlobalLevel())
 	}
 
 	// Test setting debug to false
@@ -755,8 +773,8 @@ func TestSetDebugAndGetDebug(t *testing.T) {
 	}
 
 	// Verify logger level is set to INFO when debug is disabled
-	if logger.GetLevel() != logger.INFO {
-		t.Errorf("Expected logger level to be INFO when debug is disabled, got %v", logger.GetLevel())
+	if zerolog.GlobalLevel() != zerolog.InfoLevel {
+		t.Errorf("Expected logger level to be INFO when debug is disabled, got %v", zerolog.GlobalLevel())
 	}
 }
 

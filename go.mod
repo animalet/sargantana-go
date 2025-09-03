@@ -10,6 +10,7 @@ require (
 	github.com/markbates/goth v1.82.0
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.3
 	github.com/pkg/errors v0.9.1
+	github.com/rs/zerolog v1.34.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -54,6 +55,7 @@ require (
 	github.com/lestrrat-go/jwx v1.2.31 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/markbates/going v1.0.3 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
