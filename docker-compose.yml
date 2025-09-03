@@ -35,17 +35,85 @@ services:
       timeout: 5s
       # How many consecutive failures are needed to mark the container as unhealthy
       retries: 10
-  valkey:
+    networks:
+      - sargantana-network
+
+  redis:
     hostname: redis
-    image: docker.io/bitnami/valkey:8.0
-    environment:
-      # ALLOW_EMPTY_PASSWORD is recommended only for development.
-      ALLOW_EMPTY_PASSWORD: yes
-      VALKEY_DISABLE_COMMANDS: FLUSHDB,FLUSHALL
+    image: redis:7.2-alpine
+    command: >
+      sh -c "
+      echo 'user default off' > users.acl && echo 'user redisuser on >redispass allcommands allkeys' >> users.acl &&
+      redis-server
+      --port 6379
+      --tls-port 6380
+      --tls-cert-file /certs/redis.crt
+      --tls-key-file /certs/redis.key
+      --tls-ca-cert-file /certs/ca.crt
+      --tls-auth-clients no
+      --aclfile users.acl
+      "
     ports:
-      - '6379:6379'
+      - "6380:6380"
+      - "6379:6379"
     volumes:
-      - 'valkey_data:/bitnami/valkey/data'
+      - ./certs:/certs:ro
+    networks:
+      - sargantana-network
+    depends_on:
+      generate-certs:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -h redis -p 6379 -a redispass ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  generate-certs:
+    image: alpine:latest
+    command: >
+      sh -c "
+        apk add --no-cache openssl &&
+        mkdir -p /certs &&
+        rm -f /certs/* &&
+        cd /certs &&
+      
+        # Generate CA private key and certificate
+        openssl genrsa -out ca.key 4096 &&
+        openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=Redis CA' &&
+      
+        # Generate server private key and certificate signing request (CSR)
+        openssl genrsa -out redis.key 2048 &&
+        openssl req -new -key redis.key -out redis.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis' &&
+      
+        # Create a config file to define the Subject Alternative Names (SANs)
+        cat > san.cnf <<EOF
+        [req_ext]
+        subjectAltName = @alt_names
+        [alt_names]
+        DNS.1 = localhost
+        DNS.2 = redis
+      EOF
+
+        # Generate the server certificate using the SAN config file
+        # This makes the certificate valid for 'localhost' (for tests) and 'redis' (for inter-container communication)
+        openssl x509 -req -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out redis.crt -days 365 -extfile san.cnf -extensions req_ext &&
+
+        # Generate client certificate for tests that require it
+        openssl genrsa -out client.key 2048 &&
+        openssl req -new -key client.key -out client.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=client' &&
+        openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365 &&
+      
+        # Set proper permissions
+        chmod 644 *.crt &&
+        chmod 644 *.key &&
+        echo 'TLS certificates (CA, server with SAN, and client) generated successfully'
+      "
+    volumes:
+      - './certs:/certs'
+    networks:
+      - sargantana-network
+
   mock-oauth2-server:
     image: ghcr.io/navikt/mock-oauth2-server:2.2.1
     ports:
@@ -78,6 +146,31 @@ services:
         }
     networks:
       - sargantana-network
+
+  vault:
+    image: hashicorp/vault:1.17
+    container_name: vault-dev
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "dev-root-token"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+      VAULT_ADDR: "http://0.0.0.0:8200"
+    cap_add:
+      - IPC_LOCK
+    command: >
+      sh -c "
+        vault server -dev -dev-root-token-id=dev-root-token -dev-listen-address=0.0.0.0:8200 &
+        sleep 10 &&
+        export VAULT_ADDR=http://0.0.0.0:8200 &&
+        export VAULT_TOKEN=dev-root-token &&
+        vault kv put secret/sargantana GOOGLE_KEY=test-google-key GOOGLE_SECRET=test-google-secret SESSION_SECRET=test-session-secret-that-is-long-enough &&
+        vault secrets enable -version=1 -path=secret-v1 kv &&
+        vault kv put secret-v1/sargantana GOOGLE_KEY=test-google-key GOOGLE_SECRET=test-google-secret SESSION_SECRET=test-session-secret-that-is-long-enough &&
+        echo 'Vault initialized with test secrets for both KV v1 and KV v2' &&
+        tail -f /dev/null
+      "
+
 volumes:
   valkey_data:
     driver: local
