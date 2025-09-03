@@ -5,6 +5,9 @@ package database
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -22,10 +25,10 @@ type RedisConfig struct {
 
 // TLSConfig holds TLS configuration for Redis connections
 type TLSConfig struct {
-	InsecureSkipVerify bool
-	CertFile           string
-	KeyFile            string
-	CAFile             string
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"`
+	CertFile           string `yaml:"cert_file"`
+	KeyFile            string `yaml:"key_file"`
+	CAFile             string `yaml:"ca_file"`
 }
 
 // NewRedisPoolWithConfig creates a new Redis connection pool with custom configuration.
@@ -72,6 +75,19 @@ func dialRedis(config *RedisConfig) (redis.Conn, error) {
 			InsecureSkipVerify: config.TLS.InsecureSkipVerify,
 		}
 
+		// Load CA certificate if provided
+		if config.TLS.CAFile != "" {
+			caCert, err := os.ReadFile(config.TLS.CAFile)
+			if err != nil {
+				return nil, err
+			}
+			caCertPool := x509.NewCertPool()
+			if !caCertPool.AppendCertsFromPEM(caCert) {
+				return nil, fmt.Errorf("failed to parse CA certificate")
+			}
+			tlsConfig.RootCAs = caCertPool
+		}
+
 		// Load client certificates if provided
 		if config.TLS.CertFile != "" && config.TLS.KeyFile != "" {
 			cert, err := tls.LoadX509KeyPair(config.TLS.CertFile, config.TLS.KeyFile)
@@ -82,6 +98,7 @@ func dialRedis(config *RedisConfig) (redis.Conn, error) {
 		}
 
 		opts = append(opts, redis.DialTLSConfig(tlsConfig))
+		opts = append(opts, redis.DialUseTLS(true))
 		return redis.Dial("tcp", config.Address, opts...)
 	}
 

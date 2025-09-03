@@ -117,7 +117,10 @@ func TestRedisConfig_DefaultValues(t *testing.T) {
 
 func TestDialRedis_TCPConnection(t *testing.T) {
 	config := &RedisConfig{
-		Address: "localhost:6379",
+		Address: "localhost:6380",
+		TLS: &TLSConfig{
+			InsecureSkipVerify: true,
+		},
 	}
 
 	// This test verifies that dialRedis can be called without panicking
@@ -130,8 +133,11 @@ func TestDialRedis_TCPConnection(t *testing.T) {
 
 func TestDialRedis_WithPassword(t *testing.T) {
 	config := &RedisConfig{
-		Address:  "localhost:6379",
+		Address:  "localhost:6380",
 		Password: "test-password",
+		TLS: &TLSConfig{
+			InsecureSkipVerify: true,
+		},
 	}
 
 	_, err := dialRedis(config)
@@ -140,8 +146,11 @@ func TestDialRedis_WithPassword(t *testing.T) {
 
 func TestDialRedis_WithDatabase(t *testing.T) {
 	config := &RedisConfig{
-		Address:  "localhost:6379",
+		Address:  "localhost:6380",
 		Database: intPtr(2),
+		TLS: &TLSConfig{
+			InsecureSkipVerify: true,
+		},
 	}
 
 	_, err := dialRedis(config)
@@ -252,15 +261,16 @@ func TestRedisPool_Dial(t *testing.T) {
 }
 
 func TestRedisPool_Integration(t *testing.T) {
-	// Skip integration test if Redis is not available
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	config := &RedisConfig{
-		Address:     "localhost:6379",
+		Address:     "localhost:6380",
 		MaxIdle:     10,
 		IdleTimeout: 240 * time.Second,
+		TLS: &TLSConfig{
+			InsecureSkipVerify: true, // For testing with self-signed certificates
+			CAFile:             "../certs/ca.crt",
+			CertFile:           "../certs/valkey.crt",
+			KeyFile:            "../certs/valkey.key",
+		},
 	}
 	pool := NewRedisPoolWithConfig(config)
 	defer func() {
@@ -279,10 +289,39 @@ func TestRedisPool_Integration(t *testing.T) {
 		}
 	}()
 
-	// Test basic Redis operation (will fail if Redis not available)
+	// Test basic Redis operation
 	_, err := conn.Do("PING")
 	if err != nil {
-		t.Skipf("Redis not available for integration test: %v", err)
+		// If TLS Redis is not available, try regular Redis as fallback
+		regularConfig := &RedisConfig{
+			Address:     "localhost:6379",
+			MaxIdle:     10,
+			IdleTimeout: 240 * time.Second,
+		}
+		regularPool := NewRedisPoolWithConfig(regularConfig)
+		defer func() {
+			closeErr := regularPool.Close()
+			if closeErr != nil {
+				t.Errorf("Failed to close regular Redis pool: %v", closeErr)
+			}
+		}()
+
+		regularConn := regularPool.Get()
+		defer func() {
+			closeErr := regularConn.Close()
+			if closeErr != nil {
+				t.Errorf("Failed to close regular Redis connection: %v", closeErr)
+			}
+		}()
+
+		_, fallbackErr := regularConn.Do("PING")
+		if fallbackErr != nil {
+			t.Fatalf("Neither TLS Redis (port 6380) nor regular Redis (port 6379) are available for integration test. TLS error: %v, Regular error: %v", err, fallbackErr)
+		}
+
+		// Use regular connection for remaining tests
+		conn = regularConn
+		pool = regularPool
 	}
 
 	// Test basic operations if Redis is available
@@ -312,50 +351,17 @@ func TestRedisPool_Integration(t *testing.T) {
 	}
 }
 
-func TestRedisPool_TLSIntegration(t *testing.T) {
-	// Skip if in short mode or if TLS Redis is not available
-	if testing.Short() {
-		t.Skip("Skipping TLS integration test in short mode")
-	}
-
+func BenchmarkRedisPool_GetConnection(b *testing.B) {
 	config := &RedisConfig{
-		Address:     "localhost:6380", // Assuming TLS Redis runs on different port
+		Address:     "localhost:6380",
 		MaxIdle:     10,
 		IdleTimeout: 240 * time.Second,
 		TLS: &TLSConfig{
 			InsecureSkipVerify: true, // For testing with self-signed certificates
+			CAFile:             "../certs/ca.crt",
+			CertFile:           "../certs/valkey.crt",
+			KeyFile:            "../certs/valkey.key",
 		},
-	}
-
-	pool := NewRedisPoolWithConfig(config)
-	defer func() {
-		err := pool.Close()
-		if err != nil {
-			t.Errorf("Failed to close Redis TLS pool: %v", err)
-		}
-	}()
-
-	conn := pool.Get()
-	defer func() {
-		err := conn.Close()
-		if err != nil {
-			t.Errorf("Failed to close Redis TLS connection: %v", err)
-		}
-	}()
-
-	_, err := conn.Do("PING")
-	if err != nil {
-		t.Skipf("TLS Redis not available for integration test: %v", err)
-	}
-
-	t.Log("TLS Redis connection successful")
-}
-
-func BenchmarkRedisPool_GetConnection(b *testing.B) {
-	config := &RedisConfig{
-		Address:     "localhost:6379",
-		MaxIdle:     10,
-		IdleTimeout: 240 * time.Second,
 	}
 	pool := NewRedisPoolWithConfig(config)
 	defer func() {

@@ -45,10 +45,52 @@ services:
       # ALLOW_EMPTY_PASSWORD is recommended only for development.
       ALLOW_EMPTY_PASSWORD: yes
       VALKEY_DISABLE_COMMANDS: FLUSHDB,FLUSHALL
+      # Enable TLS configuration
+      VALKEY_TLS_ENABLED: yes
+      VALKEY_TLS_PORT_NUMBER: 6380
+      VALKEY_TLS_CERT_FILE: /certs/valkey.crt
+      VALKEY_TLS_KEY_FILE: /certs/valkey.key
+      VALKEY_TLS_CA_FILE: /certs/ca.crt
     ports:
-      - '6379:6379'
+      - "6380:6380"
     volumes:
-      - 'valkey_data:/bitnami/valkey/data'
+      - ./certs:/certs:ro
+    networks:
+      - sargantana-network
+    depends_on:
+      - generate-certs
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli --tls --cert /certs/valkey.crt --key /certs/valkey.key --cacert /certs/ca.crt -p 6380 ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  generate-certs:
+    image: alpine:latest
+    command: >
+      sh -c "
+        apk add --no-cache openssl &&
+        mkdir -p /certs &&
+        cd /certs &&
+        # Generate CA private key
+        openssl genrsa -out ca.key 4096 &&
+        # Generate CA certificate
+        openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=Valkey CA' &&
+        # Generate server private key
+        openssl genrsa -out valkey.key 2048 &&
+        # Generate server certificate signing request
+        openssl req -new -key valkey.key -out valkey.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis' &&
+        # Generate server certificate
+        openssl x509 -req -in valkey.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out valkey.crt -days 365 &&
+        # Generate DH parameters
+        openssl dhparam -out valkey.dh 2048 &&
+        # Set proper permissions
+        chmod 644 valkey.crt ca.crt valkey.dh &&
+        chmod 600 valkey.key ca.key &&
+        echo 'TLS certificates generated successfully'
+      "
+    volumes:
+      - './certs:/certs'
     networks:
       - sargantana-network
 

@@ -1,0 +1,48 @@
+# Example configuration with TLS-only Redis setup
+# This configuration demonstrates secure Redis connections using TLS certificates
+
+server:
+  address: "localhost:8080"
+  redis_session_store:
+    address: "localhost:6380"  # TLS Redis port
+    password: ""               # Redis password (if any)
+    database: 0                # Redis database number
+    max_idle: 10              # Maximum idle connections in pool
+    idle_timeout: "4m"        # Idle connection timeout
+    tls:                      # TLS configuration for secure connections
+      insecure_skip_verify: true     # Skip certificate verification (for self-signed certs)
+      cert_file: "./certs/valkey.crt"  # Client certificate file
+      key_file: "./certs/valkey.key"   # Client private key file
+      ca_file: "./certs/ca.crt"        # CA certificate file
+  secrets_dir: ".secrets"
+  session_name: "sargantana_session"
+  session_secret: "${SESSION_SECRET}"
+
+vault:
+  address: "http://localhost:8200"
+  token: "${VAULT_TOKEN}"
+  path: "secret/data/sargantana"
+
+controllers:
+  - type: "static"
+    config:
+      statics_dir: "./static"
+      templates_dir: "./templates"
+
+  - type: "auth"
+    config:
+      callback_url: "https://myapp.com"
+      login_path: "/auth/{provider}"
+      logout_path: "/auth/{provider}/logout"
+      callback_path: "/auth/{provider}/callback"
+      user_info_path: "/user"
+      redirect_on_login: "/"
+      redirect_on_logout: "/"
+      providers:
+        google:
+          key: "${vault:GOOGLE_KEY}"
+          secret: "${file:GOOGLE_SECRET}"
+          scopes:
+            - "openid"
+            - "profile"
+            - "email"

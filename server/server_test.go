@@ -83,9 +83,11 @@ server:
   session_secret: "test-session-secret-key"
   secrets_dir: "` + secretsDir + `"
   redis_session_store:
-    address: "localhost:6379"
+    address: "localhost:6380"
     max_idle: 10
     idle_timeout: 240s
+    tls:
+      insecure_skip_verify: true
 controllers:
   - type: "mock"
     name: "test_controller"
@@ -112,8 +114,8 @@ controllers:
 
 	if server.config.ServerConfig.RedisSessionStore == nil {
 		t.Error("Expected Redis session store to be configured")
-	} else if server.config.ServerConfig.RedisSessionStore.Address != "localhost:6379" {
-		t.Errorf("Expected Redis address to be 'localhost:6379', got '%s'", server.config.ServerConfig.RedisSessionStore.Address)
+	} else if server.config.ServerConfig.RedisSessionStore.Address != "localhost:6380" {
+		t.Errorf("Expected Redis address to be 'localhost:6380', got '%s'", server.config.ServerConfig.RedisSessionStore.Address)
 	}
 
 	if server.config.ServerConfig.SessionName != "test_session" {

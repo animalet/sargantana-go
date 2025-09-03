@@ -26,3 +26,4 @@ bin/
 vendor/
 .secrets
 /*.out
+/certs/
