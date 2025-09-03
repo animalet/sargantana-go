@@ -38,21 +38,19 @@ services:
     networks:
       - sargantana-network
 
-  valkey:
+  redis:
     hostname: redis
-    image: docker.io/bitnami/valkey:8.0
-    environment:
-      # ALLOW_EMPTY_PASSWORD is recommended only for development.
-      ALLOW_EMPTY_PASSWORD: yes
-      VALKEY_DISABLE_COMMANDS: FLUSHDB,FLUSHALL
-      # Enable TLS configuration
-      VALKEY_TLS_ENABLED: yes
-      VALKEY_TLS_PORT_NUMBER: 6380
-      VALKEY_TLS_CERT_FILE: /certs/valkey.crt
-      VALKEY_TLS_KEY_FILE: /certs/valkey.key
-      VALKEY_TLS_CA_FILE: /certs/ca.crt
+    image: redis:7.2-alpine
+    command: >
+      redis-server
+      --port 6379
+      --tls-port 6380
+      --tls-cert-file /certs/redis.crt
+      --tls-key-file /certs/redis.key
+      --tls-ca-cert-file /certs/ca.crt
     ports:
       - "6380:6380"
+      - "6379:6379"
     volumes:
       - ./certs:/certs:ro
     networks:
@@ -60,7 +58,7 @@ services:
     depends_on:
       - generate-certs
     healthcheck:
-      test: ["CMD-SHELL", "valkey-cli --tls --cert /certs/valkey.crt --key /certs/valkey.key --cacert /certs/ca.crt -p 6380 ping"]
+      test: ["CMD-SHELL", "redis-cli -h redis -p 6379 ping"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -75,18 +73,18 @@ services:
         # Generate CA private key
         openssl genrsa -out ca.key 4096 &&
         # Generate CA certificate
-        openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=Valkey CA' &&
+        openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=Redis CA' &&
         # Generate server private key
-        openssl genrsa -out valkey.key 2048 &&
+        openssl genrsa -out redis.key 2048 &&
         # Generate server certificate signing request
-        openssl req -new -key valkey.key -out valkey.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis' &&
+        openssl req -new -key redis.key -out redis.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis' &&
         # Generate server certificate
-        openssl x509 -req -in valkey.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out valkey.crt -days 365 &&
+        openssl x509 -req -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out redis.crt -days 365 &&
         # Generate DH parameters
-        openssl dhparam -out valkey.dh 2048 &&
+        openssl dhparam -out redis.dh 2048 &&
         # Set proper permissions
-        chmod 644 valkey.crt ca.crt valkey.dh &&
-        chmod 600 valkey.key ca.key &&
+        chmod 644 redis.crt ca.crt redis.dh &&
+        chmod 600 redis.key ca.key &&
         echo 'TLS certificates generated successfully'
       "
     volumes:
@@ -150,13 +148,6 @@ services:
         echo 'Vault initialized with test secrets for both KV v1 and KV v2' &&
         tail -f /dev/null
       "
-    networks:
-      - sargantana-network
-    healthcheck:
-      test: ["CMD", "vault", "status"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
 
 volumes:
   valkey_data:

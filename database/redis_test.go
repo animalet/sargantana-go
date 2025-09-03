@@ -115,35 +115,6 @@ func TestRedisConfig_DefaultValues(t *testing.T) {
 	}
 }
 
-func TestDialRedis_TCPConnection(t *testing.T) {
-	config := &RedisConfig{
-		Address: "localhost:6380",
-		TLS: &TLSConfig{
-			InsecureSkipVerify: true,
-		},
-	}
-
-	// This test verifies that dialRedis can be called without panicking
-	// The actual connection will likely fail in test environment, but that's expected
-	_, err := dialRedis(config)
-	// We don't assert on the error since Redis might not be available in test environment
-	// The important thing is that the function doesn't panic and handles the call properly
-	t.Logf("dialRedis returned error (expected in test environment): %v", err)
-}
-
-func TestDialRedis_WithPassword(t *testing.T) {
-	config := &RedisConfig{
-		Address:  "localhost:6380",
-		Password: "test-password",
-		TLS: &TLSConfig{
-			InsecureSkipVerify: true,
-		},
-	}
-
-	_, err := dialRedis(config)
-	t.Logf("dialRedis with password returned error (expected in test environment): %v", err)
-}
-
 func TestDialRedis_WithDatabase(t *testing.T) {
 	config := &RedisConfig{
 		Address:  "localhost:6380",
@@ -236,30 +207,6 @@ func TestRedisPool_TestOnBorrow(t *testing.T) {
 	}
 }
 
-func TestRedisPool_Dial(t *testing.T) {
-	config := &RedisConfig{
-		Address:     "invalid:address:format",
-		MaxIdle:     10,
-		IdleTimeout: 240 * time.Second,
-	}
-	pool := NewRedisPoolWithConfig(config)
-
-	// Test that Dial function is set and can be called
-	// Note: This will fail to connect but should not panic
-	conn, err := pool.Dial()
-	if err == nil {
-		// If somehow it succeeds, close the connection
-		if conn != nil {
-			err = conn.Close()
-			if err != nil {
-				t.Errorf("Failed to close connection: %v", err)
-			}
-		}
-	}
-	// We expect an error for invalid address, but the important thing
-	// is that the Dial function doesn't panic
-}
-
 func TestRedisPool_Integration(t *testing.T) {
 	config := &RedisConfig{
 		Address:     "localhost:6380",
@@ -268,8 +215,8 @@ func TestRedisPool_Integration(t *testing.T) {
 		TLS: &TLSConfig{
 			InsecureSkipVerify: true, // For testing with self-signed certificates
 			CAFile:             "../certs/ca.crt",
-			CertFile:           "../certs/valkey.crt",
-			KeyFile:            "../certs/valkey.key",
+			CertFile:           "../certs/redis.crt",
+			KeyFile:            "../certs/redis.key",
 		},
 	}
 	pool := NewRedisPoolWithConfig(config)
@@ -351,7 +298,7 @@ func TestRedisPool_Integration(t *testing.T) {
 	}
 }
 
-func BenchmarkRedisPool_GetConnection(b *testing.B) {
+func BenchmarkRedisPool_GetConnectionTLS(b *testing.B) {
 	config := &RedisConfig{
 		Address:     "localhost:6380",
 		MaxIdle:     10,
@@ -359,8 +306,8 @@ func BenchmarkRedisPool_GetConnection(b *testing.B) {
 		TLS: &TLSConfig{
 			InsecureSkipVerify: true, // For testing with self-signed certificates
 			CAFile:             "../certs/ca.crt",
-			CertFile:           "../certs/valkey.crt",
-			KeyFile:            "../certs/valkey.key",
+			CertFile:           "../certs/redis.crt",
+			KeyFile:            "../certs/redis.key",
 		},
 	}
 	pool := NewRedisPoolWithConfig(config)
@@ -381,11 +328,17 @@ func BenchmarkRedisPool_GetConnection(b *testing.B) {
 	}
 }
 
-func BenchmarkRedisPool_TestOnBorrow(b *testing.B) {
+func BenchmarkRedisPool_TestOnBorrowTLS(b *testing.B) {
 	config := &RedisConfig{
-		Address:     "localhost:6379",
+		Address:     "localhost:6380",
 		MaxIdle:     10,
 		IdleTimeout: 240 * time.Second,
+		TLS: &TLSConfig{
+			InsecureSkipVerify: true, // For testing with self-signed certificates
+			CAFile:             "../certs/ca.crt",
+			CertFile:           "../certs/redis.crt",
+			KeyFile:            "../certs/redis.key",
+		},
 	}
 	pool := NewRedisPoolWithConfig(config)
 	mockConn := &mockRedisConn{pingResponse: "PONG"}

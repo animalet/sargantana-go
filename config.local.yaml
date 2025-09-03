@@ -12,8 +12,8 @@ server:
     idle_timeout: "2m"     # Idle timeout in seconds
     tls:                   # TLS configuration for secure connections
       insecure_skip_verify: true   # Skip certificate verification for self-signed certs
-      cert_file: "./certs/valkey.crt"  # Client certificate file
-      key_file: "./certs/valkey.key"   # Client private key file
+      cert_file: "./certs/redis.crt"  # Client certificate file
+      key_file: "./certs/redis.key"   # Client private key file
       ca_file: "./certs/ca.crt"        # CA certificate file
   secrets_dir: ".secrets"            # Directory containing secret files
   session_name: "sargantana_session"    # Session cookie name
