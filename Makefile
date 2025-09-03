@@ -96,7 +96,7 @@ check-coverage: test-with-coverage install-go-test-with-coverage
 
 bench:
 	@echo "Running benchmarks..."
-	go test -bench=. ./...
+	go test -bench=. ./... -benchmem
 
 # Code quality
 format: install-goimports
