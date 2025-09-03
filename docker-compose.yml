@@ -56,7 +56,8 @@ services:
     networks:
       - sargantana-network
     depends_on:
-      - generate-certs
+      generate-certs:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -h redis -p 6379 ping"]
       interval: 10s
@@ -80,10 +81,8 @@ services:
         openssl req -new -key redis.key -out redis.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis' &&
         # Generate server certificate
         openssl x509 -req -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out redis.crt -days 365 &&
-        # Generate DH parameters
-        openssl dhparam -out redis.dh 2048 &&
         # Set proper permissions
-        chmod 644 redis.crt ca.crt redis.dh &&
+        chmod 644 redis.crt ca.crt &&
         chmod 600 redis.key ca.key &&
         echo 'TLS certificates generated successfully'
       "
