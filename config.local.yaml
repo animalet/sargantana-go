@@ -6,7 +6,8 @@ server:
   address: "localhost:8080"
   redis_session_store:  # TLS-enabled Redis for session storage
     address: "localhost:6380"  # TLS Redis server address
-    password: ""           # Redis password (if any)
+    username: "redisuser"           # Redis password (if any)
+    password: "redispass"           # Redis password (if any)
     database: 0                  # Redis database number
     max_idle: 10          # Max idle connections
     idle_timeout: "2m"     # Idle timeout in seconds

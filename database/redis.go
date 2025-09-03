@@ -16,8 +16,9 @@ import (
 // RedisConfig holds configuration options for Redis connection pool
 type RedisConfig struct {
 	Address     string        `yaml:"address"`
+	Username    string        `yaml:"username,omitempty"`
 	Password    string        `yaml:"password,omitempty"`
-	Database    *int          `yaml:"database,omitempty"`
+	Database    int           `yaml:"database,omitempty"`
 	MaxIdle     int           `yaml:"max_idle"`
 	IdleTimeout time.Duration `yaml:"idle_timeout"`
 	TLS         *TLSConfig    `yaml:"tls,omitempty"`
@@ -59,15 +60,18 @@ func NewRedisPoolWithConfig(config *RedisConfig) *redis.Pool {
 func dialRedis(config *RedisConfig) (redis.Conn, error) {
 	var opts []redis.DialOption
 
+	// Add username if provided
+	if config.Username != "" {
+		opts = append(opts, redis.DialUsername(config.Username))
+	}
+
 	// Add password authentication if provided
 	if config.Password != "" {
 		opts = append(opts, redis.DialPassword(config.Password))
 	}
 
-	// Add database selection if specified
-	if config.Database != nil {
-		opts = append(opts, redis.DialDatabase(*config.Database))
-	}
+	// Add database selection (default to 0)
+	opts = append(opts, redis.DialDatabase(config.Database))
 
 	// Configure TLS if enabled
 	if config.TLS != nil {
@@ -102,6 +106,5 @@ func dialRedis(config *RedisConfig) (redis.Conn, error) {
 		return redis.Dial("tcp", config.Address, opts...)
 	}
 
-	// Default TCP connection
 	return redis.Dial("tcp", config.Address, opts...)
 }
