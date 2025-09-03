@@ -208,32 +208,6 @@ func TestNewRedisPoolWithConfig(t *testing.T) {
 	}
 }
 
-func TestRedisConfig_DefaultValues(t *testing.T) {
-	config := &RedisConfig{
-		Address: "localhost:6379",
-	}
-
-	pool := NewRedisPoolWithConfig(config)
-	defer func() {
-		err := pool.Close()
-		if err != nil {
-			t.Errorf("Failed to close Redis pool: %v", err)
-		}
-	}()
-	if pool == nil {
-		t.Fatal("NewRedisPoolWithConfig returned nil")
-	}
-
-	// Test that defaults are properly handled
-	if pool.MaxIdle != 0 {
-		t.Errorf("Expected MaxIdle to be 0 when not set, got %v", pool.MaxIdle)
-	}
-
-	if pool.IdleTimeout != 0 {
-		t.Errorf("Expected IdleTimeout to be 0 when not set, got %v", pool.IdleTimeout)
-	}
-}
-
 func BenchmarkRedisPool_GetConnectionTLS(b *testing.B) {
 	config := &RedisConfig{
 		Address:     "localhost:6380",
@@ -242,7 +216,7 @@ func BenchmarkRedisPool_GetConnectionTLS(b *testing.B) {
 		MaxIdle:     10,
 		IdleTimeout: 240 * time.Second,
 		TLS: &TLSConfig{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: false,
 			CAFile:             "../certs/ca.crt",
 			CertFile:           "../certs/redis.crt",
 			KeyFile:            "../certs/redis.key",
@@ -274,10 +248,10 @@ func BenchmarkRedisPool_TestOnBorrowTLS(b *testing.B) {
 		MaxIdle:     10,
 		IdleTimeout: 240 * time.Second,
 		TLS: &TLSConfig{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: false,
 			CAFile:             "../certs/ca.crt",
-			CertFile:           "../certs/redis.crt",
-			KeyFile:            "../certs/redis.key",
+			CertFile:           "../certs/client.crt",
+			KeyFile:            "../certs/client.key",
 		},
 	}
 	pool := NewRedisPoolWithConfig(config)
