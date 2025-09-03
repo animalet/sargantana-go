@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/animalet/sargantana-go/database"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
@@ -25,11 +26,11 @@ type (
 
 	// ServerConfig holds the core server configuration parameters.
 	ServerConfig struct {
-		Address           string `yaml:"address"`
-		RedisSessionStore string `yaml:"redis_session_store"`
-		SecretsDir        string `yaml:"secrets_dir,omitempty"`
-		SessionName       string `yaml:"session_name"`
-		SessionSecret     string `yaml:"session_secret"`
+		Address           string                `yaml:"address"`
+		RedisSessionStore *database.RedisConfig `yaml:"redis_session_store"`
+		SecretsDir        string                `yaml:"secrets_dir,omitempty"`
+		SessionName       string                `yaml:"session_name"`
+		SessionSecret     string                `yaml:"session_secret"`
 	}
 
 	// ControllerBinding represents the configuration for a single controller.

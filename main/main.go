@@ -39,6 +39,7 @@ func main() {
 	sargantana, err := server.NewServer(*configFile)
 	if err != nil {
 		logger.Fatalf("%v", err)
+		os.Exit(1)
 	}
 
 	err = sargantana.StartAndWaitForSignal()

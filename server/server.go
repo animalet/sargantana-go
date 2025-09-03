@@ -151,10 +151,10 @@ func (s *Server) Start() error {
 			logger.Debugf("Secrets directory: %q", s.config.ServerConfig.SecretsDir)
 		}
 		logger.Debugf("Listen address: %q", s.config.ServerConfig.Address)
-		if s.config.ServerConfig.RedisSessionStore == "" {
+		if s.config.ServerConfig.RedisSessionStore == nil {
 			logger.Debug("Use cookies for session storage")
 		} else {
-			logger.Debugf("Use Redis for session storage: %s", s.config.ServerConfig.RedisSessionStore)
+			logger.Debugf("Use Redis for session storage: %v", s.config.ServerConfig.RedisSessionStore)
 		}
 		logger.Debugf("Session cookie name: %q", s.config.ServerConfig.SessionName)
 		if s.config.Vault != nil {
@@ -228,12 +228,12 @@ func (s *Server) createSessionStore(isReleaseMode bool) (sessions.Store, error) 
 		return nil, fmt.Errorf("session secret is not set")
 	}
 	sessionSecret := []byte(secret)
-	if s.config.ServerConfig.RedisSessionStore == "" {
+	if s.config.ServerConfig.RedisSessionStore == nil {
 		logger.Info("Using cookies for session storage")
 		sessionStore = session.NewCookieStore(isReleaseMode, sessionSecret)
 	} else {
 		logger.Info("Using Redis for session storage")
-		pool := database.NewRedisPool(s.config.ServerConfig.RedisSessionStore)
+		pool := database.NewRedisPoolWithConfig(s.config.ServerConfig.RedisSessionStore)
 		s.addShutdownHook(func() error { return pool.Close() })
 		var err error
 		sessionStore, err = session.NewRedisSessionStore(isReleaseMode, sessionSecret, pool)

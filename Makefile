@@ -34,7 +34,7 @@ BINDIR := $(PREFIX)/bin
 INSTALL := install
 
 # Tasks
-.PHONY: all configure install uninstall format test clean lint deps test bench build build-all test-coverage check-coverage ci clean-dist
+.PHONY: all configure install uninstall format test clean lint deps test bench build build-all test-with-coverage check-coverage ci clean-dist
 
 # Standard targets
 all: configure build
@@ -54,7 +54,7 @@ uninstall:
 	@echo "Uninstallation complete."
 
 # Development tools installation
-install-tools: install-goimports install-golangci-lint install-go-test-coverage
+install-tools: install-goimports install-golangci-lint install-go-test-with-coverage
 	@echo "Development tools installed."
 
 install-goimports:
@@ -69,9 +69,9 @@ install-golangci-lint:
 		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v2.4.0; \
 	fi
 
-install-go-test-coverage:
-	@if ! command -v go-test-coverage &> /dev/null; then \
-		echo "Installing go-test-coverage..."; \
+install-go-test-with-coverage:
+	@if ! command -v go-test-with-coverage &> /dev/null; then \
+		echo "Installing go-test-with-coverage..."; \
 		go install github.com/vladopajic/go-test-coverage/v2@latest; \
 	fi
 
@@ -87,11 +87,11 @@ test:
 	@echo "Running tests..."
 	go test ./...
 
-test-coverage:
+test-with-coverage:
 	@echo "Running tests with coverage..."
 	go test ./... -covermode=atomic -coverprofile=coverage.out
 
-check-coverage: test-coverage install-go-test-coverage
+check-coverage: test-with-coverage install-go-test-with-coverage
 	$(GO_TEST_COVERAGE) --config=./.testcoverage.yml
 
 bench:
@@ -130,14 +130,14 @@ build-all: clean-dist
 	@ls -la dist/
 
 # CI pipeline
-ci: deps lint test-coverage
+ci: deps test-with-coverage lint
 
 # Cleanup
 clean: clean-dist
 	@echo "Cleaning up..."
 	go clean
-	rm -rf bin/
-	rm -f coverage.out coverage.html
+	rm -rf bin/ certs/
+	rm -f *.out
 
 clean-dist:
 	@echo "Cleaning dist directory..."
