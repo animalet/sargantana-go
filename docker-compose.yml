@@ -75,21 +75,39 @@ services:
       sh -c "
         apk add --no-cache openssl &&
         mkdir -p /certs &&
+        rm -f /certs/* &&
         cd /certs &&
-        # Generate CA private key
+      
+        # Generate CA private key and certificate
         openssl genrsa -out ca.key 4096 &&
-        # Generate CA certificate
         openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=Redis CA' &&
-        # Generate server private key
+      
+        # Generate server private key and certificate signing request (CSR)
         openssl genrsa -out redis.key 2048 &&
-        # Generate server certificate signing request
         openssl req -new -key redis.key -out redis.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis' &&
-        # Generate server certificate
-        openssl x509 -req -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out redis.crt -days 365 &&
+      
+        # Create a config file to define the Subject Alternative Names (SANs)
+        cat > san.cnf <<EOF
+        [req_ext]
+        subjectAltName = @alt_names
+        [alt_names]
+        DNS.1 = localhost
+        DNS.2 = redis
+      EOF
+
+        # Generate the server certificate using the SAN config file
+        # This makes the certificate valid for 'localhost' (for tests) and 'redis' (for inter-container communication)
+        openssl x509 -req -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out redis.crt -days 365 -extfile san.cnf -extensions req_ext &&
+
+        # Generate client certificate for tests that require it
+        openssl genrsa -out client.key 2048 &&
+        openssl req -new -key client.key -out client.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=client' &&
+        openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365 &&
+      
         # Set proper permissions
-        chmod 644 redis.crt ca.crt &&
-        chmod 600 redis.key ca.key &&
-        echo 'TLS certificates generated successfully'
+        chmod 644 *.crt &&
+        chmod 600 *.key &&
+        echo 'TLS certificates (CA, server with SAN, and client) generated successfully'
       "
     volumes:
       - './certs:/certs'

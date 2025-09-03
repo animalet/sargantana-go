@@ -102,15 +102,31 @@ func TestNewRedisPoolWithConfig(t *testing.T) {
 			connError: true,
 		},
 		{
-			name: "config with TLS and certificates",
+			name: "config with TLS and client certificate",
 			config: &RedisConfig{
 				Address:     "localhost:6380",
+				Username:    "redisuser",
+				Password:    "redispass",
 				MaxIdle:     20,
 				IdleTimeout: 360 * time.Second,
 				TLS: &TLSConfig{
 					InsecureSkipVerify: false,
-					CertFile:           "../certs/redis.crt",
-					KeyFile:            "../certs/redis.key",
+					CAFile:             "../certs/ca.crt",
+					CertFile:           "../certs/client.crt",
+					KeyFile:            "../certs/client.key",
+				},
+			},
+		},
+		{
+			name: "config with TLS and server certificate",
+			config: &RedisConfig{
+				Address:     "localhost:6380",
+				Username:    "redisuser",
+				Password:    "redispass",
+				MaxIdle:     20,
+				IdleTimeout: 360 * time.Second,
+				TLS: &TLSConfig{
+					InsecureSkipVerify: false,
 					CAFile:             "../certs/ca.crt",
 				},
 			},

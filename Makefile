@@ -136,8 +136,8 @@ ci: deps test-with-coverage lint
 clean: clean-dist
 	@echo "Cleaning up..."
 	go clean
-	rm -rf bin/
-	rm -f coverage.out coverage.html
+	rm -rf bin/ certs/
+	rm -f *.out
 
 clean-dist:
 	@echo "Cleaning dist directory..."
