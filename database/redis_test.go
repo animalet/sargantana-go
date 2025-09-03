@@ -62,7 +62,7 @@ func TestNewRedisPoolWithConfig(t *testing.T) {
 				Username:    "redisuser",
 				Password:    "redispass",
 				MaxIdle:     12,
-				IdleTimeout: 240 * time.Second,
+				IdleTimeout: 5 * time.Second,
 				TLS: &TLSConfig{
 					InsecureSkipVerify: true,
 				},
@@ -208,67 +208,146 @@ func TestNewRedisPoolWithConfig(t *testing.T) {
 	}
 }
 
-func BenchmarkRedisPool_GetConnectionTLS(b *testing.B) {
-	config := &RedisConfig{
-		Address:     "localhost:6380",
-		Username:    "redisuser",
-		Password:    "redispass",
-		MaxIdle:     10,
-		IdleTimeout: 240 * time.Second,
-		TLS: &TLSConfig{
-			InsecureSkipVerify: false,
-			CAFile:             "../certs/ca.crt",
-			CertFile:           "../certs/redis.crt",
-			KeyFile:            "../certs/redis.key",
+func BenchmarkRedisPool_GetConnection(b *testing.B) {
+	benchmarks := []struct {
+		name   string
+		config *RedisConfig
+	}{
+		{
+			name: "NoTLS_WithAuth",
+			config: &RedisConfig{
+				Address:     "localhost:6379",
+				Username:    "redisuser",
+				Password:    "redispass",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+			},
+		},
+		{
+			name: "TLS_NoAuth",
+			config: &RedisConfig{
+				Address:     "localhost:6380",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+				TLS: &TLSConfig{
+					InsecureSkipVerify: true,
+				},
+			},
+		},
+		{
+			name: "TLS_WithAuth",
+			config: &RedisConfig{
+				Address:     "localhost:6380",
+				Username:    "redisuser",
+				Password:    "redispass",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+				TLS: &TLSConfig{
+					InsecureSkipVerify: false,
+					CAFile:             "../certs/ca.crt",
+					CertFile:           "../certs/client.crt",
+					KeyFile:            "../certs/client.key",
+				},
+			},
 		},
 	}
-	pool := NewRedisPoolWithConfig(config)
-	defer func() {
-		err := pool.Close()
-		if err != nil {
-			b.Errorf("Failed to close Redis pool: %v", err)
-		}
-	}()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		conn := pool.Get()
-		err := conn.Close()
-		if err != nil {
-			b.Errorf("Failed to close connection: %v", err)
-		}
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			pool := NewRedisPoolWithConfig(bm.config)
+			defer func() {
+				err := pool.Close()
+				if err != nil {
+					b.Errorf("Failed to close Redis pool: %v", err)
+				}
+			}()
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				conn := pool.Get()
+				err := conn.Close()
+				if err != nil {
+					b.Errorf("Failed to close connection: %v", err)
+				}
+			}
+		})
 	}
 }
 
-func BenchmarkRedisPool_TestOnBorrowTLS(b *testing.B) {
-	config := &RedisConfig{
-		Address:     "localhost:6380",
-		Username:    "redisuser",
-		Password:    "redispass",
-		MaxIdle:     10,
-		IdleTimeout: 240 * time.Second,
-		TLS: &TLSConfig{
-			InsecureSkipVerify: false,
-			CAFile:             "../certs/ca.crt",
-			CertFile:           "../certs/client.crt",
-			KeyFile:            "../certs/client.key",
+func BenchmarkRedisPool_TestOnBorrow(b *testing.B) {
+	benchmarks := []struct {
+		name   string
+		config *RedisConfig
+	}{
+		{
+			name: "NoTLS_WithAuth",
+			config: &RedisConfig{
+				Address:     "localhost:6379",
+				Username:    "redisuser",
+				Password:    "redispass",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+			},
+		},
+		{
+			name: "TLS_WithAuthAndServerCert",
+			config: &RedisConfig{
+				Address:     "localhost:6380",
+				Username:    "redisuser",
+				Password:    "redispass",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+				TLS: &TLSConfig{
+					InsecureSkipVerify: true,
+					CAFile:             "../certs/ca.crt",
+				},
+			},
+		},
+		{
+			name: "TLS_WithAuthAndClientCert",
+			config: &RedisConfig{
+				Address:     "localhost:6380",
+				Username:    "redisuser",
+				Password:    "redispass",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+				TLS: &TLSConfig{
+					InsecureSkipVerify: false,
+					CAFile:             "../certs/ca.crt",
+					CertFile:           "../certs/client.crt",
+					KeyFile:            "../certs/client.key",
+				},
+			},
 		},
 	}
-	pool := NewRedisPoolWithConfig(config)
-	defer func() {
-		err := pool.Close()
-		if err != nil {
-			b.Errorf("Failed to close Redis pool: %v", err)
-		}
-	}()
-	conn := pool.Get()
-	testTime := time.Now().Add(-2 * time.Minute)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		err := pool.TestOnBorrow(conn, testTime)
-		if err != nil {
-			b.Errorf("TestOnBorrow failed: %v", err)
-		}
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			pool := NewRedisPoolWithConfig(bm.config)
+			defer func() {
+				err := pool.Close()
+				if err != nil {
+					b.Errorf("Failed to close Redis pool: %v", err)
+				}
+			}()
+
+			// Get a connection to test the TestOnBorrow function directly
+			conn := pool.Get()
+			defer func() {
+				_ = conn.Close()
+			}()
+
+			// Create a time that's older than 1 minute to trigger TestOnBorrow
+			oldTime := time.Now().Add(-2 * time.Minute)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				// Call the TestOnBorrow function directly with an old timestamp
+				err := pool.TestOnBorrow(conn, oldTime)
+				if err != nil {
+					b.Errorf("TestOnBorrow failed: %v", err)
+				}
+			}
+		})
 	}
 }
