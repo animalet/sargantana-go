@@ -87,7 +87,7 @@ func dialRedis(config *RedisConfig) (redis.Conn, error) {
 			}
 			caCertPool := x509.NewCertPool()
 			if !caCertPool.AppendCertsFromPEM(caCert) {
-				return nil, fmt.Errorf("failed to parse CA certificate")
+				return nil, fmt.Errorf("failed to parse CA certificate %q", config.TLS.CAFile)
 			}
 			tlsConfig.RootCAs = caCertPool
 		}

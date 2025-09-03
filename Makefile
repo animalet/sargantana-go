@@ -4,7 +4,7 @@
 TOOLS_BIN_DIR := $(shell go env GOPATH)/bin
 GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
 GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
-GO_TEST_COVERAGE := $(TOOLS_BIN_DIR)/go-test-with-coverage
+GO_TEST_COVERAGE := $(TOOLS_BIN_DIR)/go-test-coverage
 
 # Build variables
 BINARY_NAME := sargantana-go
@@ -72,7 +72,7 @@ install-golangci-lint:
 install-go-test-with-coverage:
 	@if ! command -v go-test-with-coverage &> /dev/null; then \
 		echo "Installing go-test-with-coverage..."; \
-		go install github.com/vladopajic/go-test-with-coverage/v2@latest; \
+		go install github.com/vladopajic/go-test-coverage/v2@latest; \
 	fi
 
 # Dependency management

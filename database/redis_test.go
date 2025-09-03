@@ -94,9 +94,24 @@ func TestNewRedisPoolWithConfig(t *testing.T) {
 				IdleTimeout: 360 * time.Second,
 				TLS: &TLSConfig{
 					InsecureSkipVerify: false,
+					CAFile:             "/path/to/ca.crt",
 					CertFile:           "/path/to/client.crt",
 					KeyFile:            "/path/to/client.key",
-					CAFile:             "/path/to/ca.crt",
+				},
+			},
+			connError: true,
+		},
+		{
+			name: "config with wrong ca file",
+			config: &RedisConfig{
+				Address:     "localhost:6380",
+				Username:    "redisuser",
+				Password:    "redispass",
+				MaxIdle:     20,
+				IdleTimeout: 360 * time.Second,
+				TLS: &TLSConfig{
+					InsecureSkipVerify: false,
+					CAFile:             "../certs/client.key", // Should be a CA file (../certs/ca.crt)
 				},
 			},
 			connError: true,
@@ -116,6 +131,23 @@ func TestNewRedisPoolWithConfig(t *testing.T) {
 					KeyFile:            "../certs/client.key",
 				},
 			},
+		},
+		{
+			name: "config with TLS and wrong client certificate",
+			config: &RedisConfig{
+				Address:     "localhost:6380",
+				Username:    "redisuser",
+				Password:    "redispass",
+				MaxIdle:     20,
+				IdleTimeout: 360 * time.Second,
+				TLS: &TLSConfig{
+					InsecureSkipVerify: false,
+					CAFile:             "../certs/ca.crt",
+					CertFile:           "/path/to/client.crt",
+					KeyFile:            "/path/to/client.key",
+				},
+			},
+			connError: true,
 		},
 		{
 			name: "config with TLS and server certificate",
