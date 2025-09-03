@@ -115,29 +115,19 @@ func TestRedisConfig_DefaultValues(t *testing.T) {
 	}
 }
 
-func TestDialRedis_WithDatabase(t *testing.T) {
-	config := &RedisConfig{
-		Address:  "localhost:6380",
-		Database: intPtr(2),
-		TLS: &TLSConfig{
-			InsecureSkipVerify: true,
-		},
-	}
-
-	_, err := dialRedis(config)
-	t.Logf("dialRedis with database selection returned error (expected in test environment): %v", err)
-}
-
-func TestDialRedis_WithTLS(t *testing.T) {
+func TestDialRedis_WithError(t *testing.T) {
 	config := &RedisConfig{
 		Address: "localhost:6380",
 		TLS: &TLSConfig{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: false,
 		},
 	}
 
 	_, err := dialRedis(config)
-	t.Logf("dialRedis with TLS returned error (expected in test environment): %v", err)
+
+	if err == nil {
+		t.Fatal("Expected error when connecting to Redis with database selection in test environment, but got none")
+	}
 }
 
 func TestTLSConfig_WithCertificates(t *testing.T) {
@@ -155,7 +145,6 @@ func TestTLSConfig_WithCertificates(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when loading nonexistent certificates")
 	}
-	t.Logf("dialRedis with invalid certificates returned expected error: %v", err)
 }
 
 func TestRedisPool_TestOnBorrow(t *testing.T) {
@@ -341,12 +330,12 @@ func BenchmarkRedisPool_TestOnBorrowTLS(b *testing.B) {
 		},
 	}
 	pool := NewRedisPoolWithConfig(config)
-	mockConn := &mockRedisConn{pingResponse: "PONG"}
+	conn := pool.Get()
 	testTime := time.Now().Add(-2 * time.Minute)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = pool.TestOnBorrow(mockConn, testTime)
+		_ = pool.TestOnBorrow(conn, testTime)
 	}
 }
 
