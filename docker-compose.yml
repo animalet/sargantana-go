@@ -106,7 +106,7 @@ services:
       
         # Set proper permissions
         chmod 644 *.crt &&
-        chmod 600 *.key &&
+        chmod 644 *.key &&
         echo 'TLS certificates (CA, server with SAN, and client) generated successfully'
       "
     volumes:
