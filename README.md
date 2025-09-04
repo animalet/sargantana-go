@@ -47,6 +47,7 @@ security, or performance yet. Use at your own risk.
 
 - Go 1.25 or later
 - Make (for development)
+- A configuration file (required for running the server)
 
 ### Binary Distribution
 

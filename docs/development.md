@@ -14,7 +14,8 @@ This guide covers local development setup, compilation, and development workflow
 ```bash
 git clone https://github.com/animalet/sargantana-go.git
 cd sargantana-go
-make all
+make configure
+make build
 ```
 
 ## Compilation Instructions
@@ -28,11 +29,14 @@ If you prefer to compile from source or need to build for a different platform, 
 git clone https://github.com/animalet/sargantana-go.git
 cd sargantana-go
 
-# Build for your current platform
-go build -o sargantana-go ./main
+# Set up development environment (installs tools and dependencies)
+make configure
 
-# Or use the Makefile
+# Build for your current platform (outputs to bin/ directory)
 make build
+
+# Or build manually
+go build -o bin/sargantana-go ./main
 ```
 
 ### Cross-Platform Compilation
@@ -40,71 +44,104 @@ make build
 Build binaries for all supported platforms:
 
 ```bash
-# Using the Makefile (recommended)
+# Using the Makefile (recommended) - outputs to dist/ directory
 make build-all
 
-# Manual cross-compilation examples:
+# Manual cross-compilation examples (using actual ldflags from Makefile):
 # Linux AMD64
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-linux-amd64 ./main
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-linux-amd64 ./main
 
 # macOS AMD64 (Intel)
-GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-macos-amd64 ./main
+GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-macos-amd64 ./main
 
 # macOS ARM64 (Apple Silicon)
-GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-macos-arm64 ./main
+GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-macos-arm64 ./main
 
 # Windows AMD64
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-windows-amd64.exe ./main
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-windows-amd64.exe ./main
 ```
 
-The compiled binaries will be placed in the `dist/` directory when using `make build-all`, or in the current directory when building manually.
+The compiled binaries will be placed in the `dist/` directory when using `make build-all`, or in the `bin/` directory when using `make build`.
 
 ### Build Flags Explained
 
 - `CGO_ENABLED=0`: Disables CGO for static linking (creates standalone binaries)
-- `-ldflags="-s -w"`: Strips debug information to reduce binary size
+- `-ldflags="-s -w -X main.version=dev"`: 
   - `-s`: Omit symbol table and debug information
   - `-w`: Omit DWARF debug information
+  - `-X main.version=dev`: Set version information at build time
 
 ## Development Commands
 
 ```bash
-# Run tests (requires docker-compose services)
+# Set up development environment (install tools and dependencies)
+make configure
+
+# Install development tools only
+make install-tools
+
+# Manage dependencies
+make deps
+
+# Run tests
 make test
 
 # Run tests with coverage
 make test-with-coverage
 
-# Run linting
-make lint
+# Check test coverage against thresholds
+make check-coverage
 
-# Format code
+# Run benchmarks
+make bench
+
+# Format code (includes goimports)
 make format
 
-# Run all CI checks locally (requires docker-compose)
+# Run linting (includes go vet and golangci-lint)
+make lint
+
+# Run all CI checks locally
 make ci
+
+# Build the application (outputs to bin/ directory)
+make build
+
+# Build for all platforms (outputs to dist/ directory)
+make build-all
 
 # Clean build artifacts
 make clean
 
-# Build the basic server binary
-make build
+# Install binary to system (requires sudo on most systems)
+make install
+
+# Uninstall binary from system
+make uninstall
 ```
 
 ## Project Structure
 
 ```
 sargantana-go/
-├── main/           # Main application entry point
-├── server/         # Core server implementation
-├── controller/     # Built-in controllers (auth, static, load balancer)
-├── config/         # Configuration management
-├── database/       # Database clients (Redis, Neo4j)
-├── logger/         # Logging utilities
-├── session/        # Session storage implementations
-├── docs/           # Project documentation
-├── examples/       # Example configuration files
-└── Makefile        # Development commands
+├── .github/            # GitHub workflows and configuration
+├── .secrets/           # Local secrets directory (gitignored)
+├── main/               # Main application entry point
+├── server/             # Core server implementation
+├── controller/         # Built-in controllers (auth, static, load balancer)
+├── config/             # Configuration management
+├── database/           # Database clients (Redis, Neo4j)
+├── session/            # Session storage implementations
+├── docs/               # Project documentation
+├── examples/           # Example configuration files
+├── certs/              # SSL certificates directory
+├── bin/                # Built binaries (created by make build)
+├── dist/               # Cross-platform binaries (created by make build-all)
+├── docker-compose.yml  # Docker services for development/testing
+├── .golangci.yml       # Linter configuration
+├── .testcoverage.yml   # Test coverage configuration
+├── config.local.yaml   # Local configuration file
+└── Makefile            # Development commands
 ```
 
 ## Development Workflow
@@ -157,13 +194,36 @@ The project should work out of the box with GoLand. Make sure to:
 ### Running with debugger
 
 ```bash
-# Run the main application in debug mode
-go run -race ./main -debug
+# Run the main application in debug mode (requires a valid config file)
+go run -race ./main -debug -config config.local.yaml
 
 # Or build and run with debug symbols
-go build -o sargantana-go ./main
-./sargantana-go -debug
+make build
+./bin/sargantana-go -debug -config config.yaml
+
+# Show version information (no config required)
+./bin/sargantana-go -version
+
+# Show help
+./bin/sargantana-go -help
 ```
+
+### Command-line options
+
+- `-debug`: Enable debug mode with verbose logging
+- `-version`: Show version information
+- `-config <path>`: **Required** - Specify path to configuration file
+- `-help`: Show command-line help
+
+**Note**: The `-config` flag is mandatory for running the server. Only `-version` and `-help` work without it.
+
+### Configuration Requirements
+
+Before running in debug mode, ensure you have:
+
+1. An existing (and valid) YAML configuration file (e.g., `config.yaml`)
+2. Proper Vault configuration or disable Vault in your config
+3. Required services running if using Redis/Neo4j (see docker-compose.yml)
 
 ### Common debugging scenarios
 
@@ -171,18 +231,6 @@ go build -o sargantana-go ./main
 2. **Database connection issues**: Ensure docker-compose services are running
 3. **Session issues**: Verify Redis is running if using Redis sessions
 4. **Static file serving**: Check file paths and permissions
-
-## Performance Profiling
-
-Sargantana Go includes built-in profiling support when running in debug mode:
-
-```bash
-# Run with profiling enabled
-./sargantana-go -debug
-
-# Access profiling endpoints
-curl http://localhost:8080/debug/pprof/
-```
 
 ## Contributing Guidelines
 

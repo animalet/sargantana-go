@@ -1,52 +1,76 @@
-# Example configuration file for Sargantana Go
-# This file demonstrates how to configure the server and various controllers
+# Sargantana Go - Example Configuration File
+# This comprehensive example demonstrates all available configuration options
+# Copy this file and customize it for your application
 
+# =============================================================================
+# SERVER CONFIGURATION
+# =============================================================================
 server:
-  # Server address to listen on (required)
+  # Network address to bind the server (required)
   address: "localhost:8080"
 
   # Session configuration (required)
   session_name: "sargantana-go"
-  session_secret: "${SESSION_SECRET}"  # Can use environment variables
+  session_secret: "${file:SESSION_SECRET}"  # Use environment variable for security
 
   # Optional: Directory containing secret files (for Docker secrets)
+  # When set, secrets can be loaded from files in this directory
   secrets_dir: "/run/secrets"
 
   # Optional: Redis session store configuration
   # If not provided, cookie-based sessions will be used
   redis_session_store:
     address: "localhost:6379"
-    database: 0
-    # Optional TLS configuration
-    # tls:
-    #   cert_file: "/path/to/cert.pem"
-    #   key_file: "/path/to/key.pem"
-    #   ca_file: "/path/to/ca.pem"
+    username: "redisuser"                      # Optional Redis username
+    password: "${vault:REDIS_PASSWORD}"     # Optional Redis password
+    database: 0                       # Redis database number (0-15)
+    max_idle: 10                      # Maximum idle connections in pool
+    idle_timeout: "240s"              # Idle connection timeout
 
-# Optional: Vault configuration for secret management
+    # Optional TLS configuration for Redis
+    tls:
+      insecure_skip_verify: false     # Skip TLS certificate verification
+      cert_file: "/path/to/client.crt"
+      key_file: "/path/to/client.key"
+      ca_file: "/path/to/ca.crt"
+
+# =============================================================================
+# VAULT CONFIGURATION (Optional)
+# =============================================================================
+# HashiCorp Vault integration for secure secret management
 vault:
   address: "https://vault.example.com:8200"
-  token: "${VAULT_TOKEN}"
+  token: "${VAULT_TOKEN}"             # Never hardcode tokens, use env vars or file secrets (like Docker secrets)
   path: "secret/data/myapp"
-  namespace: ""  # Optional, for Vault Enterprise
+  namespace: ""                       # Optional, for Vault Enterprise
 
-# Controllers configuration
+# =============================================================================
+# CONTROLLERS CONFIGURATION
+# =============================================================================
 controllers:
-  # Static file controller
+  # ---------------------------------------------------------------------------
+  # STATIC FILE CONTROLLER
+  # Serves static assets and HTML templates
+  # ---------------------------------------------------------------------------
   - type: "static"
     name: "static-files"
     config:
-      statics_dir: "./frontend"
-      templates_dir: "./templates"
+      statics_dir: "./frontend"       # Directory containing static assets
+      templates_dir: "./templates"    # Directory containing HTML templates
 
-  # Authentication controller
+  # ---------------------------------------------------------------------------
+  # AUTHENTICATION CONTROLLER
+  # Multi-provider OAuth authentication with 50+ supported providers
+  # ---------------------------------------------------------------------------
   - type: "auth"
     name: "authentication"
     config:
-      # Optional: Custom callback URL (if running behind a proxy)
-      # callback_url: "https://myapp.example.com"
+      # Optional: Custom callback URL (required when behind proxy/load balancer)
+      callback_url: "https://myapp.example.com"
 
-      # Authentication paths (optional, these are defaults)
+      # Authentication paths (optional, these are the defaults)
+      # The controller uses {provider} as placeholder for the provider id
+      # see https://github.com/markbates/goth#providers and https://github.com/animalet/sargantana-go/blob/main/docs/authentication-providers.md)
       callback_path: "/auth/{provider}/callback"
       login_path: "/auth/{provider}"
       logout_path: "/auth/logout"
@@ -56,6 +80,7 @@ controllers:
 
       # OAuth providers configuration
       providers:
+        # Major providers - most commonly used
         github:
           key: "${GITHUB_KEY}"
           secret: "${GITHUB_SECRET}"
@@ -66,39 +91,157 @@ controllers:
         google:
           key: "${GOOGLE_KEY}"
           secret: "${GOOGLE_SECRET}"
+          scopes:
+            - "email"
+            - "profile"
 
-        # Auth0 example (requires domain)
+        microsoft:
+          key: "${MICROSOFT_KEY}"
+          secret: "${MICROSOFT_SECRET}"
+
+        # Enterprise providers
         auth0:
           key: "${AUTH0_KEY}"
           secret: "${AUTH0_SECRET}"
           domain: "yourdomain.auth0.com"
 
-        # Okta example (requires org_url)
         okta:
           key: "${OKTA_KEY}"
           secret: "${OKTA_SECRET}"
           org_url: "https://yourorg.okta.com"
 
-        # Nextcloud example (requires url)
+        azuread:
+          key: "${AZURE_AD_KEY}"
+          secret: "${AZURE_AD_SECRET}"
+
+        # Self-hosted solutions
         nextcloud:
           key: "${NEXTCLOUD_KEY}"
           secret: "${NEXTCLOUD_SECRET}"
           url: "https://nextcloud.example.com"
 
-        # WeCom example (requires corp_id and agent_id)
+        gitea:
+          key: "${GITEA_KEY}"
+          secret: "${GITEA_SECRET}"
+          url: "https://git.example.com"
+
+        gitlab:
+          key: "${GITLAB_KEY}"
+          secret: "${GITLAB_SECRET}"
+          url: "https://gitlab.example.com"  # Optional for self-hosted
+
+        # Social media platforms
+        facebook:
+          key: "${FACEBOOK_KEY}"
+          secret: "${FACEBOOK_SECRET}"
+
+        twitter:
+          key: "${TWITTER_KEY}"
+          secret: "${TWITTER_SECRET}"
+
+        discord:
+          key: "${DISCORD_KEY}"
+          secret: "${DISCORD_SECRET}"
+
+        linkedin:
+          key: "${LINKEDIN_KEY}"
+          secret: "${LINKEDIN_SECRET}"
+
+        # Business/Professional platforms
+        slack:
+          key: "${SLACK_KEY}"
+          secret: "${SLACK_SECRET}"
+
+        salesforce:
+          key: "${SALESFORCE_KEY}"
+          secret: "${SALESFORCE_SECRET}"
+
+        # Asian platforms
         wecom:
           key: "${WECOM_KEY}"
           secret: "${WECOM_SECRET}"
           corp_id: "${WECOM_CORP_ID}"
           agent_id: "${WECOM_AGENT_ID}"
 
-  # Load balancer controller
+        # Developer platforms
+        bitbucket:
+          key: "${BITBUCKET_KEY}"
+          secret: "${BITBUCKET_SECRET}"
+
+        digitalocean:
+          key: "${DO_KEY}"
+          secret: "${DO_SECRET}"
+
+        heroku:
+          key: "${HEROKU_KEY}"
+          secret: "${HEROKU_SECRET}"
+
+        # Gaming platforms
+        steam:
+          key: "${STEAM_KEY}"
+          secret: "${STEAM_SECRET}"
+
+        twitch:
+          key: "${TWITCH_KEY}"
+          secret: "${TWITCH_SECRET}"
+
+        # Media platforms
+        spotify:
+          key: "${SPOTIFY_KEY}"
+          secret: "${SPOTIFY_SECRET}"
+
+        # Other providers (uncomment as needed)
+        # amazon:
+        #   key: "${AMAZON_KEY}"
+        #   secret: "${AMAZON_SECRET}"
+        #
+        # apple:
+        #   key: "${APPLE_KEY}"
+        #   secret: "${APPLE_SECRET}"
+        #
+        # dropbox:
+        #   key: "${DROPBOX_KEY}"
+        #   secret: "${DROPBOX_SECRET}"
+        #
+        # paypal:
+        #   key: "${PAYPAL_KEY}"
+        #   secret: "${PAYPAL_SECRET}"
+
+  # ---------------------------------------------------------------------------
+  # LOAD BALANCER CONTROLLER
+  # Round-robin load balancer with optional authentication
+  # ---------------------------------------------------------------------------
   - type: "load_balancer"
     name: "api-proxy"
     config:
-      path: "/api"
-      require_auth: true
+      path: "/api"                    # Path prefix to proxy
+      auth: true                      # Require authentication
       endpoints:
-        - "http://api1:8080"
-        - "http://api2:8080"
-        - "http://api3:8080"
+        - "http://api1.internal:8080"
+        - "http://api2.internal:8080"
+        - "http://api3.internal:8080"
+
+  # ---------------------------------------------------------------------------
+  # ADDITIONAL LOAD BALANCERS (Example)
+  # You can have multiple load balancers for different services
+  # ---------------------------------------------------------------------------
+  - type: "load_balancer"
+    name: "public-api"
+    config:
+      path: "/public"
+      auth: false                     # No authentication required
+      endpoints:
+        - "http://public-api1:3000"
+        - "http://public-api2:3000"
+
+# =============================================================================
+# PRODUCTION CONSIDERATIONS
+# =============================================================================
+# 1. Use strong, unique session secrets
+# 2. Enable TLS for Redis in production
+# 3. Use Vault or Docker secrets for sensitive data
+# 4. Set appropriate idle timeouts for your use case
+# 5. Monitor connection pool usage
+# 6. Use HTTPS for callback URLs
+# 7. Implement proper CORS policies
+# 8. Consider rate limiting for authentication endpoints
