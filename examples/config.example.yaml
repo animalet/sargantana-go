@@ -1,115 +1,104 @@
-# Example configuration using typed controller configurations
-# This demonstrates how each controller can have its own dedicated configuration struct
+# Example configuration file for Sargantana Go
+# This file demonstrates how to configure the server and various controllers
 
-# Server configuration
 server:
+  # Server address to listen on (required)
   address: "localhost:8080"
+
+  # Session configuration (required)
+  session_name: "sargantana-go"
+  session_secret: "${SESSION_SECRET}"  # Can use environment variables
+
+  # Optional: Directory containing secret files (for Docker secrets)
+  secrets_dir: "/run/secrets"
+
+  # Optional: Redis session store configuration
+  # If not provided, cookie-based sessions will be used
   redis_session_store:
-    address: "localhost:6380"  # TLS Redis port
-    password: ""               # Redis password (if any)
-    database: 0                # Redis database number
-    max_idle: 10              # Maximum idle connections in pool
-    idle_timeout: "4m"        # Idle connection timeout
-    tls:                      # TLS configuration for secure connections
-      insecure_skip_verify: true     # Skip certificate verification (for self-signed certs)
-      cert_file: "./certs/redis.crt"  # Client certificate file
-      key_file: "./certs/redis.key"   # Client private key file
-      ca_file: "./certs/ca.crt"        # CA certificate file
-  secrets_dir: "/run/secrets"            # Directory containing secret files
-  debug: true                           # Enable debug mode
-  session_name: "sargantana_session"    # Session cookie name
-  session_secret: "${SESSION_SECRET}"  # Session secret (can use env var)
+    address: "localhost:6379"
+    database: 0
+    # Optional TLS configuration
+    # tls:
+    #   cert_file: "/path/to/cert.pem"
+    #   key_file: "/path/to/key.pem"
+    #   ca_file: "/path/to/ca.pem"
 
+# Optional: Vault configuration for secret management
 vault:
-  address: "https://vault.example.com:8200"  # Vault server address
-  token: "${VAULT_TOKEN}"                     # Vault authentication token (can use env var)
-  path: "secret/data/myapp"                   # Path to secrets in Vault (for KV v2 engine)
-  namespace: ""                               # Optional: Vault namespace for Enterprise (leave empty for OSS)
+  address: "https://vault.example.com:8200"
+  token: "${VAULT_TOKEN}"
+  path: "secret/data/myapp"
+  namespace: ""  # Optional, for Vault Enterprise
 
-# Controller configurations
+# Controllers configuration
 controllers:
   # Static file controller
   - type: "static"
+    name: "static-files"
     config:
-      statics_dir: "./static"      # Directory for static files (CSS, JS, images)
-      templates_dir: "./templates" # Directory for HTML templates
-
-  # Load balancer controller
-  - type: "load_balancer"
-    name: "dmz"
-    config:
-      endpoints: # Backend servers to load balance
-        - "http://backend1:8081"
-        - "http://backend2:8082"
-        - "http://backend3:8083"
-      path: "/api1/"             # Path root to load balance
-      auth: false                 # Require authentication
-
-  - type: "load_balancer"
-    name: "internal"
-    config:
-      endpoints: # Backend servers to load balance
-        - "http://backend3:8081"
-        - "http://backend4:8082"
-        - "http://backend5:8083"
-      path: "/api2/"             # Path root to load balance
-      auth: true                 # Require authentication
+      statics_dir: "./frontend"
+      templates_dir: "./templates"
 
   # Authentication controller
   - type: "auth"
+    name: "authentication"
     config:
-      callback_url: "https://myapp.com"           # Base URL for OAuth callbacks
-      login_path: "/auth/{provider}"              # Login endpoint pattern
-      logout_path: "/logout/{provider}"           # Logout endpoint pattern
-      callback_path: "/auth/{provider}/callback"  # OAuth callback pattern
-      user_info_path: "/user"                      # User info endpoint
-      redirect_on_login: "/"                       # Where to redirect after login
-      redirect_on_logout: "/"                       # Where to redirect after logout
-      providers: # OAuth provider configurations
-        openid-connect:
-          key: "${OPENID_CONNECT_KEY}"
-          secret: "${OPENID_CONNECT_SECRET}"
-          url: "${OPENID_CONNECT_DISCOVERY_URL}"  # OpenID Connect discovery URL
-          scopes:
-            - "openid"
-            - "profile"
-            - "email"
+      # Optional: Custom callback URL (if running behind a proxy)
+      # callback_url: "https://myapp.example.com"
+
+      # Authentication paths (optional, these are defaults)
+      callback_path: "/auth/{provider}/callback"
+      login_path: "/auth/{provider}"
+      logout_path: "/auth/logout"
+      user_info_path: "/auth/user"
+      redirect_on_login: "/"
+      redirect_on_logout: "/"
+
+      # OAuth providers configuration
+      providers:
         github:
-          key: "${GITHUB_KEY}"                   # GitHub OAuth app key
-          secret: "${GITHUB_SECRET}"             # GitHub OAuth app secret
-          scopes: # Requested OAuth scopes
+          key: "${GITHUB_KEY}"
+          secret: "${GITHUB_SECRET}"
+          scopes:
             - "read:user"
             - "user:email"
+
         google:
           key: "${GOOGLE_KEY}"
           secret: "${GOOGLE_SECRET}"
-          scopes:
-            - "openid"
-            - "profile"
-            - "email"
+
+        # Auth0 example (requires domain)
         auth0:
           key: "${AUTH0_KEY}"
           secret: "${AUTH0_SECRET}"
-          domain: "${AUTH0_DOMAIN}"              # Auth0 tenant domain
-        discord:
-          key: "${DISCORD_KEY}"
-          secret: "${DISCORD_SECRET}"
-          scopes:
-            - "identify"
-            - "email"
-        facebook:
-          key: "${FACEBOOK_KEY}"
-          secret: "${FACEBOOK_SECRET}"
-          scopes:
-            - "email"
-            - "public_profile"
+          domain: "yourdomain.auth0.com"
+
+        # Okta example (requires org_url)
+        okta:
+          key: "${OKTA_KEY}"
+          secret: "${OKTA_SECRET}"
+          org_url: "https://yourorg.okta.com"
+
+        # Nextcloud example (requires url)
         nextcloud:
           key: "${NEXTCLOUD_KEY}"
           secret: "${NEXTCLOUD_SECRET}"
-          url: "${NEXTCLOUD_URL}"               # Nextcloud instance URL
-        gitlab:
-          key: "${GITLAB_KEY}"
-          secret: "${GITLAB_SECRET}"
-          scopes:
-            - "read_user"
-            - "read_api"
+          url: "https://nextcloud.example.com"
+
+        # WeCom example (requires corp_id and agent_id)
+        wecom:
+          key: "${WECOM_KEY}"
+          secret: "${WECOM_SECRET}"
+          corp_id: "${WECOM_CORP_ID}"
+          agent_id: "${WECOM_AGENT_ID}"
+
+  # Load balancer controller
+  - type: "load_balancer"
+    name: "api-proxy"
+    config:
+      path: "/api"
+      require_auth: true
+      endpoints:
+        - "http://api1:8080"
+        - "http://api2:8080"
+        - "http://api3:8080"

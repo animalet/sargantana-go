@@ -1,80 +1,125 @@
 # Authentication Providers Configuration
 
-This document lists all supported authentication providers and their required environment variables for authentication in
-Sargantana-Go.
+This document lists all supported authentication providers and their configuration in Sargantana-Go.
 
 ## Overview
 
-Sargantana-Go supports **50+ authentication providers** through the [Goth library](https://github.com/markbates/goth). Each
-provider requires specific environment variables to be configured for authentication to work.
+Sargantana-Go supports **50+ authentication providers** through the [Goth library](https://github.com/markbates/goth). Each provider is configured within the `controllers` section of your YAML configuration file under an auth controller.
 
 ## Configuration
 
-To enable a provider, set the required environment variables. If the primary environment variable (usually
-`{PROVIDER}_KEY`) is not set, the provider will be disabled.
+To enable and configure providers, you need to add them to the `providers` map in your auth controller configuration. The key of the map is the provider ID (e.g., `github`, `google`), and the value is an object containing the provider's credentials and other settings.
+
+Here is an example for configuring GitHub and Google:
+
+```yaml
+controllers:
+  - type: "auth"
+    name: "authentication"
+    config:
+      # Optional: Custom callback URL (if running behind a proxy)
+      callback_url: "https://myapp.example.com"
+      
+      # Authentication paths (optional, these are defaults)
+      callback_path: "/auth/{provider}/callback"
+      login_path: "/auth/{provider}"
+      logout_path: "/auth/logout"
+      user_info_path: "/auth/user"
+      redirect_on_login: "/"
+      redirect_on_logout: "/"
+      
+      # OAuth providers configuration
+      providers:
+        github:
+          key: "${GITHUB_KEY}"
+          secret: "${GITHUB_SECRET}"
+          scopes:
+            - "read:user"
+            - "user:email"
+        google:
+          key: "${GOOGLE_KEY}"
+          secret: "${GOOGLE_SECRET}"
+```
+
+### Provider Configuration Fields
+
+Each provider is configured using the following fields:
+
+-   `key`: The client ID or key for the provider.
+-   `secret`: The client secret for the provider.
+-   `scopes`: (Optional) A list of scopes to request from the provider.
+-   `url`: (Optional) Required for providers like OpenID Connect and Nextcloud.
+-   `domain`: (Optional) Required for Auth0.
+-   `org_url`: (Optional) Required for Okta.
+-   `corp_id`: (Optional) Required for WeCom.
+-   `agent_id`: (Optional) Required for WeCom.
+
+If the `key` for a provider is not set, the provider will be disabled.
 
 ## Supported Providers
 
-| Provider             | Provider ID       | Primary Key           | Secret Key               | Additional Variables           | Notes                                           |
-|----------------------|-------------------|-----------------------|--------------------------|--------------------------------|-------------------------------------------------|
-| **Amazon**           | `amazon`          | `AMAZON_KEY`          | `AMAZON_SECRET`          | -                              | -                                               |
-| **Apple**            | `apple`           | `APPLE_KEY`           | `APPLE_SECRET`           | -                              | Includes name and email scopes                  |
-| **Auth0**            | `auth0`           | `AUTH0_KEY`           | `AUTH0_SECRET`           | `AUTH0_DOMAIN`                 | Domain is required for Auth0                    |
-| **Azure AD**         | `azuread`         | `AZUREAD_KEY`         | `AZUREAD_SECRET`         | -                              | Microsoft Azure Active Directory                |
-| **Battle.net**       | `battlenet`       | `BATTLENET_KEY`       | `BATTLENET_SECRET`       | -                              | Blizzard Entertainment                          |
-| **Bitbucket**        | `bitbucket`       | `BITBUCKET_KEY`       | `BITBUCKET_SECRET`       | -                              | Atlassian Bitbucket                             |
-| **Box**              | `box`             | `BOX_KEY`             | `BOX_SECRET`             | -                              | Box cloud storage                               |
-| **Dailymotion**      | `dailymotion`     | `DAILYMOTION_KEY`     | `DAILYMOTION_SECRET`     | -                              | Includes email scope                            |
-| **Deezer**           | `deezer`          | `DEEZER_KEY`          | `DEEZER_SECRET`          | -                              | Includes email scope                            |
-| **DigitalOcean**     | `digitalocean`    | `DIGITALOCEAN_KEY`    | `DIGITALOCEAN_SECRET`    | -                              | Includes read scope                             |
-| **Discord**          | `discord`         | `DISCORD_KEY`         | `DISCORD_SECRET`         | -                              | Includes identify and email scopes              |
-| **Dropbox**          | `dropbox`         | `DROPBOX_KEY`         | `DROPBOX_SECRET`         | -                              | -                                               |
-| **EVE Online**       | `eveonline`       | `EVEONLINE_KEY`       | `EVEONLINE_SECRET`       | -                              | CCP Games                                       |
-| **Facebook**         | `facebook`        | `FACEBOOK_KEY`        | `FACEBOOK_SECRET`        | -                              | Includes email and public_profile scopes        |
-| **Fitbit**           | `fitbit`          | `FITBIT_KEY`          | `FITBIT_SECRET`          | -                              | -                                               |
-| **Gitea**            | `gitea`           | `GITEA_KEY`           | `GITEA_SECRET`           | -                              | Self-hosted Git service                         |
-| **GitHub**           | `github`          | `GITHUB_KEY`          | `GITHUB_SECRET`          | -                              | Includes read:user and user:email scopes        |
-| **GitLab**           | `gitlab`          | `GITLAB_KEY`          | `GITLAB_SECRET`          | -                              | -                                               |
-| **Google**           | `google`          | `GOOGLE_KEY`          | `GOOGLE_SECRET`          | -                              | -                                               |
-| **Heroku**           | `heroku`          | `HEROKU_KEY`          | `HEROKU_SECRET`          | -                              | -                                               |
-| **Instagram**        | `instagram`       | `INSTAGRAM_KEY`       | `INSTAGRAM_SECRET`       | -                              | -                                               |
-| **Intercom**         | `intercom`        | `INTERCOM_KEY`        | `INTERCOM_SECRET`        | -                              | -                                               |
-| **Kakao**            | `kakao`           | `KAKAO_KEY`           | `KAKAO_SECRET`           | -                              | Korean social platform                          |
-| **Last.fm**          | `lastfm`          | `LASTFM_KEY`          | `LASTFM_SECRET`          | -                              | Music platform                                  |
-| **LINE**             | `line`            | `LINE_KEY`            | `LINE_SECRET`            | -                              | Includes profile, openid, and email scopes      |
-| **LinkedIn**         | `linkedin`        | `LINKEDIN_KEY`        | `LINKEDIN_SECRET`        | -                              | -                                               |
-| **Mastodon**         | `mastodon`        | `MASTODON_KEY`        | `MASTODON_SECRET`        | -                              | Includes read:accounts scope                    |
-| **Meetup**           | `meetup`          | `MEETUP_KEY`          | `MEETUP_SECRET`          | -                              | -                                               |
-| **Microsoft Online** | `microsoftonline` | `MICROSOFTONLINE_KEY` | `MICROSOFTONLINE_SECRET` | -                              | Microsoft 365                                   |
-| **Naver**            | `naver`           | `NAVER_KEY`           | `NAVER_SECRET`           | -                              | Korean search engine                            |
-| **Nextcloud**        | `nextcloud`       | `NEXTCLOUD_KEY`       | `NEXTCLOUD_SECRET`       | `NEXTCLOUD_URL`                | Self-hosted cloud platform                      |
-| **Okta**             | `okta`            | `OKTA_ID`             | `OKTA_SECRET`            | `OKTA_ORG_URL`                 | Enterprise identity platform                    |
-| **OneDrive**         | `onedrive`        | `ONEDRIVE_KEY`        | `ONEDRIVE_SECRET`        | -                              | Microsoft OneDrive                              |
-| **OpenID Connect**   | `openid-connect`  | `OPENID_CONNECT_KEY`  | `OPENID_CONNECT_SECRET`  | `OPENID_CONNECT_DISCOVERY_URL` | Generic OpenID Connect provider                 |
-| **Patreon**          | `patreon`         | `PATREON_KEY`         | `PATREON_SECRET`         | -                              | Creator funding platform                        |
-| **PayPal**           | `paypal`          | `PAYPAL_KEY`          | `PAYPAL_SECRET`          | `PAYPAL_ENV` (optional)        | Set PAYPAL_ENV=sandbox for testing              |
-| **Salesforce**       | `salesforce`      | `SALESFORCE_KEY`      | `SALESFORCE_SECRET`      | -                              | CRM platform                                    |
-| **Seatalk**          | `seatalk`         | `SEATALK_KEY`         | `SEATALK_SECRET`         | -                              | -                                               |
-| **Shopify**          | `shopify`         | `SHOPIFY_KEY`         | `SHOPIFY_SECRET`         | -                              | Includes read customers and orders scopes       |
-| **Slack**            | `slack`           | `SLACK_KEY`           | `SLACK_SECRET`           | -                              | -                                               |
-| **SoundCloud**       | `soundcloud`      | `SOUNDCLOUD_KEY`      | `SOUNDCLOUD_SECRET`      | -                              | -                                               |
-| **Spotify**          | `spotify`         | `SPOTIFY_KEY`         | `SPOTIFY_SECRET`         | -                              | -                                               |
-| **Steam**            | `steam`           | `STEAM_KEY`           | -                        | -                              | Only requires API key, no secret                |
-| **Strava**           | `strava`          | `STRAVA_KEY`          | `STRAVA_SECRET`          | -                              | Fitness tracking platform                       |
-| **Stripe**           | `stripe`          | `STRIPE_KEY`          | `STRIPE_SECRET`          | -                              | Payment processing                              |
-| **TikTok**           | `tiktok`          | `TIKTOK_KEY`          | `TIKTOK_SECRET`          | -                              | -                                               |
-| **Twitch**           | `twitch`          | `TWITCH_KEY`          | `TWITCH_SECRET`          | -                              | -                                               |
-| **Twitter v2**       | `twitterv2`       | `TWITTER_KEY`         | `TWITTER_SECRET`         | -                              | Uses Twitter API v2 (Essential tier compatible) |
-| **Typetalk**         | `typetalk`        | `TYPETALK_KEY`        | `TYPETALK_SECRET`        | -                              | Includes "my" scope                             |
-| **Uber**             | `uber`            | `UBER_KEY`            | `UBER_SECRET`            | -                              | -                                               |
-| **VK**               | `vk`              | `VK_KEY`              | `VK_SECRET`              | -                              | Russian social network                          |
-| **WeCom**            | `wecom`           | `WECOM_CORP_ID`       | `WECOM_SECRET`           | `WECOM_AGENT_ID`               | WeChat Work (enterprise)                        |
-| **WePay**            | `wepay`           | `WEPAY_KEY`           | `WEPAY_SECRET`           | -                              | Includes view_user scope                        |
-| **Xero**             | `xero`            | `XERO_KEY`            | `XERO_SECRET`            | -                              | Accounting software                             |
-| **Yahoo**            | `yahoo`           | `YAHOO_KEY`           | `YAHOO_SECRET`           | -                              | ⚠️ Uses hardcoded HTTPS callback                |
-| **Yammer**           | `yammer`          | `YAMMER_KEY`          | `YAMMER_SECRET`          | -                              | Microsoft Yammer                                |
-| **Yandex**           | `yandex`          | `YANDEX_KEY`          | `YANDEX_SECRET`          | -                              | Russian search engine                           |
-| **Zoom**             | `zoom`            | `ZOOM_KEY`            | `ZOOM_SECRET`            | -                              | Includes read:user scope                        |
+The following table lists the supported providers and their unique configuration requirements. Most providers only require a `key` and a `secret`.
+
+| Provider             | Provider ID       | Special Fields                               | Notes                                           |
+|----------------------|-------------------|----------------------------------------------|-------------------------------------------------|
+| **Amazon**           | `amazon`          | -                                            | -                                               |
+| **Apple**            | `apple`           | -                                            | Includes name and email scopes                  |
+| **Auth0**            | `auth0`           | `domain`                                     | Domain is required for Auth0                    |
+| **Azure AD**         | `azuread`         | -                                            | Microsoft Azure Active Directory                |
+| **Battle.net**       | `battlenet`       | -                                            | Blizzard Entertainment                          |
+| **Bitbucket**        | `bitbucket`       | -                                            | Atlassian Bitbucket                             |
+| **Box**              | `box`             | -                                            | Box cloud storage                               |
+| **Dailymotion**      | `dailymotion`     | -                                            | Includes email scope                            |
+| **Deezer**           | `deezer`          | -                                            | Includes email scope                            |
+| **DigitalOcean**     | `digitalocean`    | -                                            | Includes read scope                             |
+| **Discord**          | `discord`         | -                                            | Includes identify and email scopes              |
+| **Dropbox**          | `dropbox`         | -                                            | -                                               |
+| **EVE Online**       | `eveonline`       | -                                            | CCP Games                                       |
+| **Facebook**         | `facebook`        | -                                            | Includes email and public_profile scopes        |
+| **Fitbit**           | `fitbit`          | -                                            | -                                               |
+| **Gitea**            | `gitea`           | -                                            | Self-hosted Git service                         |
+| **GitHub**           | `github`          | -                                            | Includes read:user and user:email scopes        |
+| **GitLab**           | `gitlab`          | -                                            | -                                               |
+| **Google**           | `google`          | -                                            | -                                               |
+| **Heroku**           | `heroku`          | -                                            | -                                               |
+| **Instagram**        | `instagram`       | -                                            | -                                               |
+| **Intercom**         | `intercom`        | -                                            | -                                               |
+| **Kakao**            | `kakao`           | -                                            | Korean social platform                          |
+| **Last.fm**          | `lastfm`          | -                                            | Music platform                                  |
+| **LINE**             | `line`            | -                                            | Includes profile, openid, and email scopes      |
+| **LinkedIn**         | `linkedin`        | -                                            | -                                               |
+| **Mastodon**         | `mastodon`        | -                                            | Includes read:accounts scope                    |
+| **Meetup**           | `meetup`          | -                                            | -                                               |
+| **Microsoft Online** | `microsoftonline` | -                                            | Microsoft 365                                   |
+| **Naver**            | `naver`           | -                                            | Korean search engine                            |
+| **Nextcloud**        | `nextcloud`       | `url`                                        | Self-hosted cloud platform                      |
+| **Okta**             | `okta`            | `org_url`                                    | Enterprise identity platform                    |
+| **OneDrive**         | `onedrive`        | -                                            | Microsoft OneDrive                              |
+| **OpenID Connect**   | `openid-connect`  | `url`                                        | Generic OpenID Connect provider                 |
+| **Patreon**          | `patreon`         | -                                            | Creator funding platform                        |
+| **PayPal**           | `paypal`          | -                                            | Set `PAYPAL_ENV=sandbox` for testing            |
+| **Salesforce**       | `salesforce`      | -                                            | CRM platform                                    |
+| **Seatalk**          | `seatalk`         | -                                            | -                                               |
+| **Shopify**          | `shopify`         | -                                            | Includes read customers and orders scopes       |
+| **Slack**            | `slack`           | -                                            | -                                               |
+| **SoundCloud**       | `soundcloud`      | -                                            | -                                               |
+| **Spotify**          | `spotify`         | -                                            | -                                               |
+| **Steam**            | `steam`           | -                                            | Only requires API key, no secret                |
+| **Strava**           | `strava`          | -                                            | Fitness tracking platform                       |
+| **Stripe**           | `stripe`          | -                                            | Payment processing                              |
+| **TikTok**           | `tiktok`          | -                                            | -                                               |
+| **Twitch**           | `twitch`          | -                                            | -                                               |
+| **Twitter v2**       | `twitterv2`       | -                                            | Uses Twitter API v2 (Essential tier compatible) |
+| **Typetalk**         | `typetalk`        | -                                            | Includes "my" scope                             |
+| **Uber**             | `uber`            | -                                            | -                                               |
+| **VK**               | `vk`              | -                                            | Russian social network                          |
+| **WeCom**            | `wecom`           | `corp_id`, `agent_id`                        | WeChat Work (enterprise)                        |
+| **WePay**            | `wepay`           | -                                            | Includes view_user scope                        |
+| **Xero**             | `xero`            | -                                            | Accounting software                             |
+| **Yahoo**            | `yahoo`           | -                                            | ⚠️ Uses hardcoded HTTPS callback                |
+| **Yammer**           | `yammer`          | -                                            | Microsoft Yammer                                |
+| **Yandex**           | `yandex`          | -                                            | Russian search engine                           |
+| **Zoom**             | `zoom`            | -                                            | Includes read:user scope                        |
 
 ## Special Configuration Notes
 
@@ -85,78 +130,76 @@ Yahoo app to use this specific callback URL.
 
 ### Auth0
 
-Auth0 requires a domain configuration. Make sure to set the `AUTH0_DOMAIN` environment variable to your Auth0 domain.
+Auth0 requires a domain configuration. Make sure to set the `domain` field to your Auth0 domain.
+
+```yaml
+controllers:
+  - type: "auth"
+    config:
+      providers:
+        auth0:
+          key: "${AUTH0_KEY}"
+          secret: "${AUTH0_SECRET}"
+          domain: "yourdomain.auth0.com"
+```
 
 ### Okta
 
-Okta requires both the organization URL (`OKTA_ORG_URL`) and uses `OKTA_ID` instead of `OKTA_KEY`.
+Okta requires the organization URL (`org_url`).
+
+```yaml
+controllers:
+  - type: "auth"
+    config:
+      providers:
+        okta:
+          key: "${OKTA_KEY}"
+          secret: "${OKTA_SECRET}"
+          org_url: "https://yourorg.okta.com"
+```
 
 ### Nextcloud
 
-Nextcloud requires the `NEXTCLOUD_URL` to specify your Nextcloud instance URL.
+Nextcloud requires the `url` to specify your Nextcloud instance URL.
 
-### WeCom (WeChat Work)
-
-WeCom requires three variables: `WECOM_CORP_ID`, `WECOM_SECRET`, and `WECOM_AGENT_ID`.
-
-### PayPal
-
-PayPal uses production URLs by default. For testing, set `PAYPAL_ENV=sandbox`.
-
-### Steam
-
-Steam only requires the `STEAM_KEY` (API key) and does not use a secret.
-
-### Twitter
-
-The implementation uses Twitter API v2 (`twitterv2`) which is compatible with the Essential API tier. There's also
-support for authentication mode instead of authorization (commented out in code).
+```yaml
+controllers:
+  - type: "auth"
+    config:
+      providers:
+        nextcloud:
+          key: "${NEXTCLOUD_KEY}"
+          secret: "${NEXTCLOUD_SECRET}"
+          url: "https://nextcloud.example.com"
+```
 
 ### OpenID Connect
 
-OpenID Connect is a generic provider that supports any OpenID Connect compliant service. It requires the
-`OPENID_CONNECT_DISCOVERY_URL` which should point to the OpenID Connect Auto Discovery URL (as
-per https://openid.net/specs/openid-connect-discovery-1_0-17.html).
+OpenID Connect requires the `url` to specify the OpenID Connect provider URL.
 
-## Usage
-
-1. Choose the authentication providers you want to support
-2. Register your application with each provider to get the required credentials
-3. Set the environment variables for each provider
-4. The providers will be automatically enabled when their primary key is detected
-
-## Example Configuration
-
-```bash
-# Google Authentication
-export GOOGLE_KEY="your-google-client-id"
-export GOOGLE_SECRET="your-google-client-secret"
-
-# GitHub Authentication
-export GITHUB_KEY="your-github-client-id"
-export GITHUB_SECRET="your-github-client-secret"
-
-# Auth0 Authentication (requires domain)
-export AUTH0_KEY="your-auth0-client-id"
-export AUTH0_SECRET="your-auth0-client-secret"
-export AUTH0_DOMAIN="your-tenant.auth0.com"
+```yaml
+controllers:
+  - type: "auth"
+    config:
+      providers:
+        openid-connect:
+          key: "${OIDC_KEY}"
+          secret: "${OIDC_SECRET}"
+          url: "https://oidc.example.com"
 ```
 
-## Authentication Endpoints
+### WeCom (WeChat Work)
 
-Once configured, each provider will be available at:
+WeCom requires three fields: `corp_id`, `secret`, and `agent_id`.
 
-- **Login**: `/auth/{provider}` (e.g., `/auth/google`)
-- **Callback**: `/auth/{provider}/callback` (e.g., `/auth/google/callback`)
-- **Logout**: `/auth/{provider}/logout` (e.g., `/auth/google/logout`)
-
-## Testing with Mock Providers
-
-For testing purposes, you can use mock authentication providers by setting:
-
-```bash
-export OAUTH_MOCK_SERVER_URL="http://localhost:8080"
+```yaml
+controllers:
+  - type: "auth"
+    config:
+      providers:
+        wecom:
+          key: "${WECOM_KEY}"
+          secret: "${WECOM_SECRET}"
+          corp_id: "${WECOM_CORP_ID}"
+          agent_id: "${WECOM_AGENT_ID}"
 ```
-
-When this is set, the system will use mock providers instead of real authentication endpoints. This requires building with the
-test tag: `go test -tags=test`.

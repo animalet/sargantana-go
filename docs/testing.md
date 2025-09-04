@@ -17,8 +17,7 @@ Some tests require external services like databases and authentication providers
 The docker-compose setup includes:
 
 - **Neo4j** (port 7687): Graph database for database integration tests
-- **Valkey/Redis** (port 6379): In-memory database for session storage tests  
-- **Mock OAuth2 Server** (port 8080): Mock authentication provider for auth controller tests
+- **Redis** (port 6379): In-memory database for session storage tests
 
 ### Starting Test Services
 
@@ -45,7 +44,7 @@ docker-compose down
 make test
 
 # Run tests with coverage report
-make test-coverage
+make test-with-coverage
 
 # Run all CI checks locally (linting, formatting, tests)
 make ci
@@ -143,14 +142,6 @@ docker-compose exec neo4j cypher-shell -u neo4j -p testpassword
 # Connect to Redis for debugging
 docker-compose exec valkey redis-cli
 ```
-
-### Mock OAuth2 Server
-
-- **Purpose**: Testing authentication flows without real OAuth providers
-- **URL**: `http://localhost:8080`
-- **Configuration**: Pre-configured with test tokens and user data
-
-The mock server provides test endpoints for OAuth flows and returns predictable user data for testing.
 
 ## Running Tests Without Docker
 

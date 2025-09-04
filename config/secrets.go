@@ -19,10 +19,6 @@ type vaultManager struct {
 var vaultManagerInstance *vaultManager
 
 func (c *Config) createVaultManager() error {
-	if !c.Vault.IsValid() {
-		log.Info().Msg("Vault configuration incomplete, skipping Vault secrets loading")
-		return nil
-	}
 	config := api.DefaultConfig()
 	config.Address = c.Vault.Address
 	client, err := api.NewClient(config)

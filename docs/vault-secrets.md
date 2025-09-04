@@ -1,10 +1,10 @@
 # Vault Secrets Integration
 
-Sargantana Go now supports loading secrets from HashiCorp Vault in addition to file-based secrets. This document explains how to configure and use Vault for secret management.
+Sargantana Go supports loading secrets from HashiCorp Vault. This document explains how to configure and use Vault for secret management.
 
 ## Configuration
 
-Add the following Vault configuration to your YAML config file:
+To enable Vault integration, add the following section to your YAML configuration file:
 
 ```yaml
 vault:
@@ -14,67 +14,54 @@ vault:
   namespace: ""                               # Optional: Vault namespace (for Enterprise)
 ```
 
+If the `vault` section is present and valid, the Vault client will be initialized at startup.
+
 ### Configuration Fields
 
-- **address**: The URL of your Vault server (required)
-- **token**: Authentication token for Vault access (required)
-- **path**: The path where your secrets are stored in Vault (required)
-- **namespace**: Vault namespace for Enterprise installations (optional)
-
-## Supported Vault Engines
-
-The implementation supports both KV v1 and KV v2 secrets engines:
-
-- **KV v1**: Secrets are read directly from the path
-- **KV v2**: Secrets are automatically extracted from the nested `data` field
+-   **address**: The URL of your Vault server (required).
+-   **token**: An authentication token for Vault access (required). It's recommended to supply this via an environment variable.
+-   **path**: The path where your secrets are stored in Vault (required).
+-   **namespace**: The Vault namespace for Enterprise installations (optional).
 
 ## Usage
 
-### Loading Secrets
+To use a secret from Vault, use the `${vault:secret-name}` syntax in your configuration file. The application will automatically fetch the secret from the configured Vault path and substitute it.
 
-Use the new `LoadSecrets()` function to load secrets from both directory and Vault sources:
+For example, to use a database password stored in Vault:
 
-```go
-import "github.com/animalet/sargantana-go/config"
-
-// Load configuration from YAML
-var cfg config.Config
-err := config.LoadYaml("config.yaml", &cfg)
-if err != nil {
-    log.Fatal(err)
-}
-
-// Load secrets from both directory and Vault
-err = config.LoadSecrets(&cfg)
-if err != nil {
-    log.Fatal(err)
-}
+```yaml
+database:
+  password: "${vault:db_password}"
 ```
 
-### Secret Priority
+When the configuration is loaded, `${vault:db_password}` will be replaced with the value of the `db_password` secret from Vault.
 
-When both directory and Vault secrets are configured:
+This works for any field in your configuration file.
 
-1. Directory secrets are loaded first
-2. Vault secrets are loaded second and will **override** directory secrets with the same name
-3. All secret names are converted to uppercase environment variables
+### Supported Vault Engines
+
+The implementation supports both KV v1 and KV v2 secrets engines:
+
+-   **KV v1**: Secrets are read directly from the configured `path`.
+-   **KV v2**: Secrets are automatically extracted from the `data` field within the response from the configured `path`.
 
 ## Authentication
 
-Currently supported authentication methods:
+Currently, the only supported authentication method is:
 
-- **Token authentication**: Provide a Vault token directly in the configuration
+-   **Token authentication**: Provide a Vault token directly in the configuration.
 
 ### Using Environment Variables for Tokens
 
-For security, avoid hardcoding tokens in configuration files. Instead, use environment variables:
+For security, avoid hardcoding tokens in configuration files. Instead, use environment variables with the `${VAR}` syntax:
 
 ```yaml
 vault:
   token: "${VAULT_TOKEN}"
 ```
 
-Then set the environment variable:
+Then, set the environment variable in your shell:
+
 ```bash
 export VAULT_TOKEN="your-vault-token"
 ```
@@ -89,62 +76,49 @@ vault:
   address: "https://vault.company.com:8200"
   token: "${VAULT_TOKEN}"
   path: "secret/data/myapp"
+
+# Example of using a Vault secret
+server:
+  session_secret: "${vault:session-secret-key}"
 ```
 
 ### Enterprise Configuration with Namespace
 
 ```yaml
-# Vault Enterprise with namespace
+# Vault Enterprise with a namespace
 vault:
   address: "https://vault.company.com:8200"
   token: "${VAULT_TOKEN}"
   path: "secret/data/production/myapp"
-  namespace: "production"
+  namespace: "my-namespace"
+
+# Using vault secrets in configuration
+server:
+  session_secret: "${vault:session-secret}"
+  
+controllers:
+  - type: "auth"
+    config:
+      providers:
+        github:
+          key: "${vault:github-client-id}"
+          secret: "${vault:github-client-secret}"
 ```
 
-### Combined Directory and Vault
+### Multiple Secret Types
 
 ```yaml
-# Use both directory and Vault secrets
-secrets_dir: "/run/secrets"
 vault:
   address: "https://vault.company.com:8200"
   token: "${VAULT_TOKEN}"
   path: "secret/data/myapp"
+
+server:
+  # Vault secret
+  session_secret: "${vault:session-secret}"
+  # Environment variable
+  address: "${SERVER_ADDRESS}"
+  # File secret (Docker secrets)
+  redis_session_store:
+    password: "${file:redis_password}"
 ```
-
-## Error Handling
-
-The Vault integration includes comprehensive error handling:
-
-- **Missing configuration**: Vault loading is skipped if configuration is incomplete
-- **Connection errors**: Network and authentication errors are properly reported
-- **Path not found**: Non-existent paths are handled gracefully
-- **Invalid data**: Non-string values in secrets are skipped with warnings
-
-## Security Considerations
-
-1. **Token Security**: Never commit Vault tokens to version control
-2. **TLS**: Always use HTTPS for Vault communication in production
-3. **Token Rotation**: Implement token rotation policies
-4. **Least Privilege**: Grant minimal required permissions to Vault tokens
-5. **Audit**: Enable Vault audit logging for security monitoring
-
-## Troubleshooting
-
-### Common Issues
-
-1. **403 Permission Denied**: Check token permissions and path access
-2. **Connection Refused**: Verify Vault server address and network connectivity
-3. **Empty Secrets**: Verify the correct path format for your KV engine version
-4. **SSL Errors**: Ensure proper TLS configuration for production Vault instances
-
-### Debug Logging
-
-Enable debug mode in your configuration to see detailed secret loading logs:
-
-```yaml
-debug: true
-```
-
-This will log the number of secrets loaded from each source.

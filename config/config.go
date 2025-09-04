@@ -4,13 +4,13 @@
 package config
 
 import (
-	"log"
 	"os"
 	"reflect"
 	"strings"
 
 	"github.com/animalet/sargantana-go/database"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -51,54 +51,80 @@ type (
 	}
 )
 
-func Load(file string) (*Config, error) {
-	var cfg *Config
-	err := LoadYaml(file, &cfg)
-	if err != nil {
-		return nil, err
+type Validatable interface {
+	Validate() error
+}
+
+// Validate checks if the ServerConfig has all required fields set.
+func (c ServerConfig) Validate() error {
+	if c.SessionSecret == "" {
+		return errors.New("session_secret must be set and non-empty")
 	}
+	return nil
+}
+
+func (cfg *Config) Load() error {
+	var err error
+	if cfg.Vault != nil {
+		expandVariables(reflect.ValueOf(cfg.Vault).Elem())
+		if err = cfg.Vault.Validate(); err == nil {
+			err = cfg.createVaultManager()
+			if err != nil {
+				return errors.Wrap(err, "error creating Vault manager")
+			}
+		} else {
+			return errors.Wrap(err, "Vault configuration is invalid")
+		}
+	} else {
+		log.Debug().Msg("No Vault configuration provided, skipping Vault secrets loading")
+	}
+
 	expandVariables(reflect.ValueOf(&cfg.ServerConfig).Elem())
-	if cfg.ServerConfig.SessionSecret == "" {
-		return nil, errors.New("session_secret must be set and non-empty")
+	if err = cfg.ServerConfig.Validate(); err != nil {
+		return errors.Wrap(err, "server configuration is invalid")
 	}
 
 	if cfg.ServerConfig.SecretsDir == "" {
-		log.Println("No secrets directory configured, file secrets will fail if requested")
+		log.Warn().Msg("No secrets directory configured, file secrets will fail if requested")
 	}
 	secretDir = cfg.ServerConfig.SecretsDir
-
-	if cfg.Vault != nil {
-		expandVariables(reflect.ValueOf(cfg.Vault).Elem())
-	}
-	if cfg.Vault.IsValid() {
-		err = cfg.createVaultManager()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		log.Println("Vault configuration incomplete, Vault secrets will fail if requested")
-	}
-
-	return cfg, nil
+	return nil
 }
 
-// IsValid checks if the VaultConfig has all required fields set.
-func (v *VaultConfig) IsValid() bool {
-	return v != nil && v.Address != "" && v.Token != "" && v.Path != ""
+// Validate checks if the VaultConfig has all required fields set.
+func (v VaultConfig) Validate() error {
+	if v.Address == "" {
+		return errors.New("Vault address is required")
+	}
+	if v.Token == "" {
+		return errors.New("Vault token is required")
+	}
+	if v.Path == "" {
+		return errors.New("Vault path is required")
+	}
+	return nil
 }
 
 // LoadYaml reads the YAML configuration file and unmarshalls its content into the provided struct.
-// Parameters:
-//   - out: A pointer to the struct where the configuration will be unmarshalled
 //
-// Returns an error if the file cannot be read or unmarshalled.
-func LoadYaml(file string, out any) error {
+// Parameters:
+//   - file: Path to the YAML configuration file
+//
+// Returns:
+//   - *T: Pointer to the struct of type T containing the unmarshalled configuration
+//   - error: Error if reading or unmarshalling
+func LoadYaml[T any](file string) (*T, error) {
 	data, err := os.ReadFile(file)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return yaml.Unmarshal(data, out)
+	var out *T
+	err = yaml.Unmarshal(data, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -134,12 +160,12 @@ func UnmarshalTo[T any](c ControllerConfig) (*T, error) {
 // expand checks for specific prefixes in the string and expands them accordingly.
 // Supported prefixes are:
 //   - "env:": Expands to the value of the specified environment variable
-//   - "vault:": Placeholder for future Vault integration (currently returns a static value)
+//   - "vault:": Placeholder for retrieving secrets from Vault
+//   - "file:": Reads the content of the specified file in secrets dir (if configured) and returns it as a string
 //
 // If no known prefix is found, the original string is returned unchanged.
 const envPrefix = "env:"
 const filePrefix = "file:"
-
 const vaultPrefix = "vault:"
 
 var secretDir string

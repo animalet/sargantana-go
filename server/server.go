@@ -61,12 +61,16 @@ func GetDebug() bool {
 //   - *Server: The configured server instance
 //   - error: An error if the server could not be created, nil otherwise
 func NewServer(configFile string) (*Server, error) {
-	c, err := config.Load(configFile)
+	cfg, err := config.LoadYaml[config.Config](configFile)
+	if err != nil {
+		return nil, err
+	}
+	err = cfg.Load()
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to load config file: %s", configFile))
 	}
 
-	controllers, configurationErrors := configureControllers(c)
+	controllers, configurationErrors := configureControllers(cfg)
 	if len(configurationErrors) > 0 {
 		log.Error().Msg("Configuration errors encountered, affected controllers have been excluded from bootstrap:")
 		for _, configErr := range configurationErrors {
@@ -76,7 +80,7 @@ func NewServer(configFile string) (*Server, error) {
 		log.Info().Msg("Configuration loaded successfully")
 	}
 
-	return &Server{config: c, controllers: controllers}, nil
+	return &Server{config: cfg, controllers: controllers}, nil
 }
 
 func AddControllerType(typeName string, factory controller.Constructor) {
@@ -166,7 +170,7 @@ func (s *Server) Start() error {
 		}
 		log.Debug().Msg("Expected controllers:")
 		for _, binding := range s.config.ControllerBindings {
-			log.Debug().Msgf(" - Type: %s, Name: %s, Config Type: %s", binding.TypeName, binding.Name, string(binding.ConfigData))
+			log.Debug().Msgf(" - Type: %s, Name: %s\n%s", binding.TypeName, binding.Name, string(binding.ConfigData))
 		}
 		gin.SetMode(gin.DebugMode)
 	} else {

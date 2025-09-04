@@ -2,11 +2,11 @@ package database
 
 import (
 	"context"
-	"log"
 	"os"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"github.com/rs/zerolog/log"
 )
 
 // Neo4jOptions holds the configuration options for connecting to a Neo4j database.
@@ -53,7 +53,7 @@ func NewNeo4jDriver(options *Neo4jOptions) (neo4j.DriverWithContext, func() erro
 	defer func() {
 		err := session.Close(timeout)
 		if err != nil {
-			log.Printf("Failed to close Neo4j session: %v", err)
+			log.Error().Msgf("Failed to close Neo4j session: %v", err)
 		}
 	}()
 
@@ -62,7 +62,7 @@ func NewNeo4jDriver(options *Neo4jOptions) (neo4j.DriverWithContext, func() erro
 		return nil, nil, err
 	}
 
-	log.Printf("Connected to Neo4j at %s", options.Uri)
+	log.Info().Msgf("Connected to Neo4j at %s", options.Uri)
 
 	closeFunc := func() error {
 		err := driver.Close(timeout)

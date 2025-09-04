@@ -73,7 +73,7 @@ The compiled binaries will be placed in the `dist/` directory when using `make b
 make test
 
 # Run tests with coverage
-make test-coverage
+make test-with-coverage
 
 # Run linting
 make lint
@@ -99,9 +99,11 @@ sargantana-go/
 ├── server/         # Core server implementation
 ├── controller/     # Built-in controllers (auth, static, load balancer)
 ├── config/         # Configuration management
+├── database/       # Database clients (Redis, Neo4j)
+├── logger/         # Logging utilities
 ├── session/        # Session storage implementations
-├── database/       # Database integrations (Redis, Neo4j, etc.)
-├── docs/           # Documentation files
+├── docs/           # Project documentation
+├── examples/       # Example configuration files
 └── Makefile        # Development commands
 ```
 

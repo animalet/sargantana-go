@@ -23,10 +23,6 @@ func main() {
 
 	flag.Parse()
 
-	// Set up zerolog
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-
 	if *debugMode {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	} else {
@@ -39,9 +35,18 @@ func main() {
 	}
 
 	if *configFile == "" {
-		log.Fatal().Msg("Error: -config is required")
+		n, err := fmt.Fprintln(os.Stderr, "Error: -config flag is required")
+		if err != nil || n <= 0 {
+			panic("Failed to print error message")
+		}
+		os.Exit(1)
 	}
 
+	log.Logger = log.Output(zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		NoColor:    false,
+		TimeFormat: "2006-01-02 15:04:05",
+	})
 	server.SetDebug(*debugMode)
 	server.AddControllerType("auth", controller.NewAuthController)
 	server.AddControllerType("static", controller.NewStaticController)

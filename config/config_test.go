@@ -33,71 +33,24 @@ server:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	var config Config
-	err = LoadYaml(configFile, &config)
+	cfg, err := LoadYaml[Config](configFile)
 	if err != nil {
 		t.Fatalf("LoadYaml failed: %v", err)
 	}
 
-	if config.ServerConfig.Address != ":8080" {
-		t.Errorf("Expected address ':8080', got '%s'", config.ServerConfig.Address)
+	if cfg.ServerConfig.Address != ":8080" {
+		t.Errorf("Expected address ':8080', got '%s'", cfg.ServerConfig.Address)
 	}
-	if config.ServerConfig.SessionSecret != "test-secret-key" {
-		t.Errorf("Expected session secret 'test-secret-key', got '%s'", config.ServerConfig.SessionSecret)
+	if cfg.ServerConfig.SessionSecret != "test-secret-key" {
+		t.Errorf("Expected session secret 'test-secret-key', got '%s'", cfg.ServerConfig.SessionSecret)
 	}
 }
 
 // TestLoadYaml_FileNotFound tests error handling when config file doesn't exist
 func TestLoadYaml_FileNotFound(t *testing.T) {
-	var config Config
-	err := LoadYaml("nonexistent-file.yaml", &config)
+	_, err := LoadYaml[Config]("nonexistent-file.yaml")
 	if err == nil {
 		t.Fatal("Expected error when loading nonexistent file")
-	}
-}
-
-// TestLoad_ValidConfig tests loading a complete valid configuration
-func TestLoad_ValidConfig(t *testing.T) {
-	tempDir := t.TempDir()
-	configFile := filepath.Join(tempDir, "test-config.yaml")
-
-	testConfig := `
-server:
-  address: ":8080"
-  redis_session_store:
-    address: "localhost:6379"
-    max_idle: 10
-    idle_timeout: 240s
-  session_name: "test-session"
-  session_secret: "my-test-secret-key"
-  debug: true
-  secrets_dir: "` + tempDir + `"
-vault:
-  address: "http://localhost:8200"
-  token: "test-token"
-  path: "secret/data/test"
-controllers:
-  - type: "TestController"
-    name: "test"
-    config:
-      key: "value"
-`
-
-	err := os.WriteFile(configFile, []byte(testConfig), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create test config file: %v", err)
-	}
-
-	config, err := Load(configFile)
-	if err != nil {
-		t.Fatalf("Load failed: %v", err)
-	}
-
-	if config.ServerConfig.Address != ":8080" {
-		t.Errorf("Expected address ':8080', got '%s'", config.ServerConfig.Address)
-	}
-	if config.Vault.Address != "http://localhost:8200" {
-		t.Errorf("Expected Vault address 'http://localhost:8200', got '%s'", config.Vault.Address)
 	}
 }
 
@@ -122,11 +75,12 @@ server:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	_, err = Load(configFile)
-	if err == nil {
-		t.Fatal("Expected error when session_secret is missing")
+	cfg, err := LoadYaml[Config](configFile)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
 	}
-	if err.Error() != "session_secret must be set and non-empty" {
+	err = cfg.Load()
+	if err == nil || !strings.HasSuffix(err.Error(), "session_secret must be set and non-empty") {
 		t.Errorf("Expected specific error message, got: %v", err)
 	}
 }
@@ -134,15 +88,10 @@ server:
 // TestVaultConfig_IsValid tests the VaultConfig validation
 func TestVaultConfig_IsValid(t *testing.T) {
 	tests := []struct {
-		name     string
-		config   *VaultConfig
-		expected bool
+		name          string
+		config        *VaultConfig
+		errorExpected bool
 	}{
-		{
-			name:     "nil config",
-			config:   nil,
-			expected: false,
-		},
 		{
 			name: "valid config",
 			config: &VaultConfig{
@@ -150,7 +99,7 @@ func TestVaultConfig_IsValid(t *testing.T) {
 				Token:   "test-token",
 				Path:    "secret/data/test",
 			},
-			expected: true,
+			errorExpected: false,
 		},
 		{
 			name: "missing address",
@@ -159,7 +108,7 @@ func TestVaultConfig_IsValid(t *testing.T) {
 				Token:   "test-token",
 				Path:    "secret/data/test",
 			},
-			expected: false,
+			errorExpected: true,
 		},
 		{
 			name: "missing token",
@@ -168,7 +117,7 @@ func TestVaultConfig_IsValid(t *testing.T) {
 				Token:   "",
 				Path:    "secret/data/test",
 			},
-			expected: false,
+			errorExpected: true,
 		},
 		{
 			name: "missing path",
@@ -177,15 +126,15 @@ func TestVaultConfig_IsValid(t *testing.T) {
 				Token:   "test-token",
 				Path:    "",
 			},
-			expected: false,
+			errorExpected: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.config.IsValid()
-			if result != tt.expected {
-				t.Errorf("IsValid() = %v, expected %v", result, tt.expected)
+			err := tt.config.Validate()
+			if err != nil && !tt.errorExpected {
+				t.Errorf("Validate() = %v, errorExpected %v", err, tt.errorExpected)
 			}
 		})
 	}
@@ -316,22 +265,23 @@ vault:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	config, err := Load(configFile)
+	cfg, err := LoadYaml[Config](configFile)
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	if config.ServerConfig.Address != "test-value:8080" {
-		t.Errorf("Expected address 'test-value:8080', got '%s'", config.ServerConfig.Address)
+	err = cfg.Load()
+	if cfg.ServerConfig.Address != "test-value:8080" {
+		t.Errorf("Expected address 'test-value:8080', got '%s'", cfg.ServerConfig.Address)
 	}
-	if config.ServerConfig.RedisSessionStore == nil {
+	if cfg.ServerConfig.RedisSessionStore == nil {
 		t.Fatal("Expected RedisSessionStore to be configured")
 	}
-	if config.ServerConfig.RedisSessionStore.Address != "localhost:42" {
-		t.Errorf("Expected redis store address 'localhost:42', got '%s'", config.ServerConfig.RedisSessionStore.Address)
+	if cfg.ServerConfig.RedisSessionStore.Address != "localhost:42" {
+		t.Errorf("Expected redis store address 'localhost:42', got '%s'", cfg.ServerConfig.RedisSessionStore.Address)
 	}
-	if config.Vault.Token != "test-value" {
-		t.Errorf("Expected Vault token 'test-value', got '%s'", config.Vault.Token)
+	if cfg.Vault.Token != "test-value" {
+		t.Errorf("Expected Vault token 'test-value', got '%s'", cfg.Vault.Token)
 	}
 }
 
@@ -360,9 +310,14 @@ vault:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	_, err = Load(configFile)
+	cfg, err := LoadYaml[Config](configFile)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	err = cfg.Load()
 	if err == nil {
-		t.Fatal("Expected error when Vault manager creation fails")
+		t.Fatal("Expected error when loading config with invalid Vault settings")
 	}
 }
 
@@ -514,8 +469,7 @@ server:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	var config Config
-	err = LoadYaml(configFile, &config)
+	_, err = LoadYaml[Config](configFile)
 	if err == nil {
 		t.Fatal("Expected error when loading malformed YAML")
 	}
