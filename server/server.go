@@ -19,6 +19,7 @@ import (
 	"github.com/animalet/sargantana-go/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/markbates/goth/gothic"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -33,6 +34,7 @@ type Server struct {
 	shutdownHooks   []func() error
 	shutdownChannel chan os.Signal
 	controllers     []controller.IController
+	sessionStore    *sessions.Store
 }
 
 // controllerRegistry holds the mapping of controller type names to their factory functions.
@@ -169,10 +171,10 @@ func (s *Server) Start() error {
 		}
 		log.Debug().Msgf("Listen address: %q", s.config.ServerConfig.Address)
 		if s.config.ServerConfig.RedisSessionStore == nil {
-			log.Debug().Msg("Use cookies for session storage")
+			log.Info().Msg("Using cookies for session storage")
 		} else {
-			log.Debug().Msgf(
-				"Use Redis for session storage at %q, DB: %d, TLS: %+v",
+			log.Info().Msgf(
+				"Using Redis for session storage at %q, DB: %d, TLS: %+v",
 				s.config.ServerConfig.RedisSessionStore.Address,
 				s.config.ServerConfig.RedisSessionStore.Database,
 				s.config.ServerConfig.RedisSessionStore.TLS)
@@ -262,6 +264,7 @@ func (s *Server) createSessionStore(isReleaseMode bool) (sessions.Store, error) 
 			return nil, fmt.Errorf("error creating Redis session store: %v", err)
 		}
 	}
+	gothic.Store = sessionStore
 	return sessionStore, nil
 }
 

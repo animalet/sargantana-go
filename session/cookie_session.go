@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
-	"github.com/markbates/goth/gothic"
 )
 
 // NewCookieStore creates a new cookie-based session store with secure default settings.
@@ -36,6 +35,5 @@ func NewCookieStore(isReleaseMode bool, secret []byte) sessions.Store {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	gothic.Store = store
 	return store
 }

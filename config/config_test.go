@@ -33,7 +33,7 @@ server:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	cfg, err := ReadConfig[Config](configFile)
+	cfg, err := ReadConfig(configFile)
 	if err != nil {
 		t.Fatalf("LoadYaml failed: %v", err)
 	}
@@ -48,7 +48,7 @@ server:
 
 // TestLoadYaml_FileNotFound tests error handling when config file doesn't exist
 func TestLoadYaml_FileNotFound(t *testing.T) {
-	_, err := ReadConfig[Config]("nonexistent-file.yaml")
+	_, err := ReadConfig("nonexistent-file.yaml")
 	if err == nil {
 		t.Fatal("Expected error when loading nonexistent file")
 	}
@@ -177,14 +177,17 @@ controllers:
 	}
 }
 
+// TestUnmarshalTo_Error tests error handling in UnmarshalTo function
+type TestConfig struct {
+	Key1         string   `yaml:"key1"`
+	Key2         int      `yaml:"key2"`
+	Key          string   `yaml:"key"`
+	EnvVar       string   `yaml:"env_var"`
+	InvalidField chan int `yaml:"invalid_field"` // channels can't be marshaled/unmarshaled
+}
+
 // TestUnmarshalTo tests the generic unmarshaling function
 func TestUnmarshalTo(t *testing.T) {
-	type TestConfig struct {
-		Key1   string `yaml:"key1"`
-		Key2   int    `yaml:"key2"`
-		EnvVar string `yaml:"env_var"`
-	}
-
 	// Set up environment variable for testing
 	_ = os.Setenv("TEST_ENV_VAR", "test-value")
 	defer func() { _ = os.Unsetenv("TEST_ENV_VAR") }()
@@ -219,10 +222,6 @@ env_var: "${TEST_ENV_VAR}"
 
 // TestUnmarshalTo_NilConfig tests UnmarshalTo with nil config
 func TestUnmarshalTo_NilConfig(t *testing.T) {
-	type TestConfig struct {
-		Key string `yaml:"key"`
-	}
-
 	result, err := UnmarshalTo[TestConfig](nil)
 	if err != nil {
 		t.Fatalf("UnmarshalTo with nil config failed: %v", err)
@@ -339,11 +338,10 @@ func TestControllerConfig_UnmarshalYAML_Error(t *testing.T) {
 	}
 }
 
-// TestUnmarshalTo_Error tests error handling in UnmarshalTo function
+func (t TestConfig) Validate() error {
+	return nil
+}
 func TestUnmarshalTo_Error(t *testing.T) {
-	type TestConfig struct {
-		InvalidField chan int `yaml:"invalid_field"` // channels can't be marshaled/unmarshaled
-	}
 
 	// Create invalid YAML that will cause unmarshaling to fail
 	invalidYAML := []byte("invalid_field: this_will_fail_to_unmarshal_to_channel")

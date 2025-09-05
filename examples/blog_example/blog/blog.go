@@ -1,14 +1,17 @@
 package blog
 
 import (
-	"errors"
 	"strconv"
+	"time"
 
 	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"github.com/jackc/pgx"
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 )
 
 type (
@@ -17,33 +20,33 @@ type (
 		database *pgx.Conn
 	}
 	Config struct {
-		FeedUrl      string `yaml:"feed_url"`
-		PostUrl      string `yaml:"post_url"`
-		AdminAreaUrl string `yaml:"admin_area_url"`
+		FeedPath      string `yaml:"feed_path"`
+		PostPath      string `yaml:"post_path"`
+		AdminAreaPath string `yaml:"admin_area_path"`
 	}
 )
 
 func (b Config) Validate() error {
-	if b.FeedUrl == "" {
-		return errors.New("feed_url must be set and non-empty")
+	if b.FeedPath == "" {
+		return errors.New("feed_path must be set and non-empty")
 	}
-	if b.PostUrl == "" {
+	if b.PostPath == "" {
 		return errors.New("post_url must be set and non-empty")
 	}
-	if b.AdminAreaUrl == "" {
+	if b.AdminAreaPath == "" {
 		return errors.New("admin_area_url must be set and non-empty")
 	}
 	return nil
 }
 
 func (b *Controller) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
-	api := engine.Group("/api")
+	api := engine.Group("/blog")
 	{
-		api.GET(b.config.FeedUrl, b.getFeed)
-		api.POST(b.config.PostUrl, b.createPost)
-		api.GET(b.config.PostUrl+"/:id", b.getPost)
-		api.DELETE(b.config.PostUrl+"/:id", b.deletePost)
-		api.GET(b.config.AdminAreaUrl, loginMiddleware, b.adminArea)
+		api.GET(b.config.FeedPath, b.getFeed)
+		api.POST(b.config.PostPath, b.createPost)
+		api.GET(b.config.PostPath+"/:id", b.getPost)
+		api.DELETE(b.config.PostPath+"/:id", b.deletePost)
+		api.GET(b.config.AdminAreaPath, loginMiddleware, b.adminArea)
 	}
 }
 
@@ -51,32 +54,37 @@ func (b *Controller) Close() error { return nil }
 
 func NewBlogController(db *pgx.Conn) controller.Constructor {
 	return func(configData config.ControllerConfig, _ config.ServerConfig) (controller.IController, error) {
-		_, err := db.Exec(`CREATE TABLE IF NOT EXISTS posts (
+		cfg, err := config.UnmarshalTo[Config](configData)
+		if err != nil {
+			return nil, err
+		}
+
+		tag, err := db.Exec(`CREATE TABLE IF NOT EXISTS posts (
         id SERIAL PRIMARY KEY,
         title TEXT NOT NULL,
         content TEXT NOT NULL,
         publication_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         owner TEXT NOT NULL
-    );`)
+    )`)
 
-		if err != nil {
-			return nil, err
+		if tag.RowsAffected() > 0 {
+			log.Info().Msg("Posts table created")
 		}
 
-		cfg, err := config.UnmarshalTo[Config](configData)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to create posts table")
 		}
+
 		return &Controller{config: cfg, database: db}, nil
 	}
 }
 
 type post struct {
-	id              int
-	title           string
-	content         string
-	publicationDate string
-	owner           string
+	Id              int
+	Title           string `form:"title" json:"title"`
+	Content         string `form:"content" json:"content"`
+	PublicationDate time.Time
+	Owner           string
 }
 
 const (
@@ -87,16 +95,18 @@ const (
 func (b *Controller) getPost(c *gin.Context) {
 	p := post{}
 	err := b.database.QueryRow("SELECT id, title, content, publication_date, owner FROM posts WHERE id=$1", c.Param("id")).
-		Scan(&p.id, &p.title, &p.content, &p.publicationDate, &p.owner)
+		Scan(&p.Id, &p.Title, &p.Content, &p.PublicationDate, &p.Owner)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			c.JSON(404, gin.H{"error": "Post not found"})
+			_ = c.AbortWithError(404, err)
 			return
 		}
-		c.JSON(500, gin.H{"error": "Database error"})
+		_ = c.AbortWithError(500, err)
+		return
 	}
 
 	c.HTML(200, articleTemplate, gin.H{
+		"user": b.getUserId(c),
 		"feed": []post{p},
 	})
 }
@@ -111,55 +121,55 @@ func (b *Controller) createPost(c *gin.Context) {
 
 	// If post exists, update, else, create. Check if user is owner first.
 	var newPost post
-	if err := c.BindJSON(&newPost); err != nil {
-		c.JSON(400, gin.H{"error": "Invalid request"})
+	if err := c.MustBindWith(&newPost, binding.FormPost); err != nil {
+		c.AbortWithStatus(400)
 		return
 	}
 
-	if newPost.id != 0 {
+	if newPost.Id != 0 {
 		var owner string
-		err := b.database.QueryRow("SELECT owner FROM posts WHERE id=$1", newPost.id).Scan(&owner)
+		err := b.database.QueryRow("SELECT owner FROM posts WHERE id=$1", newPost.Id).Scan(&owner)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				c.JSON(404, gin.H{"error": "Post not found"})
+				_ = c.AbortWithError(404, err)
 				return
 			}
-			c.JSON(500, gin.H{"error": "Database error"})
+			_ = c.AbortWithError(500, err)
 			return
 		}
 		if owner != userId {
-			c.JSON(403, gin.H{"error": "Forbidden"})
+			_ = c.AbortWithError(403, err)
 			return
 		}
-		_, err = b.database.Exec("UPDATE posts SET title=$1, content=$2 WHERE id=$3 RETURNING id", newPost.title, newPost.content, newPost.id)
+		_, err = b.database.Exec("UPDATE posts SET title=$1, content=$2 WHERE id=$3 RETURNING id", newPost.Title, newPost.Content, newPost.Id)
 		if err != nil {
-			c.JSON(500, gin.H{"error": "Database error"})
+			_ = c.AbortWithError(405, err)
 			return
 		}
-		id = newPost.id
+		id = newPost.Id
 	} else {
-		err := b.database.QueryRow("INSERT INTO posts (title, content, owner) VALUES ($1,$2, $3) RETURNING id", newPost.title, newPost.content, userId).Scan(&id)
+		err := b.database.QueryRow("INSERT INTO posts (title, content, owner) VALUES ($1,$2, $3) RETURNING id", newPost.Title, newPost.Content, userId).Scan(&id)
 		if err != nil {
-			c.JSON(500, gin.H{"error": "Database error"})
+			_ = c.AbortWithError(500, err)
 			return
 		}
 	}
-	c.Redirect(302, b.config.PostUrl+"/"+strconv.Itoa(id))
+	c.Redirect(302, b.config.PostPath+"/"+strconv.Itoa(id))
 }
 
 func (b *Controller) deletePost(c *gin.Context) {
-	err := b.database.QueryRow("DELETE FROM posts WHERE id=$1", c.Param("id"))
+	_, err := b.database.Exec("DELETE FROM posts WHERE id=$1", c.Param("id"))
 	if err != nil {
-		c.JSON(500, gin.H{"error": "Database error"})
+		c.AbortWithError(500, err)
 		return
 	}
-	c.Redirect(302, b.config.FeedUrl)
+	c.Redirect(302, b.config.FeedPath)
 }
 
 func (b *Controller) getFeed(c *gin.Context) {
 	rows, err := b.database.Query("SELECT id, title, content, publication_date, owner FROM posts ORDER BY id DESC LIMIT 10")
 	if err != nil {
-		c.JSON(500, gin.H{"error": "Database error"})
+		_ = c.AbortWithError(500, err)
 		return
 	}
 	defer rows.Close()
@@ -167,10 +177,10 @@ func (b *Controller) getFeed(c *gin.Context) {
 	feed := make([]post, 0)
 	for rows.Next() {
 		p := post{}
-		err := rows.Scan(&p.id, &p.title, &p.content, &p.publicationDate, &p.owner)
+		err := rows.Scan(&p.Id, &p.Title, &p.Content, &p.PublicationDate, &p.Owner)
 
 		if err != nil {
-			c.JSON(500, gin.H{"error": "Database error"})
+			_ = c.AbortWithError(500, err)
 			return
 		}
 		feed = append(feed, p)
@@ -183,7 +193,9 @@ func (b *Controller) getFeed(c *gin.Context) {
 }
 
 func (b *Controller) adminArea(c *gin.Context) {
-	c.HTML(200, adminTemplate, nil)
+	c.HTML(200, adminTemplate, gin.H{
+		"user": b.getUserId(c),
+	})
 }
 
 func (b *Controller) getUserId(c *gin.Context) string {

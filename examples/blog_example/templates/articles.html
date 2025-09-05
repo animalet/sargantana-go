@@ -1,12 +1,15 @@
-<html>
+<html lang="en">
 <head>
     <title>Articles</title>
 </head>
 <body>
-<h1>New post</h1>
-{% if user != '' %}
-<form method="post">
-    {% csrf_token %}
+<a href="/blog/feed">Home</a>
+{{if ne $.user ""}}
+Welcome "{{$.user}}"!
+<a href="/logout">Logout</a>
+<h1>New post?</h1>
+<form method="post" action="/blog/post">
+    {{.CSRFToken}}
     <label>
         <input type="text" name="title" placeholder="Title">
     </label><br>
@@ -15,20 +18,25 @@
     </label><br>
     <button type="submit">Submit</button>
 </form>
-{% endif %}
+{{end}}
+{{if eq $.user ""}}
+<p>Please log in to create a new post.</p>
+<a href="/auth/openid-connect">Login with OpenId</a><br>
+<a href="/auth/google">Login with Google</a>
+{{end}}
 <h1>Articles</h1>
 <ul>
-    {% for p in feed %}
+    {{range .feed}}
     <li>
-        <h2>{{ p.title }}</h2>
-        <p>{{ p.content }}</p>
-        <small>Published on: {{ p.publication_date }} by {{p.owner}}</small>
-        {% if user == p.owner%}
-        <button>Edit</button>
+        <h2>{{.Title}}</h2>
+        <p>{{.Content}}</p>
+        <small>Published on: {{.PublicationDate}} by {{.Owner}}</small>
+        {{if eq $.user .Owner}}
+        <form>Edit</form>
         <button>Delete</button>
-        {% endif %}
+        {{end}}
     </li>
-    {% endfor %}
+    {{end}}
 </ul>
 </body>
 </html>

@@ -3,7 +3,7 @@
 
 # Server configuration
 server:
-  address: "localhost:8081"
+  address: "localhost:8080"
   session_secret: "${SESSION_SECRET}"  # Session secret (can use env var)
   session_name: "sargantana_session"    # Session cookie name
   secrets_dir: ".secrets"            # Directory containing secret files
@@ -58,7 +58,7 @@ controllers:
   # Authentication controller
   - type: "auth"
     config:
-      callback_url: "https://myapp.com"           # Base URL for OAuth callbacks
+      callback_host: "https://myapp.com"           # Base URL for OAuth callbacks
       login_path: "/auth/{provider}"              # Login endpoint pattern
       logout_path: "/auth/{provider}/logout"           # Logout endpoint pattern
       callback_path: "/auth/{provider}/callback"  # OAuth callback pattern
@@ -69,7 +69,7 @@ controllers:
         openid-connect:
           key: "${file:OPENID_CONNECT_KEY}"                     # OpenID Connect client key
           secret: "${file:OPENID_CONNECT_SECRET}"
-          url: "http://localhost:8080/.well-known/openid_configuration"  # OpenID Connect discovery URL
+          url: "http://localhost:8080/default/.well-known/openid-configuration"  # OpenID Connect discovery URL
           scopes:
             - "openid"
             - "profile"

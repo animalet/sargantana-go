@@ -307,7 +307,7 @@ controllers:
   - type: "auth"
     name: "authentication"
     config:
-      callback_url: "https://myapp.example.com"  # Optional
+      callback_host: "https://myapp.example.com"  # Optional
       providers:
         github:
           key: "${GITHUB_KEY}"

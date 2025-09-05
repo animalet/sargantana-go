@@ -1,12 +1,16 @@
 package main
 
 import (
+	"os"
+
 	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
 	"github.com/animalet/sargantana-go/examples/blog_example/blog"
 	"github.com/animalet/sargantana-go/server"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type DatabaseConfig struct {
@@ -37,6 +41,12 @@ func (d DatabaseConfig) Validate() error {
 }
 
 func main() {
+	log.Logger = log.Output(zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		NoColor:    false,
+		TimeFormat: "2006-01-02 15:04:05",
+	})
+	server.SetDebug(true)
 	server.AddControllerType("auth", controller.NewAuthController)
 	server.AddControllerType("static", controller.NewStaticController)
 	server.AddControllerType("template", controller.NewTemplateController)

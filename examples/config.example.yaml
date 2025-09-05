@@ -75,7 +75,7 @@ controllers:
     name: "authentication"
     config:
       # Optional: Custom callback URL (required when behind proxy/load balancer)
-      callback_url: "https://myapp.example.com"
+      callback_host: "https://myapp.example.com"
 
       # Authentication paths (optional, these are the defaults)
       # The controller uses {provider} as placeholder for the provider id

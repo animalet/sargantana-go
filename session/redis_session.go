@@ -6,7 +6,6 @@ import (
 	"github.com/gin-contrib/sessions"
 	redissessions "github.com/gin-contrib/sessions/redis"
 	"github.com/gomodule/redigo/redis"
-	"github.com/markbates/goth/gothic"
 )
 
 // NewRedisSessionStore creates a new Redis-based session store with secure default settings.
@@ -43,6 +42,5 @@ func NewRedisSessionStore(isReleaseMode bool, secret []byte, pool *redis.Pool) (
 	rediStore.Options.HttpOnly = true
 	rediStore.Options.SameSite = http.SameSiteLaxMode
 
-	gothic.Store = rediStore
 	return store, nil
 }

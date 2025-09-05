@@ -43,7 +43,7 @@ func NewLoadBalancerController(configData config.ControllerConfig, _ config.Serv
 		return nil, errors.Wrap(err, "failed to parse load balancer controller config")
 	}
 	stringEndpoints := c.Endpoints
-	endpoints := make([]url.URL, 0, len(stringEndpoints))
+	endpoints := make([]url.URL, len(stringEndpoints))
 	log.Info().Str("path", c.Path).Msg("Load balancing path configured")
 	log.Info().Bool("auth", c.Auth).Msg("Load balancing authentication configured")
 	log.Info().Strs("endpoints", stringEndpoints).Msg("Load balancing endpoints configured")

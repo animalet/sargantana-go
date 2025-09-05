@@ -155,7 +155,7 @@ func TestLoginFunc(t *testing.T) {
 			setupSession: func(c *gin.Context) {
 				// No session setup
 			},
-			expectedStatus: http.StatusForbidden,
+			expectedStatus: http.StatusUnauthorized,
 		},
 		{
 			name: "valid user session",
@@ -322,8 +322,8 @@ func TestAuth_UserRoute_NoAuth(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/auth/user", nil)
 	engine.ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Errorf("Expected 403 Forbidden, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401, got %d", w.Code)
 	}
 }
 
@@ -784,7 +784,7 @@ func TestConfigProviderFactory_CreateProviders_AllProviders(t *testing.T) {
 
 	// Verify some specific providers are present by checking their names
 	providerNames := make(map[string]bool)
-	actualProviders := make([]string, 0, len(providers))
+	actualProviders := make([]string, len(providers))
 	for _, provider := range providers {
 		name := provider.Name()
 		providerNames[name] = true
@@ -852,7 +852,7 @@ func TestAuth_IntegrationTest(t *testing.T) {
 		RedirectOnLogout: "/",
 	}
 
-	address := "localhost:8081"
+	address := "localhost:8080"
 	ProviderFactory = &MockProviderFactory{}
 	serverConfig := config.ServerConfig{Address: address}
 	configBytes, _ := yaml.Marshal(configData)

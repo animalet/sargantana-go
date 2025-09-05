@@ -88,7 +88,7 @@ type ProviderConfig struct {
 }
 
 type AuthControllerConfig struct {
-	CallbackURL      string                    `yaml:"callback_url"`
+	CallbackHost     string                    `yaml:"callback_host"`
 	CallbackPath     string                    `yaml:"callback_path"`
 	LoginPath        string                    `yaml:"login_path"`
 	LogoutPath       string                    `yaml:"logout_path"`
@@ -138,8 +138,8 @@ func NewAuthController(configData config.ControllerConfig, serverConfig config.S
 	}
 
 	var callbackEndpoint string
-	if c.CallbackURL != "" {
-		callbackEndpoint = c.CallbackURL
+	if c.CallbackHost != "" {
+		callbackEndpoint = c.CallbackHost
 	} else {
 		address := serverConfig.Address
 		// Add http:// if not present
@@ -187,6 +187,147 @@ func providerToGin(str string) string {
 // ProvidersFactory is an interface for creating OAuth providers
 type ProvidersFactory interface {
 	CreateProviders(callbackURLTemplate string) []goth.Provider
+}
+
+// auth is a controller that provides OAuth2 authentication functionality.
+// It supports 50+ OAuth2 providers through the Goth library and handles
+// the complete authentication flow including user session management.
+type auth struct {
+	IController
+	loginPath        string
+	logoutPath       string
+	userInfoPath     string
+	redirectOnLogin  string
+	redirectOnLogout string
+	callbackPath     string
+}
+
+// UserObject represents an authenticated user stored in the session.
+// It contains both a unique identifier and the complete user information
+// received from the OAuth2 provider.
+type UserObject struct {
+	Id   string    `json:"id"`   // Unique identifier for the user session
+	User goth.User `json:"user"` // Complete user information from OAuth2 provider
+}
+
+// LoginFunc is a middleware function that protects routes requiring authentication.
+// It verifies that a user is logged in and their session has not expired.
+// If the user is not authenticated or their session has expired, the request is aborted
+// with an appropriate HTTP status code.
+//
+// Usage:
+//
+//	engine.GET("/protected", controller.LoginFunc, myProtectedHandler)
+//
+// Responses:
+//   - 403 Forbidden: User is not logged in
+//   - 401 Unauthorized: User session has expired
+//   - 500 Internal Server Error: Failed to clear expired session
+//   - Continues to next handler: User is authenticated and session is valid
+func LoginFunc(c *gin.Context) {
+	userSession := sessions.Default(c)
+	userObject := userSession.Get("user")
+	if userObject == nil {
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+
+	u, ok := userObject.(UserObject)
+
+	if !ok || time.Now().After(u.User.ExpiresAt) {
+		userSession.Clear()
+		err := userSession.Save()
+		if err != nil {
+			_ = c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	c.Next()
+}
+
+func (a *auth) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+	hack := func(c *gin.Context) {
+		// Hack to make gothic work with gin
+		q := c.Request.URL.Query()
+		param := c.Param("provider")
+		if param == "" {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		q.Add("provider", param)
+		c.Request.URL.RawQuery = q.Encode()
+		c.Next()
+	}
+
+	engine.GET(a.loginPath, hack, a.login).GET(a.callbackPath, hack, a.callback)
+	engine.GET(a.logoutPath, a.logout)
+	engine.GET(a.userInfoPath, loginMiddleware, a.userInfo)
+}
+
+func (a *auth) Close() error {
+	return nil
+}
+
+func (a *auth) success(c *gin.Context, user goth.User) {
+	session := sessions.Default(c)
+	session.Set("user", a.userFactory(user))
+	err := session.Save()
+	if err != nil {
+		_ = c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	c.Redirect(http.StatusFound, a.redirectOnLogin)
+}
+
+func (a *auth) login(c *gin.Context) {
+	if user, err := gothic.CompleteUserAuth(c.Writer, c.Request); err != nil {
+		gothic.BeginAuthHandler(c.Writer, c.Request)
+	} else {
+		a.success(c, user)
+	}
+}
+
+func (a *auth) callback(c *gin.Context) {
+	if user, err := gothic.CompleteUserAuth(c.Writer, c.Request); err != nil {
+		err = c.AbortWithError(http.StatusUnauthorized, err)
+	} else {
+		a.success(c, user)
+	}
+}
+
+func (a *auth) logout(c *gin.Context) {
+	err := gothic.Logout(c.Writer, c.Request)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to log out")
+	}
+	session := sessions.Default(c)
+	session.Clear()
+	err = session.Save()
+	if err != nil {
+		_ = c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	c.Redirect(http.StatusFound, a.redirectOnLogout)
+}
+
+func (a *auth) userInfo(c *gin.Context) {
+	c.JSON(http.StatusOK, sessions.Default(c).Get("user").(UserObject))
+}
+
+func (a *auth) userFactory(user goth.User) *UserObject {
+	var id string
+	if user.Email == "" {
+		id = user.UserID + "@" + user.Provider
+	} else {
+		id = user.Email
+	}
+	return &UserObject{
+		Id:   id,
+		User: user,
+	}
 }
 
 // ProviderFactory is the global provider factory instance.
@@ -323,7 +464,9 @@ func (f *configProviderFactory) CreateProviders(callbackURLTemplate string) []go
 			providers = append(providers, patreon.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "patreon"), providerConfig.Scopes...))
 		case "openid-connect":
 			openid, err := openidConnect.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "openid-connect"), providerConfig.URL, providerConfig.Scopes...)
-			log.Error().Msgf("%v", err)
+			if err != nil {
+				log.Error().Err(err).Msgf("Failed to create OpenID Connect provider for URL %s: %v", providerConfig.URL, err)
+			}
 			if openid != nil {
 				providers = append(providers, openid)
 			}
@@ -331,142 +474,4 @@ func (f *configProviderFactory) CreateProviders(callbackURLTemplate string) []go
 	}
 
 	return providers
-}
-
-// auth is a controller that provides OAuth2 authentication functionality.
-// It supports 50+ OAuth2 providers through the Goth library and handles
-// the complete authentication flow including user session management.
-type auth struct {
-	IController
-	loginPath        string
-	logoutPath       string
-	userInfoPath     string
-	redirectOnLogin  string
-	redirectOnLogout string
-	callbackPath     string
-}
-
-// UserObject represents an authenticated user stored in the session.
-// It contains both a unique identifier and the complete user information
-// received from the OAuth2 provider.
-type UserObject struct {
-	Id   string    `json:"id"`   // Unique identifier for the user session
-	User goth.User `json:"user"` // Complete user information from OAuth2 provider
-}
-
-// LoginFunc is a middleware function that protects routes requiring authentication.
-// It verifies that a user is logged in and their session has not expired.
-// If the user is not authenticated or their session has expired, the request is aborted
-// with an appropriate HTTP status code.
-//
-// Usage:
-//
-//	engine.GET("/protected", controller.LoginFunc, myProtectedHandler)
-//
-// Responses:
-//   - 403 Forbidden: User is not logged in
-//   - 401 Unauthorized: User session has expired
-//   - 500 Internal Server Error: Failed to clear expired session
-//   - Continues to next handler: User is authenticated and session is valid
-func LoginFunc(c *gin.Context) {
-	userSession := sessions.Default(c)
-	userObject := userSession.Get("user")
-	if userObject == nil {
-		c.AbortWithStatus(http.StatusForbidden)
-		return
-	}
-
-	u, ok := userObject.(UserObject)
-
-	if !ok || time.Now().After(u.User.ExpiresAt) {
-		userSession.Clear()
-		saveSession(c, userSession)
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
-	}
-
-	c.Next()
-}
-
-func (a *auth) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
-	engine.Group("/").
-		Use(func(c *gin.Context) {
-			// Hack to make gothic work with gin
-			q := c.Request.URL.Query()
-			param := c.Param("provider")
-			if param == "" {
-				c.AbortWithStatus(http.StatusBadRequest)
-				return
-			}
-			q.Add("provider", param)
-			c.Request.URL.RawQuery = q.Encode()
-			c.Next()
-		}).
-		GET(a.loginPath, a.login).
-		GET(a.callbackPath, a.callback).
-		GET(a.logoutPath, a.logout)
-	engine.GET(a.userInfoPath, loginMiddleware, a.userInfo)
-}
-
-func (a *auth) Close() error {
-	return nil
-}
-
-func (a *auth) success(c *gin.Context, user goth.User) {
-	session := sessions.Default(c)
-	session.Set("user", a.userFactory(user))
-	saveSession(c, session)
-	c.Redirect(http.StatusFound, a.redirectOnLogin)
-}
-
-func (a *auth) login(c *gin.Context) {
-	if user, err := gothic.CompleteUserAuth(c.Writer, c.Request); err != nil {
-		gothic.BeginAuthHandler(c.Writer, c.Request)
-	} else {
-		a.success(c, user)
-	}
-}
-
-func (a *auth) callback(c *gin.Context) {
-	if user, err := gothic.CompleteUserAuth(c.Writer, c.Request); err != nil {
-		err = c.Error(err)
-		c.JSON(http.StatusForbidden, err)
-		c.Abort()
-	} else {
-		a.success(c, user)
-	}
-}
-
-func (a *auth) logout(c *gin.Context) {
-	err := gothic.Logout(c.Writer, c.Request)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to log out")
-	}
-	session := sessions.Default(c)
-	session.Clear()
-	saveSession(c, session)
-	c.Redirect(http.StatusFound, a.redirectOnLogout)
-}
-
-func (a *auth) userInfo(c *gin.Context) {
-	c.JSON(http.StatusOK, sessions.Default(c).Get("user").(UserObject).Id)
-}
-
-func saveSession(c *gin.Context, session sessions.Session) {
-	if err := session.Save(); err != nil {
-		_ = c.AbortWithError(http.StatusInternalServerError, err)
-	}
-}
-
-func (a *auth) userFactory(user goth.User) *UserObject {
-	var id string
-	if user.Email == "" {
-		id = user.UserID + "@" + user.Provider
-	} else {
-		id = user.Email
-	}
-	return &UserObject{
-		Id:   id,
-		User: user,
-	}
 }

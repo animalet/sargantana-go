@@ -18,7 +18,7 @@ controllers:
     name: "authentication"
     config:
       # Optional: Custom callback URL (if running behind a proxy)
-      callback_url: "https://myapp.example.com"
+      callback_host: "https://myapp.example.com"
       
       # Authentication paths (optional, these are defaults)
       callback_path: "/auth/{provider}/callback"

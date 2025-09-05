@@ -9,19 +9,51 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type StaticControllerConfig struct {
-	UrlPath string `yaml:"url_path"`
-	Path    string `yaml:"statics_dir"`
+type StaticControllerConfig []StaticMapping
+
+type StaticMapping struct {
+	Path string `yaml:"path"`
+	Dir  string `yaml:"dir,omitempty"`
+	File string `yaml:"file,omitempty"`
 }
 
-func (s StaticControllerConfig) Validate() error {
-	if stat, err := os.Stat(s.Path); err != nil || !stat.IsDir() {
+func (s StaticMapping) Validate() error {
+	if s.Dir == "" && s.File == "" || s.Dir != "" && s.File != "" {
+		return errors.New("either dir or file must be set and non-empty")
+	}
+
+	if s.File != "" {
+		if stat, err := os.Stat(s.File); err != nil || stat.IsDir() {
+			return errors.Wrap(err, "static file not present or is a directory")
+		}
+		return nil
+	}
+
+	if stat, err := os.Stat(s.Dir); err != nil || !stat.IsDir() {
 		return errors.Wrap(err, "statics directory not present or is not a directory")
 	}
 
-	if s.UrlPath == "" {
+	if s.Path == "" {
 		return errors.New("url_path must be set and non-empty")
 	}
+	return nil
+}
+
+func (s StaticControllerConfig) Validate() error {
+	if len(s) == 0 {
+		return errors.New("at least one static mapping must be provided")
+	}
+
+	errslice := make([]error, 0)
+	for _, mapping := range s {
+		if err := mapping.Validate(); err != nil {
+			errslice = append(errslice, err)
+		}
+	}
+	if len(errslice) > 0 {
+		return errors.Errorf("static mappings validation failed: %v", errslice)
+	}
+
 	return nil
 }
 
@@ -32,13 +64,11 @@ func NewStaticController(configData config.ControllerConfig, _ config.ServerConf
 	}
 
 	log.Info().
-		Str("path", c.Path).
-		Str("url_path", c.UrlPath).
+		Any("mappings", c).
 		Msg("Static content configured")
 
 	return &static{
-		urlPath: c.UrlPath,
-		path:    c.Path,
+		mappings: *c,
 	}, nil
 }
 
@@ -47,19 +77,18 @@ func NewStaticController(configData config.ControllerConfig, _ config.ServerConf
 // images, and HTML files, as well as Go template rendering capabilities.
 type static struct {
 	IController
-	urlPath string
-	path    string
+	mappings []StaticMapping
 }
 
 // Bind registers the static controller with the provided Gin engine.
 // It sets up routes for serving static files and loading HTML templates from the configured directory.
 func (s *static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
-	if s.urlPath != "" {
-		engine.Static("/static", s.path)
-		engine.GET("/", func(c *gin.Context) {
-			c.Header("Content-Type", "text/html")
-			c.File(s.path + "/index.html")
-		})
+	for _, mapping := range s.mappings {
+		if mapping.File != "" {
+			engine.StaticFile(mapping.Path, mapping.File)
+			continue
+		}
+		engine.Static(mapping.Path, mapping.Dir)
 	}
 }
 
