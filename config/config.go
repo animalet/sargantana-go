@@ -23,7 +23,7 @@ type (
 		ServerConfig       ServerConfig        `yaml:"server"`
 		Vault              *VaultConfig        `yaml:"vault,omitempty"`
 		ControllerBindings []ControllerBinding `yaml:"controllers"`
-		OtherSettings      map[string]any      `yaml:",inline"`
+		Other              map[string]any      `yaml:",inline"`
 	}
 
 	// ServerConfig holds the core server configuration parameters.
@@ -111,13 +111,14 @@ func (cfg *Config) createSecretSourcesIfNotPresent() (err error) {
 		} else {
 			return errors.Wrap(err, "Vault configuration is invalid")
 		}
-	} else {
-		log.Debug().Msg("No Vault configuration provided, skipping Vault secrets loading")
+	} else if vaultManagerInstance == nil && cfg.Vault == nil {
+		log.Warn().Msg("No Vault configuration provided, vault secrets will fail if requested")
 	}
+
 	return err
 }
 
-// LoadYaml reads the YAML configuration file and unmarshalls its content into the provided struct.
+// ReadConfig reads the YAML configuration file and unmarshalls its content into the provided struct.
 //
 // Parameters:
 //   - file: Path to the YAML configuration file
@@ -125,13 +126,13 @@ func (cfg *Config) createSecretSourcesIfNotPresent() (err error) {
 // Returns:
 //   - *T: Pointer to the struct of type T containing the unmarshalled configuration
 //   - error: Error if reading or unmarshalling
-func LoadYaml[T any](file string) (*T, error) {
+func ReadConfig(file string) (*Config, error) {
 	data, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
 
-	var out *T
+	var out *Config
 	err = yaml.Unmarshal(data, &out)
 	if err != nil {
 		return nil, err
@@ -139,19 +140,19 @@ func LoadYaml[T any](file string) (*T, error) {
 	return out, nil
 }
 
-func LoadPartial[T Validatable](key string, cfg *Config) (partial *T, err error) {
+func LoadConfig[T Validatable](key string, cfg *Config) (partial *T, err error) {
 	err = cfg.createSecretSourcesIfNotPresent()
 	if err != nil {
 		return nil, err
 	}
-	c, exist := cfg.OtherSettings[key]
+	c, exist := cfg.Other[key]
 	if !exist {
-		return nil, errors.Errorf("no configuration found for key: %s", key)
+		return nil, errors.Errorf("no configuration found for %q", key)
 	}
 
 	data, err := yaml.Marshal(c)
 	if err != nil {
-		return nil, errors.Wrap(err, "error marshalling partial config to YAML")
+		return nil, errors.Wrap(err, "error marshalling to YAML")
 	}
 
 	partial, err = UnmarshalTo[T](data)

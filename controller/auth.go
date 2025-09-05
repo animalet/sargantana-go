@@ -322,7 +322,8 @@ func (f *configProviderFactory) CreateProviders(callbackURLTemplate string) []go
 		case "patreon":
 			providers = append(providers, patreon.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "patreon"), providerConfig.Scopes...))
 		case "openid-connect":
-			openid, _ := openidConnect.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "openid-connect"), providerConfig.URL, providerConfig.Scopes...)
+			openid, err := openidConnect.New(providerConfig.Key, providerConfig.Secret, fmt.Sprintf(callbackURLTemplate, "openid-connect"), providerConfig.URL, providerConfig.Scopes...)
+			log.Error().Msgf("%v", err)
 			if openid != nil {
 				providers = append(providers, openid)
 			}

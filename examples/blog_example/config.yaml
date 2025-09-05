@@ -1,5 +1,5 @@
 server:
-  address: "localhost:8080"
+  address: "localhost:8081"
   session_secret: "${file:SESSION_SECRET}"
   session_name: "sargantana_session"
   secrets_dir: "./secrets"
@@ -32,7 +32,7 @@ controllers:
         openid-connect:
           key: "${file:OPENID_CONNECT_KEY}"
           secret: "${file:OPENID_CONNECT_SECRET}"
-          url: "https://localhost:8080/.well-known/openid_configuration"
+          url: "http://localhost:8080/.well-known/openid_configuration"
           scopes:
             - "openid"
             - "profile"

@@ -69,7 +69,7 @@ controllers:
         openid-connect:
           key: "${file:OPENID_CONNECT_KEY}"                     # OpenID Connect client key
           secret: "${file:OPENID_CONNECT_SECRET}"
-          url: "https://localhost:8080/.well-known/openid_configuration"  # OpenID Connect discovery URL
+          url: "http://localhost:8080/.well-known/openid_configuration"  # OpenID Connect discovery URL
           scopes:
             - "openid"
             - "profile"

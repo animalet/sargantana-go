@@ -1,0 +1,21 @@
+<html>
+<head>
+    <title>Articles</title>
+</head>
+<body>
+    <h1>Articles</h1>
+    <ul>
+        {% for p in feed %}
+            <li>
+                <h2>{{ p.title }}</h2>
+                <p>{{ p.content }}</p>
+                <small>Published on: {{ p.publication_date }} by {{p.owner}}</small>
+                {% if user == p.owner%}
+                <button>Edit</button>
+                <button>Delete</button>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

@@ -61,7 +61,7 @@ func GetDebug() bool {
 //   - *Server: The configured server instance
 //   - error: An error if the server could not be created, nil otherwise
 func NewServerFromConfigFile(configFile string) (*Server, error) {
-	cfg, err := config.LoadYaml[config.Config](configFile)
+	cfg, err := config.ReadConfig(configFile)
 	if err != nil {
 		return nil, err
 	}

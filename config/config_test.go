@@ -33,7 +33,7 @@ server:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	cfg, err := LoadYaml[Config](configFile)
+	cfg, err := ReadConfig[Config](configFile)
 	if err != nil {
 		t.Fatalf("LoadYaml failed: %v", err)
 	}
@@ -48,7 +48,7 @@ server:
 
 // TestLoadYaml_FileNotFound tests error handling when config file doesn't exist
 func TestLoadYaml_FileNotFound(t *testing.T) {
-	_, err := LoadYaml[Config]("nonexistent-file.yaml")
+	_, err := ReadConfig[Config]("nonexistent-file.yaml")
 	if err == nil {
 		t.Fatal("Expected error when loading nonexistent file")
 	}
@@ -75,7 +75,7 @@ server:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	cfg, err := LoadYaml[Config](configFile)
+	cfg, err := ReadConfig[Config](configFile)
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
@@ -265,7 +265,7 @@ vault:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	cfg, err := LoadYaml[Config](configFile)
+	cfg, err := ReadConfig[Config](configFile)
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
@@ -310,7 +310,7 @@ vault:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	cfg, err := LoadYaml[Config](configFile)
+	cfg, err := ReadConfig[Config](configFile)
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
@@ -452,7 +452,7 @@ func TestExpand_FilePrefix_Error(t *testing.T) {
 	expand("file:test-file")
 }
 
-// TestLoadYaml_InvalidYAML tests LoadYaml with malformed YAML
+// TestLoadYaml_InvalidYAML tests ReadConfig with malformed YAML
 func TestLoadYaml_InvalidYAML(t *testing.T) {
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "invalid-config.yaml")
@@ -469,7 +469,7 @@ server:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	_, err = LoadYaml[Config](configFile)
+	_, err = ReadConfig[Config](configFile)
 	if err == nil {
 		t.Fatal("Expected error when loading malformed YAML")
 	}

@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS posts (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    publication_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    owner TEXT NOT NULL
+);
+
