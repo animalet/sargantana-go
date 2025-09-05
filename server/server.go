@@ -52,7 +52,7 @@ func GetDebug() bool {
 	return debug
 }
 
-// NewServer creates a new Server instance by loading configuration from the specified file.
+// NewServerFromConfigFile creates a new Server instance by loading configuration from the specified file.
 //
 // Parameters:
 //   - configFile: Path to the configuration file to load settings from
@@ -60,14 +60,27 @@ func GetDebug() bool {
 // Returns:
 //   - *Server: The configured server instance
 //   - error: An error if the server could not be created, nil otherwise
-func NewServer(configFile string) (*Server, error) {
+func NewServerFromConfigFile(configFile string) (*Server, error) {
 	cfg, err := config.LoadYaml[config.Config](configFile)
 	if err != nil {
 		return nil, err
 	}
-	err = cfg.Load()
+
+	return NewServer(cfg)
+}
+
+// NewServer creates a new Server instance with the provided configuration.
+//
+// Parameters:
+//   - cfg: Pointer to the configuration struct containing server settings
+//
+// Returns:
+//   - *Server: The configured server instance
+//   - error: An error if the server could not be created, nil otherwise
+func NewServer(cfg *config.Config) (*Server, error) {
+	err := cfg.Load()
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to load config file: %s", configFile))
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to load configuration"))
 	}
 
 	controllers, configurationErrors := configureControllers(cfg)
@@ -94,8 +107,10 @@ func AddControllerType(typeName string, factory controller.Constructor) {
 
 func configureControllers(c *config.Config) (controllers []controller.IController, configErrors []error) {
 	for _, binding := range c.ControllerBindings {
-		name := "unnamed"
-		if binding.Name != "" {
+		var name string
+		if binding.Name == "" {
+			name = "unnamed"
+		} else {
 			name = fmt.Sprintf("%q", binding.Name)
 		}
 
@@ -109,7 +124,7 @@ func configureControllers(c *config.Config) (controllers []controller.IControlle
 		if err == nil {
 			controllers = append(controllers, newController)
 		} else {
-			configErrors = append(configErrors, fmt.Errorf("error configuring %q controller of type %q: %v", name, binding.TypeName, err))
+			configErrors = append(configErrors, fmt.Errorf("error configuring %s controller of type %q: %v", name, binding.TypeName, err))
 		}
 	}
 	return controllers, configErrors
@@ -119,7 +134,7 @@ func newController(c *config.Config, name string, binding config.ControllerBindi
 	log.Info().Msgf("Configuring %s controller of type: %s", name, binding.TypeName)
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("panic during %q controller configuration, controller was not added: %v", name, r)
+			err = fmt.Errorf("panic during %s controller configuration, controller was not added: %v", name, r)
 			newController = nil
 		}
 	}()

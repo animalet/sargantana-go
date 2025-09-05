@@ -20,27 +20,39 @@ type LoadBalancerControllerConfig struct {
 	Endpoints []string `yaml:"endpoints"`
 }
 
+func (l LoadBalancerControllerConfig) Validate() error {
+	if len(l.Endpoints) == 0 {
+		return errors.New("at least one endpoint must be provided")
+	}
+
+	if l.Path == "" {
+		return errors.New("path must be set and non-empty")
+	}
+
+	for _, endpoint := range l.Endpoints {
+		if _, err := url.ParseRequestURI(endpoint); err != nil {
+			return errors.Wrap(err, fmt.Sprintf("invalid endpoint URL: %s", endpoint))
+		}
+	}
+	return nil
+}
+
 func NewLoadBalancerController(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
 	c, err := config.UnmarshalTo[LoadBalancerControllerConfig](configData)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse load balancer controller config")
 	}
-	auth := c.Auth
 	stringEndpoints := c.Endpoints
 	endpoints := make([]url.URL, 0, len(stringEndpoints))
-	if len(stringEndpoints) == 0 {
-		return nil, errors.New("no endpoints provided for load balancing")
-	} else {
-		log.Info().Str("path", c.Path).Msg("Load balancing path configured")
-		log.Info().Bool("auth", auth).Msg("Load balancing authentication configured")
-		log.Info().Strs("endpoints", stringEndpoints).Msg("Load balancing endpoints configured")
-		for _, endpoint := range stringEndpoints {
-			u, err := url.Parse(endpoint)
-			if err != nil {
-				return nil, errors.Wrap(err, fmt.Sprintf("failed to parse load balancer path: %s", c.Path))
-			}
-			endpoints = append(endpoints, *u)
+	log.Info().Str("path", c.Path).Msg("Load balancing path configured")
+	log.Info().Bool("auth", c.Auth).Msg("Load balancing authentication configured")
+	log.Info().Strs("endpoints", stringEndpoints).Msg("Load balancing endpoints configured")
+	for _, endpoint := range stringEndpoints {
+		u, err := url.ParseRequestURI(endpoint)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to parse load balancer path: %s", c.Path))
 		}
+		endpoints = append(endpoints, *u)
 	}
 
 	httpClient := &http.Client{
@@ -54,7 +66,7 @@ func NewLoadBalancerController(configData config.ControllerConfig, _ config.Serv
 		endpoints:  endpoints,
 		httpClient: httpClient,
 		path:       strings.TrimSuffix(c.Path, "/") + "/*proxyPath",
-		auth:       auth,
+		auth:       c.Auth,
 	}, nil
 }
 
@@ -72,11 +84,6 @@ type loadBalancer struct {
 }
 
 func (l *loadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
-	if len(l.endpoints) == 0 {
-		log.Warn().Msg("Load balancer not loaded")
-		return
-	}
-
 	if l.auth {
 		engine.GET(l.path, loginMiddleware, l.forward).
 			POST(l.path, loginMiddleware, l.forward).

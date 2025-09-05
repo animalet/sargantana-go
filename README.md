@@ -545,31 +545,64 @@ controllers:
 package main
 
 import (
+    "flag"
+    "fmt"
+    "os"
+
+    "github.com/animalet/sargantana-go/config"
     "github.com/animalet/sargantana-go/controller"
     "github.com/animalet/sargantana-go/server"
     "github.com/gin-gonic/gin"
-    "github.com/animalet/sargantana-go/config"
+    "github.com/rs/zerolog/log"
 )
 
 func main() {
+    configFile := flag.String("config", "", "Path to configuration file")
+
+    flag.Parse()
+
+    if *configFile == "" {
+        n, err := fmt.Fprintln(os.Stderr, "Error: -config flag is required")
+        if err != nil || n <= 0 {
+            panic("Failed to print error message")
+        }
+        os.Exit(1)
+    }
     server.AddControllerType("auth", controller.NewAuthController)
     server.AddControllerType("static", controller.NewStaticController)
-    server.AddControllerType("blog", NewBlogController)
 
-    sargantana, err := server.NewServer("config.yaml")
+    var database any
+    // Adding your controller injecting a database instance (connection pool, etc.). 
+    // You can replace `any` with the actual database type you are using
+    // e.g., *sql.DB, *gorm.DB, etc.
+    // Make sure to initialize the database connection before passing it here.
+    // The server will search for a controller configurations of type "blog" and use this constructor
+    // to set as many instances as defined in the config file.
+    server.AddControllerType("blog", NewBlogController(database))
+
+    sargantana, err := server.NewServer(*configFile)
     if err != nil {
-        panic(err)
+        panic("Failed to create server")
     }
-    
+
     err = sargantana.StartAndWaitForSignal()
     if err != nil {
         panic(err)
     }
 }
 
-type BlogController struct{}
 
-func (b *BlogController) Bind(engine *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
+type BlogController struct {
+    controller.IController
+    config   *BlogConfig
+    database interface{} // Replace with actual database type
+}
+
+type BlogConfig struct {
+    // Add blog-specific configuration fields here
+}
+
+func (b *BlogController) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
     api := engine.Group("/api")
     {
         api.GET("/posts", b.getPosts)
@@ -580,8 +613,14 @@ func (b *BlogController) Bind(engine *gin.Engine, config config.Config, loginMid
 
 func (b *BlogController) Close() error { return nil }
 
-func NewBlogController(configData config.ControllerConfig, _ config.ServerConfig) (controller.IController, error) {
-    return &BlogController{}, nil
+func NewBlogController(db any) func(configData config.ControllerConfig, _ config.ServerConfig) (controller.IController, error) {
+    return func(configData config.ControllerConfig, _ config.ServerConfig) (controller.IController, error){
+        cfg, err := config.UnmarshalTo[BlogConfig](configData)
+        if err != nil {
+            return nil, err
+        }
+        return &BlogController{config: cfg, database: db}, nil
+    }
 }
 
 func (b *BlogController) getPosts(c *gin.Context) {

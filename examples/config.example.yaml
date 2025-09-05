@@ -50,13 +50,22 @@ vault:
 controllers:
   # ---------------------------------------------------------------------------
   # STATIC FILE CONTROLLER
-  # Serves static assets and HTML templates
+  # Serves static assets
   # ---------------------------------------------------------------------------
   - type: "static"
     name: "static-files"
     config:
-      statics_dir: "./frontend"       # Directory containing static assets
-      templates_dir: "./templates"    # Directory containing HTML templates
+      path: "./frontend"
+      url_path: "/static"               # URL path to serve static files
+
+  # ---------------------------------------------------------------------------
+  # STATIC FILE CONTROLLER
+  # Serves static assets
+  # ---------------------------------------------------------------------------
+  - type: "template"
+    name: "templates"
+    config:
+      path: "./templates"
 
   # ---------------------------------------------------------------------------
   # AUTHENTICATION CONTROLLER

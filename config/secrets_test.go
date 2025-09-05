@@ -32,7 +32,7 @@ func TestCreateVaultManager_Success(t *testing.T) {
 		},
 	}
 
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	if err != nil {
 		t.Fatalf("createVaultManager failed: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestCreateVaultManager_WithNamespace(t *testing.T) {
 	}
 
 	// This should succeed even though the namespace doesn't exist in dev mode
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	if err != nil {
 		t.Fatalf("createVaultManager with namespace failed: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestCreateVaultManager_InvalidConfig(t *testing.T) {
 		},
 	}
 
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	if err != nil {
 		t.Errorf("createVaultManager with invalid config should not return error (should skip), got: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestCreateVaultManager_ConnectionError(t *testing.T) {
 		},
 	}
 
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	// This might not fail at creation time, but will fail when trying to read secrets
 	// The actual connection is tested during secret retrieval
 	if err != nil && !strings.Contains(err.Error(), "failed to create Vault client") {
@@ -107,7 +107,7 @@ func TestCreateVaultManager_InvalidAddress(t *testing.T) {
 		},
 	}
 
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	if err == nil {
 		t.Fatal("Expected error when creating Vault client with invalid address")
 	}
@@ -127,7 +127,7 @@ func TestVaultManager_Secret_Success(t *testing.T) {
 		},
 	}
 
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	if err != nil {
 		t.Fatalf("createVaultManager failed: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestVaultManager_Secret_KVv1(t *testing.T) {
 		},
 	}
 
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	if err != nil {
 		t.Fatalf("createVaultManager failed: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestVaultManager_Secret_NonexistentPath(t *testing.T) {
 		},
 	}
 
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	if err != nil {
 		t.Fatalf("createVaultManager failed: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestVaultManager_Secret_NonexistentKey(t *testing.T) {
 		},
 	}
 
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	if err != nil {
 		t.Fatalf("createVaultManager failed: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestVaultManager_Secret_InvalidToken(t *testing.T) {
 		},
 	}
 
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	if err != nil {
 		t.Fatalf("createVaultManager failed: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestExpand_VaultPrefix(t *testing.T) {
 		},
 	}
 
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	if err != nil {
 		t.Fatalf("createVaultManager failed: %v", err)
 	}
@@ -350,7 +350,7 @@ func TestExpand_VaultPrefix_NonexistentKey(t *testing.T) {
 		},
 	}
 
-	err := config.createVaultManager()
+	err := config.createSecretSourcesIfNotPresent()
 	if err != nil {
 		t.Fatalf("createVaultManager failed: %v", err)
 	}

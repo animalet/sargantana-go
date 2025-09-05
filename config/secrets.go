@@ -18,29 +18,6 @@ type vaultManager struct {
 
 var vaultManagerInstance *vaultManager
 
-func (c *Config) createVaultManager() error {
-	config := api.DefaultConfig()
-	config.Address = c.Vault.Address
-	client, err := api.NewClient(config)
-	if err != nil {
-		return err
-	}
-
-	client.SetToken(c.Vault.Token)
-
-	if c.Vault.Namespace != "" {
-		client.SetNamespace(c.Vault.Namespace)
-	}
-
-	vaultManagerInstance = &vaultManager{
-		logical: client.Logical(),
-		path:    c.Vault.Path,
-	}
-
-	log.Info().Msg("Vault client created successfully")
-	return nil
-}
-
 // secret retrieves a secret from Vault at the configured path.
 func (v *vaultManager) secret(name string) (*string, error) {
 	secret, err := v.logical.Read(v.path)

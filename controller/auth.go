@@ -98,6 +98,39 @@ type AuthControllerConfig struct {
 	Providers        map[string]ProviderConfig `yaml:"providers"`
 }
 
+func (a AuthControllerConfig) Validate() error {
+	if len(a.Providers) == 0 {
+		return errors.New("at least one provider must be configured")
+	}
+	if a.CallbackPath == "" {
+		return errors.New("callback_path must be set and non-empty")
+	}
+	if a.LoginPath == "" {
+		return errors.New("login_path must be set and non-empty")
+	}
+	if a.LogoutPath == "" {
+		return errors.New("logout_path must be set and non-empty")
+	}
+	if a.UserInfoPath == "" {
+		return errors.New("user_info_path must be set and non-empty")
+	}
+	if a.RedirectOnLogin == "" {
+		return errors.New("redirect_on_login must be set and non-empty")
+	}
+	if a.RedirectOnLogout == "" {
+		return errors.New("redirect_on_logout must be set and non-empty")
+	}
+	for name, provider := range a.Providers {
+		if provider.Key == "" {
+			return errors.Errorf("provider %s key must be set and non-empty", name)
+		}
+		if provider.Secret == "" {
+			return errors.Errorf("provider %s secret must be set and non-empty", name)
+		}
+	}
+	return nil
+}
+
 func NewAuthController(configData config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
 	c, err := config.UnmarshalTo[AuthControllerConfig](configData)
 	if err != nil {

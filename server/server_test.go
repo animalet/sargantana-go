@@ -119,7 +119,7 @@ controllers:
 		debug = previousDebug
 	}()
 	SetDebug(true)
-	server, err := NewServer(configFile)
+	server, err := NewServerFromConfigFile(configFile)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -230,7 +230,7 @@ controllers:
 		debug = previousDebug
 	}()
 	SetDebug(true)
-	server, err := NewServer(configFile)
+	server, err := NewServerFromConfigFile(configFile)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -317,7 +317,7 @@ controllers:
 	defer func() { log.Logger = originalWriter }()
 
 	// Create and start server
-	server, err := NewServer(configFile)
+	server, err := NewServerFromConfigFile(configFile)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -398,7 +398,7 @@ controllers:
 	defer func() { log.Logger = originalWriter }()
 
 	// Create and start server
-	server, err := NewServer(configFile)
+	server, err := NewServerFromConfigFile(configFile)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -476,7 +476,7 @@ controllers: []`
 				t.Fatalf("Failed to write config file: %v", err)
 			}
 
-			server, err := NewServer(configFile)
+			server, err := NewServerFromConfigFile(configFile)
 
 			if tt.expectError {
 				if err == nil {
@@ -537,7 +537,7 @@ func TestNewServer_InvalidConfigFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server, err := NewServer(tt.configFile)
+			server, err := NewServerFromConfigFile(tt.configFile)
 
 			if err == nil {
 				t.Error("Expected error but got none")
@@ -573,7 +573,7 @@ controllers:
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 
-	server, err := NewServer(configFile)
+	server, err := NewServerFromConfigFile(configFile)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -630,7 +630,7 @@ controllers: []`
 				t.Fatalf("Failed to write config file: %v", err)
 			}
 
-			server, err := NewServer(configFile)
+			server, err := NewServerFromConfigFile(configFile)
 			if err != nil {
 				t.Fatalf("Failed to create server: %v", err)
 			}
@@ -681,7 +681,7 @@ controllers: []`
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 
-	server, err := NewServer(configFile)
+	server, err := NewServerFromConfigFile(configFile)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -737,7 +737,7 @@ controllers: []`
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 
-	server, err := NewServer(configFile)
+	server, err := NewServerFromConfigFile(configFile)
 	if err == nil {
 		t.Error("Expected error for invalid config but got none")
 	}

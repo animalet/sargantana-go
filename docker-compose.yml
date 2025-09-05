@@ -171,8 +171,28 @@ services:
         tail -f /dev/null
       "
 
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: my_blog_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - sargantana-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   valkey_data:
+    driver: local
+  pg_data:
     driver: local
 
 networks:

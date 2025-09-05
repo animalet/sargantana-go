@@ -49,10 +49,11 @@ func main() {
 	})
 	server.SetDebug(*debugMode)
 	server.AddControllerType("auth", controller.NewAuthController)
-	server.AddControllerType("static", controller.NewStaticController)
 	server.AddControllerType("load_balancer", controller.NewLoadBalancerController)
+	server.AddControllerType("static", controller.NewStaticController)
+	server.AddControllerType("template", controller.NewTemplateController)
 
-	sargantana, err := server.NewServer(*configFile)
+	sargantana, err := server.NewServerFromConfigFile(*configFile)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create server")
 		os.Exit(1)

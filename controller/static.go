@@ -1,18 +1,28 @@
 package controller
 
 import (
-	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/animalet/sargantana-go/config"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
 
 type StaticControllerConfig struct {
-	StaticsDir       string `yaml:"statics_dir,omitempty"`
-	HtmlTemplatesDir string `yaml:"templates_dir,omitempty"`
+	UrlPath string `yaml:"url_path"`
+	Path    string `yaml:"statics_dir"`
+}
+
+func (s StaticControllerConfig) Validate() error {
+	if stat, err := os.Stat(s.Path); err != nil || !stat.IsDir() {
+		return errors.Wrap(err, "statics directory not present or is not a directory")
+	}
+
+	if s.UrlPath == "" {
+		return errors.New("url_path must be set and non-empty")
+	}
+	return nil
 }
 
 func NewStaticController(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
@@ -21,21 +31,14 @@ func NewStaticController(configData config.ControllerConfig, _ config.ServerConf
 		return nil, err
 	}
 
-	log.Info().Str("statics_dir", c.StaticsDir).Msg("Statics directory configured")
-	log.Info().Str("templates_dir", c.HtmlTemplatesDir).Msg("Templates directory configured")
+	log.Info().
+		Str("path", c.Path).
+		Str("url_path", c.UrlPath).
+		Msg("Static content configured")
 
-	// Ensure the statics directory exists
-	if stat, err := os.Stat(c.StaticsDir); err != nil || !stat.IsDir() {
-		log.Warn().Str("statics_dir", c.StaticsDir).Msg("Statics directory does not exist or is not a directory. Continuing without statics.")
-	}
-
-	// Ensure the templates directory exists (if provided)
-	if stat, err := os.Stat(c.HtmlTemplatesDir); err != nil || !stat.IsDir() {
-		log.Warn().Str("templates_dir", c.HtmlTemplatesDir).Msg("Templates directory does not exist or is not a directory. Continuing without templates.")
-	}
 	return &static{
-		staticsDir:       c.StaticsDir,
-		htmlTemplatesDir: c.HtmlTemplatesDir,
+		urlPath: c.UrlPath,
+		path:    c.Path,
 	}, nil
 }
 
@@ -44,59 +47,19 @@ func NewStaticController(configData config.ControllerConfig, _ config.ServerConf
 // images, and HTML files, as well as Go template rendering capabilities.
 type static struct {
 	IController
-	staticsDir       string
-	htmlTemplatesDir string
+	urlPath string
+	path    string
 }
 
-// Bind registers the static file serving routes with the Gin engine.
-// It sets up the following routes:
-//   - /static/*: Serves static files from the configured static directory
-//   - /: Serves the index.html file from the static directory
-//
-// Additionally, it loads HTML templates from the templates directory if available.
-// Templates are loaded using Go's html/template package and can be rendered
-// using Gin's template rendering functions.
-//
-// Parameters:
-//   - server: The Gin engine to register routes with
-//   - _: Server configuration (unused by this controller)
-//   - _: Login middleware function (unused by this controller)
+// Bind registers the static controller with the provided Gin engine.
+// It sets up routes for serving static files and loading HTML templates from the configured directory.
 func (s *static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
-	if s.staticsDir != "" {
-		engine.Static("/static", s.staticsDir)
+	if s.urlPath != "" {
+		engine.Static("/static", s.path)
 		engine.GET("/", func(c *gin.Context) {
 			c.Header("Content-Type", "text/html")
-			c.File(s.staticsDir + "/index.html")
+			c.File(s.path + "/index.html")
 		})
-	}
-
-	if s.htmlTemplatesDir != "" {
-		if stat, err := os.Stat(s.htmlTemplatesDir); stat != nil && stat.IsDir() {
-			// check if dir is empty
-			var found bool
-			err = filepath.WalkDir(s.htmlTemplatesDir, func(path string, d fs.DirEntry, err error) error {
-				if err != nil {
-					return err
-				}
-				if !d.IsDir() {
-					found = true
-				}
-				return nil
-			})
-
-			if err != nil {
-				log.Warn().Err(err).Msg("Error walking through templates directory")
-				return
-			}
-
-			if found {
-				engine.LoadHTMLGlob(s.htmlTemplatesDir + "/**")
-			} else {
-				log.Warn().Msg("Templates directory present but no files found, skipping templates.")
-			}
-		} else {
-			log.Warn().Err(err).Msg("Templates directory not present")
-		}
 	}
 }
 

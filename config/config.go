@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/animalet/sargantana-go/database"
+	"github.com/hashicorp/vault/api"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
@@ -22,6 +23,7 @@ type (
 		ServerConfig       ServerConfig        `yaml:"server"`
 		Vault              *VaultConfig        `yaml:"vault,omitempty"`
 		ControllerBindings []ControllerBinding `yaml:"controllers"`
+		OtherSettings      map[string]any      `yaml:",inline"`
 	}
 
 	// ServerConfig holds the core server configuration parameters.
@@ -40,8 +42,6 @@ type (
 		ConfigData ControllerConfig `yaml:"config"`
 	}
 
-	ControllerConfig []byte
-
 	// VaultConfig holds configuration for connecting to HashiCorp Vault
 	VaultConfig struct {
 		Address   string `yaml:"address"`
@@ -49,6 +49,8 @@ type (
 		Path      string `yaml:"path"`
 		Namespace string `yaml:"namespace"`
 	}
+
+	ControllerConfig []byte
 )
 
 type Validatable interface {
@@ -63,20 +65,10 @@ func (c ServerConfig) Validate() error {
 	return nil
 }
 
-func (cfg *Config) Load() error {
-	var err error
-	if cfg.Vault != nil {
-		expandVariables(reflect.ValueOf(cfg.Vault).Elem())
-		if err = cfg.Vault.Validate(); err == nil {
-			err = cfg.createVaultManager()
-			if err != nil {
-				return errors.Wrap(err, "error creating Vault manager")
-			}
-		} else {
-			return errors.Wrap(err, "Vault configuration is invalid")
-		}
-	} else {
-		log.Debug().Msg("No Vault configuration provided, skipping Vault secrets loading")
+func (cfg *Config) Load() (err error) {
+	err = cfg.createSecretSourcesIfNotPresent()
+	if err != nil {
+		return err
 	}
 
 	expandVariables(reflect.ValueOf(&cfg.ServerConfig).Elem())
@@ -84,25 +76,45 @@ func (cfg *Config) Load() error {
 		return errors.Wrap(err, "server configuration is invalid")
 	}
 
+	return nil
+}
+
+func (cfg *Config) createSecretSourcesIfNotPresent() (err error) {
 	if cfg.ServerConfig.SecretsDir == "" {
 		log.Warn().Msg("No secrets directory configured, file secrets will fail if requested")
 	}
 	secretDir = cfg.ServerConfig.SecretsDir
-	return nil
-}
 
-// Validate checks if the VaultConfig has all required fields set.
-func (v VaultConfig) Validate() error {
-	if v.Address == "" {
-		return errors.New("Vault address is required")
+	if vaultManagerInstance == nil && cfg.Vault != nil {
+		log.Info().Msg("Vault configuration provided, initializing Vault client")
+		expandVariables(reflect.ValueOf(cfg.Vault).Elem())
+		if err = cfg.Vault.Validate(); err == nil {
+			config := api.DefaultConfig()
+			config.Address = cfg.Vault.Address
+			client, err := api.NewClient(config)
+			if err != nil {
+				return err
+			}
+
+			client.SetToken(cfg.Vault.Token)
+
+			if cfg.Vault.Namespace != "" {
+				client.SetNamespace(cfg.Vault.Namespace)
+			}
+
+			vaultManagerInstance = &vaultManager{
+				logical: client.Logical(),
+				path:    cfg.Vault.Path,
+			}
+
+			log.Info().Msg("Vault client created successfully")
+		} else {
+			return errors.Wrap(err, "Vault configuration is invalid")
+		}
+	} else {
+		log.Debug().Msg("No Vault configuration provided, skipping Vault secrets loading")
 	}
-	if v.Token == "" {
-		return errors.New("Vault token is required")
-	}
-	if v.Path == "" {
-		return errors.New("Vault path is required")
-	}
-	return nil
+	return err
 }
 
 // LoadYaml reads the YAML configuration file and unmarshalls its content into the provided struct.
@@ -127,6 +139,47 @@ func LoadYaml[T any](file string) (*T, error) {
 	return out, nil
 }
 
+func LoadPartial[T Validatable](key string, cfg *Config) (partial *T, err error) {
+	err = cfg.createSecretSourcesIfNotPresent()
+	if err != nil {
+		return nil, err
+	}
+	c, exist := cfg.OtherSettings[key]
+	if !exist {
+		return nil, errors.Errorf("no configuration found for key: %s", key)
+	}
+
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return nil, errors.Wrap(err, "error marshalling partial config to YAML")
+	}
+
+	partial, err = UnmarshalTo[T](data)
+	if err != nil {
+		return nil, err
+	}
+
+	expandVariables(reflect.ValueOf(partial).Elem())
+	if err = (*partial).Validate(); err != nil {
+		return nil, errors.Wrap(err, "partial configuration is invalid")
+	}
+	return partial, nil
+}
+
+// Validate checks if the VaultConfig has all required fields set.
+func (v VaultConfig) Validate() error {
+	if v.Address == "" {
+		return errors.New("Vault address is required")
+	}
+	if v.Token == "" {
+		return errors.New("Vault token is required")
+	}
+	if v.Path == "" {
+		return errors.New("Vault path is required")
+	}
+	return nil
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 // It marshals the provided yaml.Node back into a YAML byte slice.
 func (c *ControllerConfig) UnmarshalYAML(value *yaml.Node) error {
@@ -140,7 +193,7 @@ func (c *ControllerConfig) UnmarshalYAML(value *yaml.Node) error {
 
 // UnmarshalTo unmarshal the raw YAML data from ControllerConfig into a new instance of type T.
 // This method creates a new instance and returns it, avoiding addressability issues.
-func UnmarshalTo[T any](c ControllerConfig) (*T, error) {
+func UnmarshalTo[T Validatable](c ControllerConfig) (*T, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -148,6 +201,10 @@ func UnmarshalTo[T any](c ControllerConfig) (*T, error) {
 	err := yaml.Unmarshal(c, &result)
 	if err != nil {
 		return nil, err
+	}
+
+	if err = result.Validate(); err != nil {
+		return nil, errors.Wrap(err, "controller config is invalid")
 	}
 
 	// Always try to expand environment variables for structs
@@ -166,6 +223,7 @@ func UnmarshalTo[T any](c ControllerConfig) (*T, error) {
 // If no known prefix is found, the original string is returned unchanged.
 const envPrefix = "env:"
 const filePrefix = "file:"
+
 const vaultPrefix = "vault:"
 
 var secretDir string
@@ -180,11 +238,11 @@ func expand(s string) string {
 	case strings.HasPrefix(s, envPrefix):
 		return os.Getenv(strings.TrimPrefix(s, envPrefix))
 	case strings.HasPrefix(s, filePrefix):
-		file, err := secretFromFile(strings.TrimPrefix(s, filePrefix))
+		secret, err := secretFromFile(strings.TrimPrefix(s, filePrefix))
 		if err != nil {
-			panic(errors.Wrap(err, "error retrieving secret from Vault"))
+			panic(errors.Wrap(err, "error retrieving secret from file"))
 		}
-		return file
+		return secret
 	case strings.HasPrefix(s, vaultPrefix):
 		fromVault, err := vaultManagerInstance.secret(strings.TrimPrefix(s, vaultPrefix))
 		if err != nil {
