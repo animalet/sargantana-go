@@ -3,35 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - My Blog</title>
+    <title>Admin Dashboard - My Blog</title>
+    <meta name="description" content="Admin dashboard for managing blog content and settings">
     <link rel="stylesheet" href="/css/style.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
 <body>
     <!-- Header -->
-    <header class="header">
+    <header class="header" role="banner">
         <div class="container">
             <h1>My Blog</h1>
-            <p class="subtitle">Admin Area</p>
+            <p class="subtitle">Admin Dashboard</p>
         </div>
     </header>
 
     <div class="container">
         <!-- Navigation -->
-        <nav class="nav">
+        <nav class="nav" role="navigation" aria-label="Main navigation">
             <div class="nav-content">
                 <div class="nav-links">
-                    <a href="/blog/feed">Home</a>
-                    <a href="/blog/admin">Admin</a>
+                    <a href="/blog/feed">🏠 Home</a>
+                    <a href="/blog/admin" aria-current="page">⚙️ Admin</a>
+                </div>
+                <div class="nav-user">
+                    <a href="/logout" class="btn btn-small btn-secondary">Logout</a>
                 </div>
             </div>
         </nav>
 
         <!-- Admin Content -->
-        <div class="admin-container">
-            <h1>🎉 Welcome to the Admin Zone!</h1>
-            <p>You have successfully accessed the admin area. This is where you can manage your blog settings and content.</p>
-        </div>
+        <main role="main">
+            <section class="form-section" aria-labelledby="admin-heading">
+                <div class="admin-container">
+                    <h1 id="admin-heading">🎉 Welcome to the Admin Zone!</h1>
+                    <p>You have successfully accessed the admin area. This is where you can manage your blog settings and content.</p>
+
+                    <div style="margin-top: 2rem;">
+                        <a href="/blog/feed" class="btn">
+                            📝 Manage Posts
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
 </body>
 </html>
