@@ -39,9 +39,9 @@ controllers:
   - type: "blog"
     name: "my_blog"
     config:
-      feed_path: "feed"
-      post_path: "post"
-      admin_area_path: "admin"
+      feed_path: "/blog/feed"
+      post_path: "/blog/post"
+      admin_area_path: "/blog/admin"
 
   - type: "auth"
     config:
@@ -50,7 +50,7 @@ controllers:
       logout_path: "/logout"
       callback_path: "/auth/{provider}/callback"
       user_info_path: "/user"
-      redirect_on_login: "/blog/admin"
+      redirect_on_login: "/blog/feed"
       redirect_on_logout: "/blog/feed"
       providers:
         openid-connect:

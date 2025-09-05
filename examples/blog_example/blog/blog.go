@@ -40,14 +40,11 @@ func (b Config) Validate() error {
 }
 
 func (b *Controller) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
-	api := engine.Group("/blog")
-	{
-		api.GET(b.config.FeedPath, b.getFeed)
-		api.POST(b.config.PostPath, b.createPost)
-		api.GET(b.config.PostPath+"/:id", b.getPost)
-		api.DELETE(b.config.PostPath+"/:id", b.deletePost)
-		api.GET(b.config.AdminAreaPath, loginMiddleware, b.adminArea)
-	}
+	engine.GET(b.config.FeedPath, b.getFeed)
+	engine.POST(b.config.PostPath, b.createPost)
+	engine.GET(b.config.PostPath+"/:id", b.getPost)
+	engine.DELETE(b.config.PostPath+"/:id", b.deletePost)
+	engine.GET(b.config.AdminAreaPath, loginMiddleware, b.adminArea)
 }
 
 func (b *Controller) Close() error { return nil }
@@ -80,7 +77,7 @@ func NewBlogController(db *pgx.Conn) controller.Constructor {
 }
 
 type post struct {
-	Id              int
+	Id              int    `form:"id" json:"id"`
 	Title           string `form:"title" json:"title"`
 	Content         string `form:"content" json:"content"`
 	PublicationDate time.Time
@@ -115,7 +112,7 @@ func (b *Controller) createPost(c *gin.Context) {
 	var id int
 	userId := b.getUserId(c)
 	if userId == "" {
-		c.JSON(401, gin.H{"error": "Unauthorized"})
+		c.AbortWithStatus(401)
 		return
 	}
 
@@ -160,10 +157,10 @@ func (b *Controller) createPost(c *gin.Context) {
 func (b *Controller) deletePost(c *gin.Context) {
 	_, err := b.database.Exec("DELETE FROM posts WHERE id=$1", c.Param("id"))
 	if err != nil {
-		c.AbortWithError(500, err)
+		_ = c.AbortWithError(500, err)
 		return
 	}
-	c.Redirect(302, b.config.FeedPath)
+	c.Status(200)
 }
 
 func (b *Controller) getFeed(c *gin.Context) {
