@@ -3,19 +3,32 @@
     <title>Articles</title>
 </head>
 <body>
-    <h1>Articles</h1>
-    <ul>
-        {% for p in feed %}
-            <li>
-                <h2>{{ p.title }}</h2>
-                <p>{{ p.content }}</p>
-                <small>Published on: {{ p.publication_date }} by {{p.owner}}</small>
-                {% if user == p.owner%}
-                <button>Edit</button>
-                <button>Delete</button>
-                {% endif %}
-            </li>
-        {% endfor %}
-    </ul>
+<h1>New post</h1>
+{% if user != '' %}
+<form method="post">
+    {% csrf_token %}
+    <label>
+        <input type="text" name="title" placeholder="Title">
+    </label><br>
+    <label>
+        <textarea name="content" rows="4" cols="50" placeholder="Write your article here..."></textarea>
+    </label><br>
+    <button type="submit">Submit</button>
+</form>
+{% endif %}
+<h1>Articles</h1>
+<ul>
+    {% for p in feed %}
+    <li>
+        <h2>{{ p.title }}</h2>
+        <p>{{ p.content }}</p>
+        <small>Published on: {{ p.publication_date }} by {{p.owner}}</small>
+        {% if user == p.owner%}
+        <button>Edit</button>
+        <button>Delete</button>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
 </body>
 </html>
