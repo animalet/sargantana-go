@@ -220,15 +220,13 @@ type UserObject struct {
 //	engine.GET("/protected", controller.LoginFunc, myProtectedHandler)
 //
 // Responses:
-//   - 403 Forbidden: User is not logged in
-//   - 401 Unauthorized: User session has expired
-//   - 500 Internal Server Error: Failed to clear expired session
-//   - Continues to next handler: User is authenticated and session is valid
+//   - 403 Forbidden: No user session found (not logged in)
+//   - 401 Unauthorized: User session expired (need to log in again)
 func LoginFunc(c *gin.Context) {
 	userSession := sessions.Default(c)
 	userObject := userSession.Get("user")
 	if userObject == nil {
-		c.AbortWithStatus(http.StatusForbidden)
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
