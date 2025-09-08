@@ -7,7 +7,7 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/gomodule/redigo v1.9.2
 	github.com/markbates/goth v1.82.0
-	github.com/neo4j/neo4j-go-driver/v5 v5.28.2
+	github.com/neo4j/neo4j-go-driver/v5 v5.28.3
 )
 
 require (
