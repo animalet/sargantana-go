@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/gin-contrib/sessions v1.0.4
 	github.com/gin-gonic/gin v1.11.0
-	github.com/gomodule/redigo v1.9.2
+	github.com/gomodule/redigo v1.9.3
 	github.com/markbates/goth v1.82.0
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.2
 )
