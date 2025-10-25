@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/animalet/sargantana-go/database"
 	"github.com/hashicorp/vault/api"
@@ -79,9 +80,17 @@ func (cfg *Config) Load() (err error) {
 	return nil
 }
 
+var logSecretDirAbsent = sync.OnceFunc(func() {
+	log.Warn().Msg("No secrets directory configured, file secrets will fail if requested")
+})
+
+var logVaultAbsent = sync.OnceFunc(func() {
+	log.Warn().Msg("No Vault configuration provided, vault secrets will fail if requested")
+})
+
 func (cfg *Config) createSecretSourcesIfNotPresent() (err error) {
 	if cfg.ServerConfig.SecretsDir == "" {
-		log.Warn().Msg("No secrets directory configured, file secrets will fail if requested")
+		logSecretDirAbsent()
 	}
 	secretDir = cfg.ServerConfig.SecretsDir
 
@@ -112,7 +121,7 @@ func (cfg *Config) createSecretSourcesIfNotPresent() (err error) {
 			return errors.Wrap(err, "Vault configuration is invalid")
 		}
 	} else if vaultManagerInstance == nil && cfg.Vault == nil {
-		log.Warn().Msg("No Vault configuration provided, vault secrets will fail if requested")
+		logVaultAbsent()
 	}
 
 	return err

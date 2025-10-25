@@ -24,6 +24,27 @@ type RedisConfig struct {
 	TLS         *TLSConfig    `yaml:"tls,omitempty"`
 }
 
+func (r RedisConfig) Validate() error {
+	if r.Address == "" {
+		return fmt.Errorf("redis address must be set and non-empty")
+	}
+	if r.MaxIdle < 0 {
+		return fmt.Errorf("redis max_idle must be non-negative")
+	}
+	if r.IdleTimeout < 0 {
+		return fmt.Errorf("redis idle_timeout must be non-negative")
+	}
+	if r.Database < 0 {
+		return fmt.Errorf("redis database must be non-negative")
+	}
+	if r.TLS != nil {
+		if (r.TLS.CertFile != "" && r.TLS.KeyFile == "") || (r.TLS.CertFile == "" && r.TLS.KeyFile != "") {
+			return fmt.Errorf("both cert_file and key_file must be set together in TLS configuration")
+		}
+	}
+	return nil
+}
+
 // TLSConfig holds TLS configuration for Redis connections
 type TLSConfig struct {
 	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"`

@@ -13,34 +13,49 @@ import (
 )
 
 func TestNewStaticController(t *testing.T) {
+	// Create temporary directories for tests that need them
+	tempDir := t.TempDir()
+	staticDir := filepath.Join(tempDir, "static")
+	err := os.MkdirAll(staticDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create static dir: %v", err)
+	}
+
+	// Create a test file
+	faviconPath := filepath.Join(staticDir, "favicon.ico")
+	err = os.WriteFile(faviconPath, []byte("test"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create favicon.ico: %v", err)
+	}
+
 	tests := []struct {
 		name          string
 		configData    StaticControllerConfig
 		expectedError bool
 	}{
 		{
-			name: "basic directories",
+			name: "dir and file",
 			configData: StaticControllerConfig{
-				StaticsDir:       "./static",
-				HtmlTemplatesDir: "./templates",
-			},
-			expectedError: false,
-		},
-		{
-			name: "absolute paths",
-			configData: StaticControllerConfig{
-				StaticsDir:       "/var/www/static",
-				HtmlTemplatesDir: "/var/www/templates",
+				StaticMapping{
+					Path: "/static",
+					Dir:  staticDir,
+				},
+				StaticMapping{
+					Path: "/favicon.ico",
+					File: faviconPath,
+				},
 			},
 			expectedError: false,
 		},
 		{
 			name: "empty paths",
 			configData: StaticControllerConfig{
-				StaticsDir:       "",
-				HtmlTemplatesDir: "",
+				StaticMapping{
+					Path: "",
+					Dir:  "",
+				},
 			},
-			expectedError: false,
+			expectedError: true,
 		},
 	}
 
@@ -65,12 +80,11 @@ func TestNewStaticController(t *testing.T) {
 					t.Error("Expected controller but got nil")
 				}
 
-				static := controller.(*static)
-				if static.staticsDir != tt.configData.StaticsDir {
-					t.Errorf("staticsDir = %v, want %v", static.staticsDir, tt.configData.StaticsDir)
-				}
-				if static.htmlTemplatesDir != tt.configData.HtmlTemplatesDir {
-					t.Errorf("htmlTemplatesDir = %v, want %v", static.htmlTemplatesDir, tt.configData.HtmlTemplatesDir)
+				if controller != nil {
+					static := controller.(*static)
+					if len(static.mappings) != len(tt.configData) {
+						t.Errorf("mappings length = %v, want %v", len(static.mappings), len(tt.configData))
+					}
 				}
 			}
 		})
@@ -83,7 +97,6 @@ func TestStatic_Bind(t *testing.T) {
 	// Create temporary directories for testing
 	tempDir := t.TempDir()
 	staticDir := filepath.Join(tempDir, "static")
-	templatesDir := filepath.Join(tempDir, "templates")
 
 	// Create directories
 	err := os.MkdirAll(staticDir, 0755)
@@ -105,8 +118,10 @@ func TestStatic_Bind(t *testing.T) {
 	}
 
 	configData := StaticControllerConfig{
-		StaticsDir:       staticDir,
-		HtmlTemplatesDir: templatesDir,
+		StaticMapping{
+			Path: "/static",
+			Dir:  staticDir,
+		},
 	}
 	configBytes, _ := yaml.Marshal(configData)
 	controller, err := NewStaticController(configBytes, config.ServerConfig{})
@@ -124,12 +139,6 @@ func TestStatic_Bind(t *testing.T) {
 		expectedStatus int
 		expectedBody   string
 	}{
-		{
-			name:           "index page",
-			path:           "/",
-			expectedStatus: http.StatusOK,
-			expectedBody:   indexContent,
-		},
 		{
 			name:           "static asset",
 			path:           "/static/test.css",
@@ -161,148 +170,10 @@ func TestStatic_Bind(t *testing.T) {
 	}
 }
 
-func TestStatic_BindWithTemplates(t *testing.T) {
+func TestStatic_BindWithStaticFile(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Create temporary directories with templates
-	tempDir := t.TempDir()
-	staticDir := filepath.Join(tempDir, "static")
-	templatesDir := filepath.Join(tempDir, "templates")
-
-	err := os.MkdirAll(staticDir, 0755)
-	if err != nil {
-		t.Fatalf("Failed to create static dir: %v", err)
-	}
-
-	err = os.MkdirAll(templatesDir, 0755)
-	if err != nil {
-		t.Fatalf("Failed to create templates dir: %v", err)
-	}
-
-	// Create index.html
-	err = os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html><body>Test</body></html>"), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create index.html: %v", err)
-	}
-
-	// Create a template file
-	templateContent := `<html><body>Hello {{.name}}</body></html>`
-	err = os.WriteFile(filepath.Join(templatesDir, "test.html"), []byte(templateContent), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create template: %v", err)
-	}
-
-	configData := StaticControllerConfig{
-		StaticsDir:       staticDir,
-		HtmlTemplatesDir: templatesDir,
-	}
-	configBytes, _ := yaml.Marshal(configData)
-	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
-	if err != nil {
-		t.Fatalf("Failed to create static controller: %v", err)
-	}
-
-	engine := gin.New()
-
-	// This should load templates without error
-	staticController.Bind(engine, nil)
-}
-
-func TestStatic_BindWithEmptyTemplatesDir(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	// Create temporary directories with empty templates
-	tempDir := t.TempDir()
-	staticDir := filepath.Join(tempDir, "static")
-	templatesDir := filepath.Join(tempDir, "templates")
-
-	err := os.MkdirAll(staticDir, 0755)
-	if err != nil {
-		t.Fatalf("Failed to create static dir: %v", err)
-	}
-
-	err = os.MkdirAll(templatesDir, 0755)
-	if err != nil {
-		t.Fatalf("Failed to create templates dir: %v", err)
-	}
-
-	// Create index.html
-	err = os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html><body>Test</body></html>"), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create index.html: %v", err)
-	}
-
-	configData := StaticControllerConfig{
-		StaticsDir:       staticDir,
-		HtmlTemplatesDir: templatesDir,
-	}
-	configBytes, _ := yaml.Marshal(configData)
-	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
-	if err != nil {
-		t.Fatalf("Failed to create static controller: %v", err)
-	}
-
-	engine := gin.New()
-
-	// This should handle empty templates directory gracefully
-	staticController.Bind(engine, nil)
-}
-
-func TestStatic_BindWithNonExistentTemplatesDir(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	// Create temporary directories
-	tempDir := t.TempDir()
-	staticDir := filepath.Join(tempDir, "static")
-	templatesDir := filepath.Join(tempDir, "nonexistent")
-
-	err := os.MkdirAll(staticDir, 0755)
-	if err != nil {
-		t.Fatalf("Failed to create static dir: %v", err)
-	}
-
-	// Create index.html
-	err = os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html><body>Test</body></html>"), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create index.html: %v", err)
-	}
-
-	configData := StaticControllerConfig{
-		StaticsDir:       staticDir,
-		HtmlTemplatesDir: templatesDir,
-	}
-	configBytes, _ := yaml.Marshal(configData)
-	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
-	if err != nil {
-		t.Fatalf("Failed to create static controller: %v", err)
-	}
-
-	engine := gin.New()
-
-	// This should handle non-existent templates directory gracefully
-	staticController.Bind(engine, nil)
-}
-
-func TestStatic_Close(t *testing.T) {
-	configData := StaticControllerConfig{
-		StaticsDir:       "./static",
-		HtmlTemplatesDir: "./templates",
-	}
-	configBytes, _ := yaml.Marshal(configData)
-	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
-	if err != nil {
-		t.Fatalf("Failed to create static controller: %v", err)
-	}
-
-	err = staticController.Close()
-	if err != nil {
-		t.Errorf("Close() returned error: %v", err)
-	}
-}
-
-func TestStatic_ContentTypeHeader(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
+	// Create temporary directory
 	tempDir := t.TempDir()
 	staticDir := filepath.Join(tempDir, "static")
 
@@ -311,15 +182,18 @@ func TestStatic_ContentTypeHeader(t *testing.T) {
 		t.Fatalf("Failed to create static dir: %v", err)
 	}
 
-	// Create index.html
-	err = os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html><body>Test</body></html>"), 0644)
+	// Create favicon.ico
+	faviconContent := []byte("fake favicon")
+	err = os.WriteFile(filepath.Join(staticDir, "favicon.ico"), faviconContent, 0644)
 	if err != nil {
-		t.Fatalf("Failed to create index.html: %v", err)
+		t.Fatalf("Failed to create favicon.ico: %v", err)
 	}
 
 	configData := StaticControllerConfig{
-		StaticsDir:       staticDir,
-		HtmlTemplatesDir: "",
+		StaticMapping{
+			Path: "/favicon.ico",
+			File: filepath.Join(staticDir, "favicon.ico"),
+		},
 	}
 	configBytes, _ := yaml.Marshal(configData)
 	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
@@ -331,11 +205,41 @@ func TestStatic_ContentTypeHeader(t *testing.T) {
 	staticController.Bind(engine, nil)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/", nil)
+	req, _ := http.NewRequest("GET", "/favicon.ico", nil)
 	engine.ServeHTTP(w, req)
 
-	contentType := w.Header().Get("Content-Type")
-	if contentType != "text/html" {
-		t.Errorf("Content-Type = %v, want text/html", contentType)
+	if w.Code != http.StatusOK {
+		t.Errorf("Status = %v, want %v", w.Code, http.StatusOK)
+	}
+
+	if w.Body.String() != string(faviconContent) {
+		t.Errorf("Body = %v, want %v", w.Body.String(), string(faviconContent))
+	}
+}
+
+func TestStatic_Close(t *testing.T) {
+	tempDir := t.TempDir()
+	staticDir := filepath.Join(tempDir, "static")
+
+	err := os.MkdirAll(staticDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create static dir: %v", err)
+	}
+
+	configData := StaticControllerConfig{
+		StaticMapping{
+			Path: "/static",
+			Dir:  staticDir,
+		},
+	}
+	configBytes, _ := yaml.Marshal(configData)
+	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
+	if err != nil {
+		t.Fatalf("Failed to create static controller: %v", err)
+	}
+
+	err = staticController.Close()
+	if err != nil {
+		t.Errorf("Close() returned error: %v", err)
 	}
 }

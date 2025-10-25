@@ -1,6 +1,7 @@
 package blog
 
 import (
+	"net/http"
 	"strconv"
 	"time"
 
@@ -93,12 +94,7 @@ func (b *Controller) getPost(c *gin.Context) {
 	p := post{}
 	err := b.database.QueryRow("SELECT id, title, content, publication_date, owner FROM posts WHERE id=$1", c.Param("id")).
 		Scan(&p.Id, &p.Title, &p.Content, &p.PublicationDate, &p.Owner)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			_ = c.AbortWithError(404, err)
-			return
-		}
-		_ = c.AbortWithError(500, err)
+	if isDBError(c, err) {
 		return
 	}
 
@@ -112,61 +108,52 @@ func (b *Controller) createPost(c *gin.Context) {
 	var id int
 	userId := b.getUserId(c)
 	if userId == "" {
-		c.AbortWithStatus(401)
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
-	// If post exists, update, else, create. Check if user is owner first.
+	// If post exists: update, else create. Check if user is owner first.
 	var newPost post
 	if err := c.MustBindWith(&newPost, binding.FormPost); err != nil {
-		c.AbortWithStatus(400)
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 
 	if newPost.Id != 0 {
 		var owner string
 		err := b.database.QueryRow("SELECT owner FROM posts WHERE id=$1", newPost.Id).Scan(&owner)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				_ = c.AbortWithError(404, err)
-				return
-			}
-			_ = c.AbortWithError(500, err)
+		if isDBError(c, err) {
 			return
 		}
 		if owner != userId {
-			_ = c.AbortWithError(403, err)
+			_ = c.AbortWithError(http.StatusForbidden, err)
 			return
 		}
 		_, err = b.database.Exec("UPDATE posts SET title=$1, content=$2 WHERE id=$3 RETURNING id", newPost.Title, newPost.Content, newPost.Id)
-		if err != nil {
-			_ = c.AbortWithError(405, err)
+		if isDBError(c, err) {
 			return
 		}
 		id = newPost.Id
 	} else {
 		err := b.database.QueryRow("INSERT INTO posts (title, content, owner) VALUES ($1,$2, $3) RETURNING id", newPost.Title, newPost.Content, userId).Scan(&id)
-		if err != nil {
-			_ = c.AbortWithError(500, err)
+		if isDBError(c, err) {
 			return
 		}
 	}
-	c.Redirect(302, b.config.PostPath+"/"+strconv.Itoa(id))
+	c.Redirect(http.StatusFound, b.config.PostPath+"/"+strconv.Itoa(id))
 }
 
 func (b *Controller) deletePost(c *gin.Context) {
 	_, err := b.database.Exec("DELETE FROM posts WHERE id=$1", c.Param("id"))
-	if err != nil {
-		_ = c.AbortWithError(500, err)
+	if isDBError(c, err) {
 		return
 	}
-	c.Status(200)
+	c.Status(http.StatusNoContent)
 }
 
 func (b *Controller) getFeed(c *gin.Context) {
 	rows, err := b.database.Query("SELECT id, title, content, publication_date, owner FROM posts ORDER BY id DESC LIMIT 10")
-	if err != nil {
-		_ = c.AbortWithError(500, err)
+	if isDBError(c, err) {
 		return
 	}
 	defer rows.Close()
@@ -175,22 +162,20 @@ func (b *Controller) getFeed(c *gin.Context) {
 	for rows.Next() {
 		p := post{}
 		err := rows.Scan(&p.Id, &p.Title, &p.Content, &p.PublicationDate, &p.Owner)
-
-		if err != nil {
-			_ = c.AbortWithError(500, err)
+		if isDBError(c, err) {
 			return
 		}
 		feed = append(feed, p)
 	}
 
-	c.HTML(200, articleTemplate, gin.H{
+	c.HTML(http.StatusOK, articleTemplate, gin.H{
 		"user": b.getUserId(c),
 		"feed": feed,
 	})
 }
 
 func (b *Controller) adminArea(c *gin.Context) {
-	c.HTML(200, adminTemplate, gin.H{
+	c.HTML(http.StatusOK, adminTemplate, gin.H{
 		"user": b.getUserId(c),
 	})
 }
@@ -203,4 +188,16 @@ func (b *Controller) getUserId(c *gin.Context) string {
 		userId = userObject.(controller.UserObject).Id
 	}
 	return userId
+}
+
+func isDBError(c *gin.Context, err error) bool {
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			_ = c.AbortWithError(http.StatusNotFound, err)
+			return true
+		}
+		_ = c.AbortWithError(http.StatusInternalServerError, err)
+		return true
+	}
+	return false
 }

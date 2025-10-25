@@ -64,10 +64,8 @@ install-goimports:
 	fi
 
 install-golangci-lint:
-	@if ! command -v golangci-lint &> /dev/null; then \
-		echo "Installing golangci-lint..."; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v2.4.0; \
-	fi
+	@echo "Installing/updating golangci-lint to latest version..."; \
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin latest
 
 install-go-test-with-coverage:
 	@if ! command -v go-test-with-coverage &> /dev/null; then \

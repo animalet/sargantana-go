@@ -75,7 +75,7 @@ server:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	cfg, err := ReadConfig[Config](configFile)
+	cfg, err := ReadConfig(configFile)
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
@@ -264,12 +264,14 @@ vault:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	cfg, err := ReadConfig[Config](configFile)
+	cfg, err := ReadConfig(configFile)
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	err = cfg.Load()
+	if err = cfg.Load(); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
 	if cfg.ServerConfig.Address != "test-value:8080" {
 		t.Errorf("Expected address 'test-value:8080', got '%s'", cfg.ServerConfig.Address)
 	}
@@ -286,6 +288,11 @@ vault:
 
 // TestLoad_VaultCreationError tests error handling when Vault manager creation fails
 func TestLoad_VaultCreationError(t *testing.T) {
+	// Save and reset the global vaultManagerInstance
+	originalVaultManager := vaultManagerInstance
+	vaultManagerInstance = nil
+	defer func() { vaultManagerInstance = originalVaultManager }()
+
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "test-config.yaml")
 
@@ -309,7 +316,7 @@ vault:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	cfg, err := ReadConfig[Config](configFile)
+	cfg, err := ReadConfig(configFile)
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
@@ -439,8 +446,8 @@ func TestExpand_FilePrefix_Error(t *testing.T) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			if !strings.Contains(r.(error).Error(), "error retrieving secret from Vault") {
-				t.Errorf("Expected 'error retrieving secret from Vault' panic, got: %v", r)
+			if !strings.Contains(r.(error).Error(), "error retrieving secret from file") {
+				t.Errorf("Expected 'error retrieving secret from file' panic, got: %v", r)
 			}
 		} else {
 			t.Fatal("Expected panic when no secrets directory is configured")
@@ -467,7 +474,7 @@ server:
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	_, err = ReadConfig[Config](configFile)
+	_, err = ReadConfig(configFile)
 	if err == nil {
 		t.Fatal("Expected error when loading malformed YAML")
 	}

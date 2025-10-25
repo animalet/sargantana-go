@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/animalet/sargantana-go/config"
 	"github.com/animalet/sargantana-go/controller"
+	"github.com/animalet/sargantana-go/database"
 	"github.com/animalet/sargantana-go/server"
+	"github.com/animalet/sargantana-go/session"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -53,10 +56,32 @@ func main() {
 	server.AddControllerType("static", controller.NewStaticController)
 	server.AddControllerType("template", controller.NewTemplateController)
 
-	sargantana, err := server.NewServerFromConfigFile(*configFile)
+	cfg, err := config.ReadConfig(*configFile)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Unable to read configuration file")
+		os.Exit(1)
+	}
+
+	sargantana, err := server.NewServer(cfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create server")
 		os.Exit(1)
+	}
+
+	redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Unable to load Redis configuration")
+		os.Exit(1)
+	}
+
+	if redisCfg != nil {
+		redisPool := database.NewRedisPoolWithConfig(redisCfg)
+		store, err := session.NewRedisSessionStore(*debugMode, []byte(cfg.ServerConfig.SessionSecret), redisPool)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Unable to create Redis session store")
+			os.Exit(1)
+		}
+		sargantana.SetSessionStore(&store)
 	}
 
 	err = sargantana.StartAndWaitForSignal()

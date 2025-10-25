@@ -72,7 +72,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			log.Printf("Error closing database: %v", err)
+		}
+	}()
 
 	server.AddControllerType("blog", blog.NewBlogController(database))
 

@@ -48,7 +48,7 @@ type template struct {
 // Bind registers the template controller with the provided Gin engine.
 // It sets up the HTML template rendering by loading templates from the configured directory.
 func (t *template) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
-	if stat, err := os.Stat(t.path); stat != nil && stat.IsDir() {
+	if stat, err := os.Stat(t.path); err == nil && stat.IsDir() {
 		var found bool
 		err = filepath.WalkDir(t.path, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {

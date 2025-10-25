@@ -290,7 +290,7 @@ func (a *auth) login(c *gin.Context) {
 
 func (a *auth) callback(c *gin.Context) {
 	if user, err := gothic.CompleteUserAuth(c.Writer, c.Request); err != nil {
-		err = c.AbortWithError(http.StatusUnauthorized, err)
+		_ = c.AbortWithError(http.StatusUnauthorized, err)
 	} else {
 		a.success(c, user)
 	}

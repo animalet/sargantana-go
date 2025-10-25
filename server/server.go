@@ -39,6 +39,7 @@ type Server struct {
 
 // controllerRegistry holds the mapping of controller type names to their factory functions.
 var controllerRegistry = make(map[string]controller.Constructor)
+
 var debug = false
 
 func SetDebug(debugEnabled bool) {
@@ -52,6 +53,10 @@ func SetDebug(debugEnabled bool) {
 
 func GetDebug() bool {
 	return debug
+}
+
+func (s *Server) SetSessionStore(sessionStore *sessions.Store) {
+	s.sessionStore = sessionStore
 }
 
 // NewServerFromConfigFile creates a new Server instance by loading configuration from the specified file.
@@ -82,7 +87,7 @@ func NewServerFromConfigFile(configFile string) (*Server, error) {
 func NewServer(cfg *config.Config) (*Server, error) {
 	err := cfg.Load()
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to load configuration"))
+		return nil, errors.Wrap(err, "failed to load configuration")
 	}
 
 	controllers, configurationErrors := configureControllers(cfg)
@@ -161,7 +166,7 @@ func (s *Server) StartAndWaitForSignal() error {
 // Start initializes the server components and starts listening for incoming HTTP requests.
 // It configures the server based on the provided flags, loads secrets, and sets up the router and middleware.
 // This function must be called before the server can handle requests.
-func (s *Server) Start() error {
+func (s *Server) Start() (err error) {
 	if debug {
 		log.Debug().Msg("Debug mode is enabled")
 		if s.config.ServerConfig.SecretsDir == "" {
@@ -170,15 +175,6 @@ func (s *Server) Start() error {
 			log.Debug().Msgf("Secrets directory: %q", s.config.ServerConfig.SecretsDir)
 		}
 		log.Debug().Msgf("Listen address: %q", s.config.ServerConfig.Address)
-		if s.config.ServerConfig.RedisSessionStore == nil {
-			log.Info().Msg("Using cookies for session storage")
-		} else {
-			log.Info().Msgf(
-				"Using Redis for session storage at %q, DB: %d, TLS: %+v",
-				s.config.ServerConfig.RedisSessionStore.Address,
-				s.config.ServerConfig.RedisSessionStore.Database,
-				s.config.ServerConfig.RedisSessionStore.TLS)
-		}
 		log.Debug().Msgf("Session cookie name: %q", s.config.ServerConfig.SessionName)
 		if s.config.Vault != nil {
 			log.Debug().Msgf("Using Vault for secrets at %q, path: %q, namespace: %q", s.config.Vault.Address, s.config.Vault.Path, s.config.Vault.Namespace)
@@ -194,6 +190,15 @@ func (s *Server) Start() error {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	if s.sessionStore == nil {
+		log.Debug().Msg("No session store provided, creating one based on configuration")
+		s.sessionStore, err = s.createSessionStore(!debug)
+		if err != nil {
+			return err
+		}
+	} else {
+		log.Debug().Msgf("Using provided session store: %T", s.sessionStore)
+	}
 	if err := s.bootstrap(); err != nil {
 		return err
 	}
@@ -205,27 +210,23 @@ func (s *Server) bootstrap() error {
 	log.Info().Msg("Bootstrapping server...")
 
 	// Initialize Gin engine
+	gin.ForceConsoleColor()
 	engine := gin.New()
-	isReleaseMode := gin.Mode() == gin.ReleaseMode
-	sessionStore, err := s.createSessionStore(isReleaseMode)
-	if err != nil {
-		return err
-	}
-
-	if isReleaseMode {
+	if gin.IsDebugging() {
+		log.Info().Msg("Running in debug mode")
+		engine.Use(bodyLogMiddleware, gin.ErrorLogger())
+	} else {
 		log.Info().Msg("Running in release mode")
 		err := engine.SetTrustedProxies(nil)
 		if err != nil {
 			return err
 		}
 		engine.Use(gin.ErrorLoggerT(gin.ErrorTypePrivate))
-	} else {
-		engine.Use(bodyLogMiddleware, gin.ErrorLogger())
 	}
 	engine.Use(
 		gin.Logger(),
 		gin.Recovery(),
-		sessions.Sessions(s.config.ServerConfig.SessionName, sessionStore),
+		sessions.Sessions(s.config.ServerConfig.SessionName, *s.sessionStore),
 	)
 
 	for _, c := range s.controllers {
@@ -244,17 +245,18 @@ func (s *Server) bootstrap() error {
 	return nil
 }
 
-func (s *Server) createSessionStore(isReleaseMode bool) (sessions.Store, error) {
+func (s *Server) createSessionStore(isReleaseMode bool) (*sessions.Store, error) {
 	var sessionStore sessions.Store
 	secret := s.config.ServerConfig.SessionSecret
 	if secret == "" {
 		return nil, fmt.Errorf("session secret is not set")
 	}
 	sessionSecret := []byte(secret)
-	if s.config.ServerConfig.RedisSessionStore == nil {
+	switch s.config.ServerConfig.RedisSessionStore {
+	case nil:
 		log.Info().Msg("Using cookies for session storage")
 		sessionStore = session.NewCookieStore(isReleaseMode, sessionSecret)
-	} else {
+	default:
 		log.Info().Msg("Using Redis for session storage")
 		pool := database.NewRedisPoolWithConfig(s.config.ServerConfig.RedisSessionStore)
 		s.addShutdownHook(func() error { return pool.Close() })
@@ -265,7 +267,7 @@ func (s *Server) createSessionStore(isReleaseMode bool) (sessions.Store, error) 
 		}
 	}
 	gothic.Store = sessionStore
-	return sessionStore, nil
+	return &sessionStore, nil
 }
 
 func (s *Server) waitForSignal() error {
