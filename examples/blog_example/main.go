@@ -6,6 +6,7 @@ import (
 	"github.com/animalet/sargantana-go/examples/blog_example/blog"
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/controller"
+	"github.com/animalet/sargantana-go/pkg/resolver"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
@@ -51,9 +52,26 @@ func main() {
 	server.AddControllerType("static", controller.NewStaticController)
 	server.AddControllerType("template", controller.NewTemplateController)
 
+	// Register property resolvers (must be done before loading config)
+	resolver.Register("env", resolver.NewEnvResolver())
+
 	cfg, err := config.ReadConfig("./config.yaml")
 	if err != nil {
 		panic(err)
+	}
+
+	// Register file resolver after loading basic config
+	if cfg.ServerConfig.SecretsDir != "" {
+		resolver.Register("file", resolver.NewFileResolver(cfg.ServerConfig.SecretsDir))
+	}
+
+	// Register Vault resolver if configured
+	if cfg.Vault != nil {
+		vaultClient, err := config.CreateVaultClient(cfg.Vault)
+		if err != nil {
+			panic(errors.Wrap(err, "failed to create Vault client"))
+		}
+		resolver.Register("vault", resolver.NewVaultResolver(vaultClient, cfg.Vault.Path))
 	}
 
 	dbConfig, err := config.LoadConfig[DatabaseConfig]("database", cfg)

@@ -30,11 +30,16 @@ controllers:
       path: "./content/templates"
 
   - type: "static"
+    name: "css"
     config:
-      - path: "css"
-        dir: "./content/css"
-      - path: "favicon.ico"
-        file: "./content/favicon.ico"
+      path: "/css"
+      dir: "./content/css"
+
+  - type: "static"
+    name: "favicon"
+    config:
+      path: "/favicon.ico"
+      file: "./content/favicon.ico"
 
   - type: "blog"
     name: "my_blog"
