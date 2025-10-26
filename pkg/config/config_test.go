@@ -94,12 +94,12 @@ server:
 func TestVaultConfig_IsValid(t *testing.T) {
 	tests := []struct {
 		name          string
-		config        *VaultConfig
+		config        *resolver.VaultConfig
 		errorExpected bool
 	}{
 		{
 			name: "valid config",
-			config: &VaultConfig{
+			config: &resolver.VaultConfig{
 				Address: "http://localhost:8200",
 				Token:   "test-token",
 				Path:    "secret/data/test",
@@ -108,7 +108,7 @@ func TestVaultConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "missing address",
-			config: &VaultConfig{
+			config: &resolver.VaultConfig{
 				Address: "",
 				Token:   "test-token",
 				Path:    "secret/data/test",
@@ -117,7 +117,7 @@ func TestVaultConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "missing token",
-			config: &VaultConfig{
+			config: &resolver.VaultConfig{
 				Address: "http://localhost:8200",
 				Token:   "",
 				Path:    "secret/data/test",
@@ -126,7 +126,7 @@ func TestVaultConfig_IsValid(t *testing.T) {
 		},
 		{
 			name: "missing path",
-			config: &VaultConfig{
+			config: &resolver.VaultConfig{
 				Address: "http://localhost:8200",
 				Token:   "test-token",
 				Path:    "",
@@ -301,13 +301,13 @@ vault:
 
 // TestLoad_VaultCreationError tests error handling when Vault client creation fails
 func TestLoad_VaultCreationError(t *testing.T) {
-	vaultCfg := &VaultConfig{
+	vaultCfg := &resolver.VaultConfig{
 		Address: "://invalid-malformed-url",
 		Token:   "test-token",
 		Path:    "secret/data/test",
 	}
 
-	_, err := CreateVaultClient(vaultCfg)
+	_, err := resolver.CreateVaultClient(vaultCfg)
 	if err == nil {
 		t.Fatal("Expected error when creating Vault client with invalid address")
 	}

@@ -18,10 +18,10 @@ type (
 	// It encapsulates all necessary configuration parameters including network settings,
 	// session storage options, security settings, and debugging preferences.
 	Config struct {
-		ServerConfig       ServerConfig        `yaml:"server"`
-		Vault              *VaultConfig        `yaml:"vault,omitempty"`
-		ControllerBindings []ControllerBinding `yaml:"controllers"`
-		Other              map[string]any      `yaml:",inline"`
+		ServerConfig       ServerConfig          `yaml:"server"`
+		Vault              *resolver.VaultConfig `yaml:"vault,omitempty"`
+		ControllerBindings []ControllerBinding   `yaml:"controllers"`
+		Other              map[string]any        `yaml:",inline"`
 	}
 
 	// ServerConfig holds the core server configuration parameters.
@@ -38,14 +38,6 @@ type (
 		TypeName   string           `yaml:"type"`
 		Name       string           `yaml:"name,omitempty"`
 		ConfigData ControllerConfig `yaml:"config"`
-	}
-
-	// VaultConfig holds configuration for connecting to HashiCorp Vault
-	VaultConfig struct {
-		Address   string `yaml:"address"`
-		Token     string `yaml:"token"`
-		Path      string `yaml:"path"`
-		Namespace string `yaml:"namespace"`
 	}
 
 	ControllerConfig []byte
@@ -120,20 +112,6 @@ func LoadConfig[T Validatable](key string, cfg *Config) (partial *T, err error) 
 		return nil, errors.Wrap(err, "partial configuration is invalid")
 	}
 	return partial, nil
-}
-
-// Validate checks if the VaultConfig has all required fields set.
-func (v VaultConfig) Validate() error {
-	if v.Address == "" {
-		return errors.New("Vault address is required")
-	}
-	if v.Token == "" {
-		return errors.New("Vault token is required")
-	}
-	if v.Path == "" {
-		return errors.New("Vault path is required")
-	}
-	return nil
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

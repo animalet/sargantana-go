@@ -67,7 +67,7 @@ func main() {
 
 	// Register Vault resolver if configured
 	if cfg.Vault != nil {
-		vaultClient, err := config.CreateVaultClient(cfg.Vault)
+		vaultClient, err := resolver.CreateVaultClient(cfg.Vault)
 		if err != nil {
 			panic(errors.Wrap(err, "failed to create Vault client"))
 		}

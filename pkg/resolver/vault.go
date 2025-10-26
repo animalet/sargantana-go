@@ -8,6 +8,65 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// VaultConfig holds configuration for connecting to HashiCorp Vault
+type VaultConfig struct {
+	Address   string `yaml:"address"`
+	Token     string `yaml:"token"`
+	Path      string `yaml:"path"`
+	Namespace string `yaml:"namespace"`
+}
+
+// Validate checks if the VaultConfig has all required fields set
+func (v VaultConfig) Validate() error {
+	if v.Address == "" {
+		return errors.New("Vault address is required")
+	}
+	if v.Token == "" {
+		return errors.New("Vault token is required")
+	}
+	if v.Path == "" {
+		return errors.New("Vault path is required")
+	}
+	return nil
+}
+
+// CreateVaultClient is a helper function to create and configure a Vault client
+// from a VaultConfig. This is typically called by applications during startup
+// to set up the Vault resolver.
+//
+// Example:
+//
+//	client, err := resolver.CreateVaultClient(cfg.Vault)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	resolver.Register("vault", resolver.NewVaultResolver(client, cfg.Vault.Path))
+func CreateVaultClient(vaultCfg *VaultConfig) (*api.Client, error) {
+	if vaultCfg == nil {
+		return nil, errors.New("vault configuration is nil")
+	}
+
+	if err := vaultCfg.Validate(); err != nil {
+		return nil, errors.Wrap(err, "invalid Vault configuration")
+	}
+
+	config := api.DefaultConfig()
+	config.Address = vaultCfg.Address
+
+	client, err := api.NewClient(config)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create Vault client")
+	}
+
+	client.SetToken(vaultCfg.Token)
+
+	if vaultCfg.Namespace != "" {
+		client.SetNamespace(vaultCfg.Namespace)
+	}
+
+	return client, nil
+}
+
 // VaultResolver retrieves secrets from HashiCorp Vault.
 // Supports both KV v1 and KV v2 secret engines.
 //

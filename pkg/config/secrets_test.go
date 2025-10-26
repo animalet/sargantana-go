@@ -21,7 +21,7 @@ func setupResolversForTest(cfg *Config) error {
 
 	// Register Vault resolver if Vault is configured
 	if cfg.Vault != nil {
-		client, err := CreateVaultClient(cfg.Vault)
+		client, err := resolver.CreateVaultClient(cfg.Vault)
 		if err != nil {
 			return err
 		}
@@ -33,13 +33,13 @@ func setupResolversForTest(cfg *Config) error {
 
 // TestCreateVaultClient_Success tests successful Vault client creation
 func TestCreateVaultClient_Success(t *testing.T) {
-	vaultCfg := &VaultConfig{
+	vaultCfg := &resolver.VaultConfig{
 		Address: "http://localhost:8200",
 		Token:   "dev-root-token",
 		Path:    "secret/data/sargantana",
 	}
 
-	client, err := CreateVaultClient(vaultCfg)
+	client, err := resolver.CreateVaultClient(vaultCfg)
 	if err != nil {
 		t.Fatalf("CreateVaultClient failed: %v", err)
 	}
@@ -51,14 +51,14 @@ func TestCreateVaultClient_Success(t *testing.T) {
 
 // TestCreateVaultClient_WithNamespace tests Vault client creation with namespace
 func TestCreateVaultClient_WithNamespace(t *testing.T) {
-	vaultCfg := &VaultConfig{
+	vaultCfg := &resolver.VaultConfig{
 		Address:   "http://localhost:8200",
 		Token:     "dev-root-token",
 		Path:      "secret/data/sargantana",
 		Namespace: "test-namespace",
 	}
 
-	_, err := CreateVaultClient(vaultCfg)
+	_, err := resolver.CreateVaultClient(vaultCfg)
 	if err != nil {
 		t.Fatalf("CreateVaultClient with namespace failed: %v", err)
 	}
@@ -66,13 +66,13 @@ func TestCreateVaultClient_WithNamespace(t *testing.T) {
 
 // TestCreateVaultClient_InvalidConfig tests with invalid Vault configuration
 func TestCreateVaultClient_InvalidConfig(t *testing.T) {
-	vaultCfg := &VaultConfig{
+	vaultCfg := &resolver.VaultConfig{
 		Address: "",
 		Token:   "",
 		Path:    "",
 	}
 
-	_, err := CreateVaultClient(vaultCfg)
+	_, err := resolver.CreateVaultClient(vaultCfg)
 	if err == nil {
 		t.Error("Expected error with invalid Vault configuration, got nil")
 	}
@@ -83,13 +83,13 @@ func TestCreateVaultClient_InvalidConfig(t *testing.T) {
 
 // TestCreateVaultClient_InvalidAddress tests with malformed Vault address
 func TestCreateVaultClient_InvalidAddress(t *testing.T) {
-	vaultCfg := &VaultConfig{
+	vaultCfg := &resolver.VaultConfig{
 		Address: string([]byte{0, 1, 2, 3}), // Invalid URL with null bytes
 		Token:   "test-token",
 		Path:    "secret/data/test",
 	}
 
-	_, err := CreateVaultClient(vaultCfg)
+	_, err := resolver.CreateVaultClient(vaultCfg)
 	if err == nil {
 		t.Fatal("Expected error when creating Vault client with invalid address")
 	}
@@ -102,7 +102,7 @@ func TestCreateVaultClient_InvalidAddress(t *testing.T) {
 // TestExpand_VaultPrefix tests the expand function with vault: prefix integration
 func TestExpand_VaultPrefix(t *testing.T) {
 	config := &Config{
-		Vault: &VaultConfig{
+		Vault: &resolver.VaultConfig{
 			Address: "http://localhost:8200",
 			Token:   "dev-root-token",
 			Path:    "secret/data/sargantana",
@@ -124,7 +124,7 @@ func TestExpand_VaultPrefix(t *testing.T) {
 // TestExpand_VaultPrefix_NonexistentKey tests expand with nonexistent Vault key
 func TestExpand_VaultPrefix_NonexistentKey(t *testing.T) {
 	config := &Config{
-		Vault: &VaultConfig{
+		Vault: &resolver.VaultConfig{
 			Address: "http://localhost:8200",
 			Token:   "dev-root-token",
 			Path:    "secret/data/sargantana",
