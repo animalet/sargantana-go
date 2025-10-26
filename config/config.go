@@ -6,7 +6,6 @@ package config
 import (
 	"os"
 	"reflect"
-	"strings"
 	"sync"
 
 	"github.com/animalet/sargantana-go/database"
@@ -89,11 +88,18 @@ var logVaultAbsent = sync.OnceFunc(func() {
 })
 
 func (cfg *Config) createSecretSourcesIfNotPresent() (err error) {
-	if cfg.ServerConfig.SecretsDir == "" {
+	// Register the environment resolver (always available)
+	RegisterPropertyResolver("env", NewEnvResolver())
+
+	// Register file resolver if secrets directory is configured
+	if cfg.ServerConfig.SecretsDir != "" {
+		RegisterPropertyResolver("file", NewFileResolver(cfg.ServerConfig.SecretsDir))
+		log.Info().Str("secrets_dir", cfg.ServerConfig.SecretsDir).Msg("File resolver registered")
+	} else {
 		logSecretDirAbsent()
 	}
-	secretDir = cfg.ServerConfig.SecretsDir
 
+	// Register Vault resolver if Vault is configured
 	if vaultManagerInstance == nil && cfg.Vault != nil {
 		log.Info().Msg("Vault configuration provided, initializing Vault client")
 		expandVariables(reflect.ValueOf(cfg.Vault).Elem())
@@ -111,12 +117,14 @@ func (cfg *Config) createSecretSourcesIfNotPresent() (err error) {
 				client.SetNamespace(cfg.Vault.Namespace)
 			}
 
-			vaultManagerInstance = &vaultManager{
-				logical: client.Logical(),
-				path:    cfg.Vault.Path,
-			}
+			// Store for backward compatibility
+			vaultManagerInstance = client
+			vaultPath = cfg.Vault.Path
 
-			log.Info().Msg("Vault client created successfully")
+			// Register the Vault resolver
+			RegisterPropertyResolver("vault", NewVaultResolver(client, cfg.Vault.Path))
+
+			log.Info().Msg("Vault client created successfully and resolver registered")
 		} else {
 			return errors.Wrap(err, "Vault configuration is invalid")
 		}
@@ -231,40 +239,16 @@ func UnmarshalTo[T Validatable](c ControllerConfig) (*T, error) {
 //   - "file:": Reads the content of the specified file in secrets dir (if configured) and returns it as a string
 //
 // If no known prefix is found, the original string is returned unchanged.
-const envPrefix = "env:"
-const filePrefix = "file:"
-
-const vaultPrefix = "vault:"
-
-var secretDir string
-
-// expand is a custom expansion function that handles "env:", "file:", and "vault:" prefixes.
+// expand is a custom expansion function that uses the PropertyResolver registry
 // It retrieves the corresponding value based on the prefix and returns it.
 // If no known prefix is found, it returns the original string unchanged.
 func expand(s string) string {
-	switch {
-	case !strings.Contains(s, ":"):
-		return os.Getenv(s)
-	case strings.HasPrefix(s, envPrefix):
-		return os.Getenv(strings.TrimPrefix(s, envPrefix))
-	case strings.HasPrefix(s, filePrefix):
-		secret, err := secretFromFile(strings.TrimPrefix(s, filePrefix))
-		if err != nil {
-			panic(errors.Wrap(err, "error retrieving secret from file"))
-		}
-		return secret
-	case strings.HasPrefix(s, vaultPrefix):
-		fromVault, err := vaultManagerInstance.secret(strings.TrimPrefix(s, vaultPrefix))
-		if err != nil {
-			panic(errors.Wrap(err, "error retrieving secret from Vault"))
-		}
-		if fromVault == nil {
-			return ""
-		}
-		return *fromVault
-	default:
-		panic("unknown prefix in expansion string: " + s)
+	// Use the global resolver registry to resolve the property
+	value, err := globalResolverRegistry.Resolve(s)
+	if err != nil {
+		panic(errors.Wrapf(err, "error resolving property %q", s))
 	}
+	return value
 }
 
 // expandVariables recursively traverses the fields of a struct and expands environment variables in string fields.

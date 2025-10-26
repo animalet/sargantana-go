@@ -439,14 +439,18 @@ func TestExpandVariables_ComplexStructures(t *testing.T) {
 
 // TestExpand_FilePrefix_Error tests file prefix expansion error handling
 func TestExpand_FilePrefix_Error(t *testing.T) {
-	// Test with no secrets directory configured
-	originalSecretDir := secretDir
-	secretDir = ""
-	defer func() { secretDir = originalSecretDir }()
+	// Test with no secrets directory configured - unregister file resolver
+	originalResolver := globalResolverRegistry.GetResolver("file")
+	UnregisterPropertyResolver("file")
+	defer func() {
+		if originalResolver != nil {
+			RegisterPropertyResolver("file", originalResolver)
+		}
+	}()
 
 	defer func() {
 		if r := recover(); r != nil {
-			if !strings.Contains(r.(error).Error(), "error retrieving secret from file") {
+			if !strings.Contains(r.(error).Error(), "no resolver registered") {
 				t.Errorf("Expected 'error retrieving secret from file' panic, got: %v", r)
 			}
 		} else {

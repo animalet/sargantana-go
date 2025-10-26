@@ -49,8 +49,13 @@ func TestCreateVaultManager_Success(t *testing.T) {
 	if vaultManagerInstance == nil {
 		t.Fatal("vaultManagerInstance should be initialized")
 	}
-	if vaultManagerInstance.path != "secret/data/sargantana" {
-		t.Errorf("Expected path 'secret/data/sargantana', got '%s'", vaultManagerInstance.path)
+	if vaultPath != "secret/data/sargantana" {
+		t.Errorf("Expected path 'secret/data/sargantana', got '%s'", vaultPath)
+	}
+	// Verify the vault resolver is registered
+	resolver := globalResolverRegistry.GetResolver("vault")
+	if resolver == nil {
+		t.Fatal("Vault resolver should be registered")
 	}
 }
 
@@ -149,20 +154,25 @@ func TestVaultManager_Secret_Success(t *testing.T) {
 		t.Fatalf("createVaultManager failed: %v", err)
 	}
 
-	// Test retrieving the pre-configured secrets
-	googleKey, err := vaultManagerInstance.secret("GOOGLE_KEY")
+	// Test retrieving the pre-configured secrets using the resolver
+	resolver := globalResolverRegistry.GetResolver("vault")
+	if resolver == nil {
+		t.Fatal("Vault resolver should be registered")
+	}
+
+	googleKey, err := resolver.Resolve("GOOGLE_KEY")
 	if err != nil {
 		t.Fatalf("Failed to retrieve GOOGLE_KEY: %v", err)
 	}
-	if googleKey == nil || *googleKey != "test-google-key" {
+	if googleKey != "test-google-key" {
 		t.Errorf("Expected GOOGLE_KEY 'test-google-key', got %v", googleKey)
 	}
 
-	sessionSecret, err := vaultManagerInstance.secret("SESSION_SECRET")
+	sessionSecret, err := resolver.Resolve("SESSION_SECRET")
 	if err != nil {
 		t.Fatalf("Failed to retrieve SESSION_SECRET: %v", err)
 	}
-	if sessionSecret == nil || *sessionSecret != "test-session-secret-that-is-long-enough" {
+	if sessionSecret != "test-session-secret-that-is-long-enough" {
 		t.Errorf("Expected SESSION_SECRET 'test-session-secret-that-is-long-enough', got %v", sessionSecret)
 	}
 }
@@ -183,12 +193,17 @@ func TestVaultManager_Secret_KVv1(t *testing.T) {
 		t.Fatalf("createVaultManager failed: %v", err)
 	}
 
-	// Test retrieving secrets from KV v1 engine
-	googleKey, err := vaultManagerInstance.secret("GOOGLE_KEY")
+	// Test retrieving secrets from KV v1 engine using resolver
+	resolver := globalResolverRegistry.GetResolver("vault")
+	if resolver == nil {
+		t.Fatal("Vault resolver should be registered")
+	}
+
+	googleKey, err := resolver.Resolve("GOOGLE_KEY")
 	if err != nil {
 		t.Fatalf("Failed to retrieve GOOGLE_KEY from KV v1: %v", err)
 	}
-	if googleKey == nil || *googleKey != "test-google-key" {
+	if googleKey != "test-google-key" {
 		t.Errorf("Expected GOOGLE_KEY 'test-google-key', got %v", googleKey)
 	}
 }
@@ -209,12 +224,17 @@ func TestVaultManager_Secret_NonexistentPath(t *testing.T) {
 		t.Fatalf("createVaultManager failed: %v", err)
 	}
 
-	// Test with nonexistent path
-	_, err = vaultManagerInstance.secret("SOME_KEY")
+	// Test with nonexistent path using resolver
+	resolver := globalResolverRegistry.GetResolver("vault")
+	if resolver == nil {
+		t.Fatal("Vault resolver should be registered")
+	}
+
+	_, err = resolver.Resolve("SOME_KEY")
 	if err == nil {
 		t.Fatal("Expected error when reading from nonexistent path")
 	}
-	if !strings.Contains(err.Error(), "no secret found at the specified path") {
+	if !strings.Contains(err.Error(), "no secret found") {
 		t.Errorf("Expected 'no secret found' error, got: %v", err)
 	}
 }
@@ -236,7 +256,12 @@ func TestVaultManager_Secret_NonexistentKey(t *testing.T) {
 	}
 
 	// Test with nonexistent key
-	_, err = vaultManagerInstance.secret("NONEXISTENT_KEY")
+	resolver := globalResolverRegistry.GetResolver("vault")
+	if resolver == nil {
+		t.Fatal("Vault resolver should be registered")
+	}
+
+	_, err = resolver.Resolve("NONEXISTENT_KEY")
 	if err == nil {
 		t.Fatal("Expected error when reading nonexistent key")
 	}
@@ -262,11 +287,16 @@ func TestVaultManager_Secret_InvalidToken(t *testing.T) {
 	}
 
 	// Test with invalid token
-	_, err = vaultManagerInstance.secret("GOOGLE_KEY")
+	resolver := globalResolverRegistry.GetResolver("vault")
+	if resolver == nil {
+		t.Fatal("Vault resolver should be registered")
+	}
+
+	_, err = resolver.Resolve("GOOGLE_KEY")
 	if err == nil {
 		t.Fatal("Expected error when using invalid token")
 	}
-	if !strings.Contains(err.Error(), "failed to read secret from path") {
+	if !strings.Contains(err.Error(), "failed to read secret from Vault path") {
 		t.Errorf("Expected 'failed to read secret' error, got: %v", err)
 	}
 }
@@ -274,7 +304,6 @@ func TestVaultManager_Secret_InvalidToken(t *testing.T) {
 // TestSecretFromFile_Success tests successful file secret reading
 func TestSecretFromFile_Success(t *testing.T) {
 	tempDir := t.TempDir()
-	secretDir = tempDir
 
 	// Create a test secret file
 	secretFile := filepath.Join(tempDir, "test-secret")
@@ -284,9 +313,11 @@ func TestSecretFromFile_Success(t *testing.T) {
 		t.Fatalf("Failed to create test secret file: %v", err)
 	}
 
-	result, err := secretFromFile("test-secret")
+	// Create file resolver and test
+	resolver := NewFileResolver(tempDir)
+	result, err := resolver.Resolve("test-secret")
 	if err != nil {
-		t.Fatalf("secretFromFile failed: %v", err)
+		t.Fatalf("FileResolver.Resolve failed: %v", err)
 	}
 
 	expected := "my-secret-value"
@@ -297,11 +328,10 @@ func TestSecretFromFile_Success(t *testing.T) {
 
 // TestSecretFromFile_NoSecretsDir tests file secret reading without configured secrets directory
 func TestSecretFromFile_NoSecretsDir(t *testing.T) {
-	originalSecretDir := secretDir
-	secretDir = ""
-	defer func() { secretDir = originalSecretDir }()
+	// Create file resolver with empty directory
+	resolver := NewFileResolver("")
 
-	_, err := secretFromFile("test-secret")
+	_, err := resolver.Resolve("test-secret")
 	if err == nil {
 		t.Fatal("Expected error when no secrets directory is configured")
 	}
@@ -313,9 +343,10 @@ func TestSecretFromFile_NoSecretsDir(t *testing.T) {
 // TestSecretFromFile_EmptyFilename tests file secret reading with empty filename
 func TestSecretFromFile_EmptyFilename(t *testing.T) {
 	tempDir := t.TempDir()
-	secretDir = tempDir
 
-	_, err := secretFromFile("")
+	// Create file resolver and test with empty filename
+	resolver := NewFileResolver(tempDir)
+	_, err := resolver.Resolve("")
 	if err == nil {
 		t.Fatal("Expected error when filename is empty")
 	}
@@ -327,9 +358,10 @@ func TestSecretFromFile_EmptyFilename(t *testing.T) {
 // TestSecretFromFile_NonexistentFile tests file secret reading with nonexistent file
 func TestSecretFromFile_NonexistentFile(t *testing.T) {
 	tempDir := t.TempDir()
-	secretDir = tempDir
 
-	_, err := secretFromFile("nonexistent-file")
+	// Create file resolver and test with nonexistent file
+	resolver := NewFileResolver(tempDir)
+	_, err := resolver.Resolve("nonexistent-file")
 	if err == nil {
 		t.Fatal("Expected error when file doesn't exist")
 	}
@@ -380,8 +412,8 @@ func TestExpand_VaultPrefix_NonexistentKey(t *testing.T) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			if !strings.Contains(r.(error).Error(), "error retrieving secret from Vault") {
-				t.Errorf("Expected 'error retrieving secret from Vault' panic, got: %v", r)
+			if !strings.Contains(r.(error).Error(), "error resolving property") {
+				t.Errorf("Expected 'error resolving property' panic, got: %v", r)
 			}
 		} else {
 			t.Fatal("Expected panic when expanding nonexistent Vault key")
@@ -394,7 +426,6 @@ func TestExpand_VaultPrefix_NonexistentKey(t *testing.T) {
 // TestExpand_FilePrefix tests the expand function with file: prefix
 func TestExpand_FilePrefix(t *testing.T) {
 	tempDir := t.TempDir()
-	secretDir = tempDir
 
 	// Create a test secret file
 	secretFile := filepath.Join(tempDir, "test-secret")
@@ -403,6 +434,10 @@ func TestExpand_FilePrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test secret file: %v", err)
 	}
+
+	// Register file resolver for this test
+	RegisterPropertyResolver("file", NewFileResolver(tempDir))
+	defer UnregisterPropertyResolver("file")
 
 	result := expand("file:test-secret")
 	if result != secretContent {
@@ -438,8 +473,8 @@ func TestExpand_PlainEnvVar(t *testing.T) {
 func TestExpand_UnknownPrefix(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
-			if !strings.Contains(r.(string), "unknown prefix in expansion string") {
-				t.Errorf("Expected 'unknown prefix' panic, got: %v", r)
+			if !strings.Contains(r.(error).Error(), "no resolver registered") {
+				t.Errorf("Expected 'no resolver registered' panic, got: %v", r)
 			}
 		} else {
 			t.Fatal("Expected panic for unknown prefix")
