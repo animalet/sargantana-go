@@ -48,6 +48,10 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/pgx/v5 v5.7.6 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
@@ -75,6 +79,7 @@ require (
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect

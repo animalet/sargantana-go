@@ -97,7 +97,11 @@ func main() {
 	}
 
 	if redisCfg != nil {
-		redisPool := database.NewRedisPoolWithConfig(redisCfg)
+		redisPool, err := redisCfg.CreateClient()
+		if err != nil {
+			log.Fatal().Err(err).Msg("Unable to create Redis connection pool")
+			os.Exit(1)
+		}
 		store, err := session.NewRedisSessionStore(*debugMode, []byte(cfg.ServerConfig.SessionSecret), redisPool)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Unable to create Redis session store")
