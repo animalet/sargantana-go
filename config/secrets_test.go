@@ -8,6 +8,13 @@ import (
 	"testing"
 )
 
+// resetVaultState resets the global vault manager instance for test isolation
+func resetVaultState(t *testing.T) func() {
+	original := vaultManagerInstance
+	vaultManagerInstance = nil
+	return func() { vaultManagerInstance = original }
+}
+
 // TestVaultHealthCheck verifies that the Docker Vault container is healthy
 func TestVaultHealthCheck(t *testing.T) {
 	vaultAddr := "http://localhost:8200"
@@ -24,6 +31,8 @@ func TestVaultHealthCheck(t *testing.T) {
 
 // TestCreateVaultManager_Success tests successful creation of Vault manager with Docker container
 func TestCreateVaultManager_Success(t *testing.T) {
+	defer resetVaultState(t)()
+
 	config := &Config{
 		Vault: &VaultConfig{
 			Address: "http://localhost:8200",
@@ -47,6 +56,7 @@ func TestCreateVaultManager_Success(t *testing.T) {
 
 // TestCreateVaultManager_WithNamespace tests Vault manager creation with namespace
 func TestCreateVaultManager_WithNamespace(t *testing.T) {
+	defer resetVaultState(t)()
 	config := &Config{
 		Vault: &VaultConfig{
 			Address:   "http://localhost:8200",
@@ -65,6 +75,7 @@ func TestCreateVaultManager_WithNamespace(t *testing.T) {
 
 // TestCreateVaultManager_InvalidConfig tests with invalid Vault configuration
 func TestCreateVaultManager_InvalidConfig(t *testing.T) {
+	defer resetVaultState(t)()
 	config := &Config{
 		Vault: &VaultConfig{
 			Address: "",
@@ -74,13 +85,17 @@ func TestCreateVaultManager_InvalidConfig(t *testing.T) {
 	}
 
 	err := config.createSecretSourcesIfNotPresent()
-	if err != nil {
-		t.Errorf("createVaultManager with invalid config should not return error (should skip), got: %v", err)
+	if err == nil {
+		t.Error("Expected error with invalid Vault configuration, got nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "Vault address is required") {
+		t.Errorf("Expected address validation error, got: %v", err)
 	}
 }
 
 // TestCreateVaultManager_ConnectionError tests with unreachable Vault server
 func TestCreateVaultManager_ConnectionError(t *testing.T) {
+	defer resetVaultState(t)()
 	config := &Config{
 		Vault: &VaultConfig{
 			Address: "http://nonexistent-vault-server:8200",
@@ -99,6 +114,7 @@ func TestCreateVaultManager_ConnectionError(t *testing.T) {
 
 // TestCreateVaultManager_InvalidAddress tests with malformed Vault address
 func TestCreateVaultManager_InvalidAddress(t *testing.T) {
+	defer resetVaultState(t)()
 	config := &Config{
 		Vault: &VaultConfig{
 			Address: string([]byte{0, 1, 2, 3}), // Invalid URL with null bytes
@@ -119,6 +135,7 @@ func TestCreateVaultManager_InvalidAddress(t *testing.T) {
 
 // TestVaultManager_Secret_Success tests successful secret retrieval from Docker Vault
 func TestVaultManager_Secret_Success(t *testing.T) {
+	defer resetVaultState(t)()
 	config := &Config{
 		Vault: &VaultConfig{
 			Address: "http://localhost:8200",
@@ -152,6 +169,7 @@ func TestVaultManager_Secret_Success(t *testing.T) {
 
 // TestVaultManager_Secret_KVv1 tests secret retrieval from KV v1 engine
 func TestVaultManager_Secret_KVv1(t *testing.T) {
+	defer resetVaultState(t)()
 	config := &Config{
 		Vault: &VaultConfig{
 			Address: "http://localhost:8200",
@@ -177,6 +195,7 @@ func TestVaultManager_Secret_KVv1(t *testing.T) {
 
 // TestVaultManager_Secret_NonexistentPath tests with nonexistent Vault path
 func TestVaultManager_Secret_NonexistentPath(t *testing.T) {
+	defer resetVaultState(t)()
 	config := &Config{
 		Vault: &VaultConfig{
 			Address: "http://localhost:8200",
@@ -202,6 +221,7 @@ func TestVaultManager_Secret_NonexistentPath(t *testing.T) {
 
 // TestVaultManager_Secret_NonexistentKey tests with nonexistent key in existing path
 func TestVaultManager_Secret_NonexistentKey(t *testing.T) {
+	defer resetVaultState(t)()
 	config := &Config{
 		Vault: &VaultConfig{
 			Address: "http://localhost:8200",
@@ -227,6 +247,7 @@ func TestVaultManager_Secret_NonexistentKey(t *testing.T) {
 
 // TestVaultManager_Secret_InvalidToken tests with invalid Vault token
 func TestVaultManager_Secret_InvalidToken(t *testing.T) {
+	defer resetVaultState(t)()
 	config := &Config{
 		Vault: &VaultConfig{
 			Address: "http://localhost:8200",
@@ -319,6 +340,7 @@ func TestSecretFromFile_NonexistentFile(t *testing.T) {
 
 // TestExpand_VaultPrefix tests the expand function with vault: prefix
 func TestExpand_VaultPrefix(t *testing.T) {
+	defer resetVaultState(t)()
 	// Set up Vault manager
 	config := &Config{
 		Vault: &VaultConfig{
@@ -342,6 +364,7 @@ func TestExpand_VaultPrefix(t *testing.T) {
 
 // TestExpand_VaultPrefix_NonexistentKey tests expand with nonexistent Vault key
 func TestExpand_VaultPrefix_NonexistentKey(t *testing.T) {
+	defer resetVaultState(t)()
 	config := &Config{
 		Vault: &VaultConfig{
 			Address: "http://localhost:8200",

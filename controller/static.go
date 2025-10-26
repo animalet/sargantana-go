@@ -9,17 +9,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type StaticControllerConfig []StaticMapping
-
-type StaticMapping struct {
+// StaticControllerConfig defines the configuration for a static file controller.
+// Each controller instance serves a single path with either a directory or a single file.
+type StaticControllerConfig struct {
 	Path string `yaml:"path"`
 	Dir  string `yaml:"dir,omitempty"`
 	File string `yaml:"file,omitempty"`
 }
 
-func (s StaticMapping) Validate() error {
-	if s.Dir == "" && s.File == "" || s.Dir != "" && s.File != "" {
+func (s StaticControllerConfig) Validate() error {
+	if s.Path == "" {
+		return errors.New("path must be set and non-empty")
+	}
+
+	if s.Dir == "" && s.File == "" {
 		return errors.New("either dir or file must be set and non-empty")
+	}
+
+	if s.Dir != "" && s.File != "" {
+		return errors.New("cannot set both dir and file, choose one")
 	}
 
 	if s.File != "" {
@@ -33,27 +41,6 @@ func (s StaticMapping) Validate() error {
 		return errors.Wrap(err, "statics directory not present or is not a directory")
 	}
 
-	if s.Path == "" {
-		return errors.New("url_path must be set and non-empty")
-	}
-	return nil
-}
-
-func (s StaticControllerConfig) Validate() error {
-	if len(s) == 0 {
-		return errors.New("at least one static mapping must be provided")
-	}
-
-	errslice := make([]error, 0)
-	for _, mapping := range s {
-		if err := mapping.Validate(); err != nil {
-			errslice = append(errslice, err)
-		}
-	}
-	if len(errslice) > 0 {
-		return errors.Errorf("static mappings validation failed: %v", errslice)
-	}
-
 	return nil
 }
 
@@ -64,31 +51,32 @@ func NewStaticController(configData config.ControllerConfig, _ config.ServerConf
 	}
 
 	log.Info().
-		Any("mappings", c).
+		Str("path", c.Path).
+		Str("dir", c.Dir).
+		Str("file", c.File).
 		Msg("Static content configured")
 
 	return &static{
-		mappings: *c,
+		config: *c,
 	}, nil
 }
 
-// static is a controller that serves static files and HTML templates.
-// It provides functionality for serving frontend assets like CSS, JavaScript,
-// images, and HTML files, as well as Go template rendering capabilities.
+// static is a controller that serves static files or directories.
+// Each instance handles a single path mapping to either a directory or a file.
 type static struct {
 	IController
-	mappings []StaticMapping
+	config StaticControllerConfig
 }
 
 // Bind registers the static controller with the provided Gin engine.
-// It sets up routes for serving static files and loading HTML templates from the configured directory.
+// It sets up routes for serving static files or directories from the configured path.
 func (s *static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
-	for _, mapping := range s.mappings {
-		if mapping.File != "" {
-			engine.StaticFile(mapping.Path, mapping.File)
-			continue
-		}
-		engine.Static(mapping.Path, mapping.Dir)
+	if s.config.File != "" {
+		log.Info().Str("path", s.config.Path).Str("file", s.config.File).Msg("Binding static file")
+		engine.StaticFile(s.config.Path, s.config.File)
+	} else {
+		log.Info().Str("path", s.config.Path).Str("dir", s.config.Dir).Msg("Binding static directory")
+		engine.Static(s.config.Path, s.config.Dir)
 	}
 }
 

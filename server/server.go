@@ -113,25 +113,32 @@ func AddControllerType(typeName string, factory controller.Constructor) {
 }
 
 func configureControllers(c *config.Config) (controllers []controller.IController, configErrors []error) {
+	instanceCounts := make(map[string]int) // Track instances per type for auto-naming
+
 	for _, binding := range c.ControllerBindings {
-		var name string
-		if binding.Name == "" {
-			name = "unnamed"
-		} else {
-			name = fmt.Sprintf("%q", binding.Name)
+		// Generate instance name
+		instanceName := binding.Name
+		if instanceName == "" {
+			instanceCounts[binding.TypeName]++
+			count := instanceCounts[binding.TypeName]
+			if count == 1 {
+				instanceName = binding.TypeName
+			} else {
+				instanceName = fmt.Sprintf("%s-%d", binding.TypeName, count)
+			}
 		}
 
 		factory, exists := controllerRegistry[binding.TypeName]
 		if !exists {
-			configErrors = append(configErrors, fmt.Errorf("no configurator found for %s controller type: %q", name, binding.TypeName))
+			configErrors = append(configErrors, fmt.Errorf("no factory found for controller type %q (instance: %q)", binding.TypeName, instanceName))
 			continue
 		}
 
-		newController, err := newController(c, name, binding, factory)
+		newController, err := newController(c, instanceName, binding, factory)
 		if err == nil {
 			controllers = append(controllers, newController)
 		} else {
-			configErrors = append(configErrors, fmt.Errorf("error configuring %s controller of type %q: %v", name, binding.TypeName, err))
+			configErrors = append(configErrors, fmt.Errorf("error configuring controller %q of type %q: %v", instanceName, binding.TypeName, err))
 		}
 	}
 	return controllers, configErrors

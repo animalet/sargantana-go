@@ -34,26 +34,42 @@ func TestNewStaticController(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name: "dir and file",
+			name: "valid directory config",
 			configData: StaticControllerConfig{
-				StaticMapping{
-					Path: "/static",
-					Dir:  staticDir,
-				},
-				StaticMapping{
-					Path: "/favicon.ico",
-					File: faviconPath,
-				},
+				Path: "/static",
+				Dir:  staticDir,
 			},
 			expectedError: false,
 		},
 		{
-			name: "empty paths",
+			name: "valid file config",
 			configData: StaticControllerConfig{
-				StaticMapping{
-					Path: "",
-					Dir:  "",
-				},
+				Path: "/favicon.ico",
+				File: faviconPath,
+			},
+			expectedError: false,
+		},
+		{
+			name: "missing path",
+			configData: StaticControllerConfig{
+				Path: "",
+				Dir:  staticDir,
+			},
+			expectedError: true,
+		},
+		{
+			name: "missing dir and file",
+			configData: StaticControllerConfig{
+				Path: "/static",
+			},
+			expectedError: true,
+		},
+		{
+			name: "both dir and file set",
+			configData: StaticControllerConfig{
+				Path: "/static",
+				Dir:  staticDir,
+				File: faviconPath,
 			},
 			expectedError: true,
 		},
@@ -82,8 +98,8 @@ func TestNewStaticController(t *testing.T) {
 
 				if controller != nil {
 					static := controller.(*static)
-					if len(static.mappings) != len(tt.configData) {
-						t.Errorf("mappings length = %v, want %v", len(static.mappings), len(tt.configData))
+					if static.config.Path != tt.configData.Path {
+						t.Errorf("Path = %v, want %v", static.config.Path, tt.configData.Path)
 					}
 				}
 			}
@@ -91,7 +107,7 @@ func TestNewStaticController(t *testing.T) {
 	}
 }
 
-func TestStatic_Bind(t *testing.T) {
+func TestStatic_BindDirectory(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Create temporary directories for testing
@@ -104,13 +120,6 @@ func TestStatic_Bind(t *testing.T) {
 		t.Fatalf("Failed to create static dir: %v", err)
 	}
 
-	// Create index.html
-	indexContent := "<html><body>Test Page</body></html>"
-	err = os.WriteFile(filepath.Join(staticDir, "index.html"), []byte(indexContent), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create index.html: %v", err)
-	}
-
 	// Create a static asset
 	err = os.WriteFile(filepath.Join(staticDir, "test.css"), []byte("body { color: red; }"), 0644)
 	if err != nil {
@@ -118,10 +127,8 @@ func TestStatic_Bind(t *testing.T) {
 	}
 
 	configData := StaticControllerConfig{
-		StaticMapping{
-			Path: "/static",
-			Dir:  staticDir,
-		},
+		Path: "/static",
+		Dir:  staticDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
 	controller, err := NewStaticController(configBytes, config.ServerConfig{})
@@ -170,7 +177,7 @@ func TestStatic_Bind(t *testing.T) {
 	}
 }
 
-func TestStatic_BindWithStaticFile(t *testing.T) {
+func TestStatic_BindFile(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Create temporary directory
@@ -184,16 +191,15 @@ func TestStatic_BindWithStaticFile(t *testing.T) {
 
 	// Create favicon.ico
 	faviconContent := []byte("fake favicon")
-	err = os.WriteFile(filepath.Join(staticDir, "favicon.ico"), faviconContent, 0644)
+	faviconPath := filepath.Join(staticDir, "favicon.ico")
+	err = os.WriteFile(faviconPath, faviconContent, 0644)
 	if err != nil {
 		t.Fatalf("Failed to create favicon.ico: %v", err)
 	}
 
 	configData := StaticControllerConfig{
-		StaticMapping{
-			Path: "/favicon.ico",
-			File: filepath.Join(staticDir, "favicon.ico"),
-		},
+		Path: "/favicon.ico",
+		File: faviconPath,
 	}
 	configBytes, _ := yaml.Marshal(configData)
 	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
@@ -227,10 +233,8 @@ func TestStatic_Close(t *testing.T) {
 	}
 
 	configData := StaticControllerConfig{
-		StaticMapping{
-			Path: "/static",
-			Dir:  staticDir,
-		},
+		Path: "/static",
+		Dir:  staticDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
 	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
@@ -241,5 +245,85 @@ func TestStatic_Close(t *testing.T) {
 	err = staticController.Close()
 	if err != nil {
 		t.Errorf("Close() returned error: %v", err)
+	}
+}
+
+func TestStatic_MultipleInstances(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Create temporary directories
+	tempDir := t.TempDir()
+	publicDir := filepath.Join(tempDir, "public")
+	adminDir := filepath.Join(tempDir, "admin")
+
+	err := os.MkdirAll(publicDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create public dir: %v", err)
+	}
+	err = os.MkdirAll(adminDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create admin dir: %v", err)
+	}
+
+	// Create test files
+	err = os.WriteFile(filepath.Join(publicDir, "public.css"), []byte("public styles"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create public.css: %v", err)
+	}
+	err = os.WriteFile(filepath.Join(adminDir, "admin.css"), []byte("admin styles"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create admin.css: %v", err)
+	}
+
+	// Create two static controller instances
+	publicConfig := StaticControllerConfig{
+		Path: "/public",
+		Dir:  publicDir,
+	}
+	adminConfig := StaticControllerConfig{
+		Path: "/admin",
+		Dir:  adminDir,
+	}
+
+	publicBytes, _ := yaml.Marshal(publicConfig)
+	adminBytes, _ := yaml.Marshal(adminConfig)
+
+	publicController, err := NewStaticController(publicBytes, config.ServerConfig{})
+	if err != nil {
+		t.Fatalf("Failed to create public controller: %v", err)
+	}
+
+	adminController, err := NewStaticController(adminBytes, config.ServerConfig{})
+	if err != nil {
+		t.Fatalf("Failed to create admin controller: %v", err)
+	}
+
+	// Bind both to the same engine
+	engine := gin.New()
+	publicController.Bind(engine, nil)
+	adminController.Bind(engine, nil)
+
+	// Test public path
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/public/public.css", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Public path status = %v, want %v", w.Code, http.StatusOK)
+	}
+	if w.Body.String() != "public styles" {
+		t.Errorf("Public path body = %v, want 'public styles'", w.Body.String())
+	}
+
+	// Test admin path
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/admin/admin.css", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Admin path status = %v, want %v", w.Code, http.StatusOK)
+	}
+	if w.Body.String() != "admin styles" {
+		t.Errorf("Admin path body = %v, want 'admin styles'", w.Body.String())
 	}
 }

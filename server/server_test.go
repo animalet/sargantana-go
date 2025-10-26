@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -152,7 +153,7 @@ controllers:
 
 	// The server should attempt to use Redis for session storage
 	// Even if Redis connection fails, the configuration should be attempted
-	if !strings.Contains(logOutput, "Use Redis for session storage") {
+	if !strings.Contains(logOutput, "Using Redis for session storage") {
 		t.Error("Expected Redis session storage message not found in logs")
 	}
 
@@ -555,9 +556,15 @@ func TestNewServer_WithControllers(t *testing.T) {
 	AddControllerType("static", controller.NewStaticController)
 	// Create a temporary config file with controller bindings
 	tempDir := t.TempDir()
+	staticDir := filepath.Join(tempDir, "static")
+	err := os.MkdirAll(staticDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create static dir: %v", err)
+	}
+
 	configFile := filepath.Join(tempDir, "config.yaml")
 
-	configContent := `server:
+	configContent := fmt.Sprintf(`server:
   address: "localhost:8080"
   debug: true
   session_name: "test-session"
@@ -565,10 +572,10 @@ func TestNewServer_WithControllers(t *testing.T) {
 controllers:
   - type: "static"
     config:
-      statics_dir: "./static"
-      templates_dir: "./templates"`
+      path: "/static"
+      dir: "%s"`, staticDir)
 
-	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	err = os.WriteFile(configFile, []byte(configContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}

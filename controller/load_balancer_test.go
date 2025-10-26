@@ -46,7 +46,7 @@ func TestNewLoadBalancerController(t *testing.T) {
 				Endpoints: []string{},
 			},
 			expectedError:  true,
-			expectedErrMsg: "no endpoints provided for load balancing",
+			expectedErrMsg: "at least one endpoint must be provided",
 		},
 		{
 			name: "invalid endpoint URL",
@@ -470,8 +470,8 @@ func TestNewLoadBalancerController_InvalidURL(t *testing.T) {
 	}
 
 	// Verify the error message contains the expected format
-	if !strings.Contains(err.Error(), "failed to parse load balancer path") {
-		t.Errorf("Expected error message about parsing load balancer path, got: %v", err)
+	if !strings.Contains(err.Error(), "invalid endpoint URL") {
+		t.Errorf("Expected error message about invalid endpoint URL, got: %v", err)
 	}
 }
 

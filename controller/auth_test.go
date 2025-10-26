@@ -22,6 +22,24 @@ func init() {
 	gob.Register(UserObject{})
 }
 
+// Helper function to create a valid auth controller config with a test provider
+func newTestAuthConfig() AuthControllerConfig {
+	return AuthControllerConfig{
+		CallbackPath:     "/auth/{provider}/callback",
+		LoginPath:        "/auth/{provider}",
+		LogoutPath:       "/auth/{provider}/logout",
+		UserInfoPath:     "/auth/user",
+		RedirectOnLogin:  "/",
+		RedirectOnLogout: "/",
+		Providers: map[string]ProviderConfig{
+			"google": {
+				Key:    "test-client-id",
+				Secret: "test-client-secret",
+			},
+		},
+	}
+}
+
 func TestNewAuthController(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -38,6 +56,12 @@ func TestNewAuthController(t *testing.T) {
 				UserInfoPath:     "/auth/user",
 				RedirectOnLogin:  "/",
 				RedirectOnLogout: "/",
+				Providers: map[string]ProviderConfig{
+					"google": {
+						Key:    "test-client-id",
+						Secret: "test-client-secret",
+					},
+				},
 			},
 			serverConfig: config.ServerConfig{
 				Address: "localhost:8080",
@@ -53,6 +77,12 @@ func TestNewAuthController(t *testing.T) {
 				UserInfoPath:     "/auth/user",
 				RedirectOnLogin:  "/",
 				RedirectOnLogout: "/",
+				Providers: map[string]ProviderConfig{
+					"google": {
+						Key:    "test-client-id",
+						Secret: "test-client-secret",
+					},
+				},
 			},
 			serverConfig: config.ServerConfig{
 				Address: "0.0.0.0:9000",
@@ -85,14 +115,7 @@ func TestNewAuthController(t *testing.T) {
 }
 
 func TestAuth_UserFactory(t *testing.T) {
-	configData := AuthControllerConfig{
-		CallbackPath:     "/auth/{provider}/callback",
-		LoginPath:        "/auth/{provider}",
-		LogoutPath:       "/auth/{provider}/logout",
-		UserInfoPath:     "/auth/user",
-		RedirectOnLogin:  "/",
-		RedirectOnLogout: "/",
-	}
+	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
@@ -222,14 +245,7 @@ func TestLoginFunc(t *testing.T) {
 }
 
 func TestAuth_Close(t *testing.T) {
-	configData := AuthControllerConfig{
-		CallbackPath:     "/auth/{provider}/callback",
-		LoginPath:        "/auth/{provider}",
-		LogoutPath:       "/auth/{provider}/logout",
-		UserInfoPath:     "/auth/user",
-		RedirectOnLogin:  "/",
-		RedirectOnLogout: "/",
-	}
+	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
@@ -248,14 +264,7 @@ func TestAuth_Close(t *testing.T) {
 func TestAuth_Routes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	configData := AuthControllerConfig{
-		CallbackPath:     "/auth/{provider}/callback",
-		LoginPath:        "/auth/{provider}",
-		LogoutPath:       "/auth/{provider}/logout",
-		UserInfoPath:     "/auth/user",
-		RedirectOnLogin:  "/",
-		RedirectOnLogout: "/",
-	}
+	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
@@ -296,14 +305,7 @@ func TestAuth_Routes(t *testing.T) {
 func TestAuth_UserRoute_NoAuth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	configData := AuthControllerConfig{
-		CallbackPath:     "/auth/{provider}/callback",
-		LoginPath:        "/auth/{provider}",
-		LogoutPath:       "/auth/{provider}/logout",
-		UserInfoPath:     "/auth/user",
-		RedirectOnLogin:  "/",
-		RedirectOnLogout: "/",
-	}
+	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
@@ -330,14 +332,7 @@ func TestAuth_UserRoute_NoAuth(t *testing.T) {
 func TestAuth_AuthRouteHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	configData := AuthControllerConfig{
-		CallbackPath:     "/auth/{provider}/callback",
-		LoginPath:        "/auth/{provider}",
-		LogoutPath:       "/auth/{provider}/logout",
-		UserInfoPath:     "/auth/user",
-		RedirectOnLogin:  "/",
-		RedirectOnLogout: "/",
-	}
+	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
@@ -366,14 +361,7 @@ func TestAuth_AuthRouteHandler(t *testing.T) {
 func TestAuth_CallbackRouteHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	configData := AuthControllerConfig{
-		CallbackPath:     "/auth/{provider}/callback",
-		LoginPath:        "/auth/{provider}",
-		LogoutPath:       "/auth/{provider}/logout",
-		UserInfoPath:     "/auth/user",
-		RedirectOnLogin:  "/",
-		RedirectOnLogout: "/",
-	}
+	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
@@ -402,14 +390,7 @@ func TestAuth_CallbackRouteHandler(t *testing.T) {
 func TestAuth_LogoutRouteHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	configData := AuthControllerConfig{
-		CallbackPath:     "/auth/{provider}/callback",
-		LoginPath:        "/auth/{provider}",
-		LogoutPath:       "/auth/{provider}/logout",
-		UserInfoPath:     "/auth/user",
-		RedirectOnLogin:  "/",
-		RedirectOnLogout: "/",
-	}
+	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
@@ -491,14 +472,7 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			configData := AuthControllerConfig{
-				CallbackPath:     "/auth/{provider}/callback",
-				LoginPath:        "/auth/{provider}",
-				LogoutPath:       "/auth/{provider}/logout",
-				UserInfoPath:     "/auth/user",
-				RedirectOnLogin:  "/",
-				RedirectOnLogout: "/",
-			}
+			configData := newTestAuthConfig()
 			configBytes, _ := yaml.Marshal(configData)
 			serverConfig := config.ServerConfig{Address: tt.configAddress}
 
@@ -843,14 +817,7 @@ func TestAuth_IntegrationTest(t *testing.T) {
 	engine.Use(sessions.Sessions("test", store))
 	gothic.Store = store
 
-	configData := AuthControllerConfig{
-		CallbackPath:     "/auth/{provider}/callback",
-		LoginPath:        "/auth/{provider}",
-		LogoutPath:       "/auth/{provider}/logout",
-		UserInfoPath:     "/auth/user",
-		RedirectOnLogin:  "/auth/user",
-		RedirectOnLogout: "/",
-	}
+	configData := newTestAuthConfig()
 
 	address := "localhost:8080"
 	ProviderFactory = &MockProviderFactory{}
@@ -906,13 +873,17 @@ func TestAuth_IntegrationTest(t *testing.T) {
 }
 
 func (m *MockProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
-	provider, _ := openidConnect.New(
+	provider, err := openidConnect.New(
 		"sargantana",
 		"someSecret",
 		strings.ReplaceAll(callbackURLTemplate, "{provider}", "openid-connect"),
-		"http://localhost:8080/default/.well-known/openid-configuration",
+		"http://localhost:8081/default/.well-known/openid-configuration",
 		"email", "profile",
 	)
+	if err != nil {
+		// Return empty slice if provider creation fails
+		return []goth.Provider{}
+	}
 
 	return []goth.Provider{
 		provider,

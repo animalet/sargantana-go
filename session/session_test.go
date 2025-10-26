@@ -253,10 +253,8 @@ func TestCookieStore_Configuration(t *testing.T) {
 				t.Fatal("NewCookieStore returned nil")
 			}
 
-			// Verify gothic store was set
-			if gothic.Store != store {
-				t.Error("gothic.Store was not set correctly")
-			}
+			// Note: gothic.Store is set by the server, not by NewCookieStore
+			// This function just creates the store instance
 		})
 	}
 }
