@@ -14,6 +14,48 @@ server:
   host: ${DATABASE_HOST}                     # Defaults to env: prefix
 ```
 
+**Important:** The config package provides the infrastructure (interfaces and registry) but **does not automatically register any resolvers**. Your application must explicitly register the resolvers it needs before loading configuration.
+
+## Registering Resolvers
+
+Resolvers must be registered **before** calling `cfg.Load()`. Here's a typical setup in your main function:
+
+```go
+func main() {
+    // Read the configuration file
+    cfg, err := config.ReadConfig("config.yaml")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Register resolvers BEFORE calling Load()
+    // Environment resolver (default - always register first)
+    config.RegisterPropertyResolver("env", config.NewEnvResolver())
+
+    // File resolver (if secrets directory is configured)
+    if cfg.ServerConfig.SecretsDir != "" {
+        config.RegisterPropertyResolver("file", config.NewFileResolver(cfg.ServerConfig.SecretsDir))
+    }
+
+    // Vault resolver (if Vault is configured)
+    if cfg.Vault != nil {
+        vaultClient, err := config.CreateVaultClient(cfg.Vault)
+        if err != nil {
+            log.Fatal(err)
+        }
+        config.RegisterPropertyResolver("vault", config.NewVaultResolver(vaultClient, cfg.Vault.Path))
+    }
+
+    // Now load and expand the configuration
+    err = cfg.Load()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Continue with server setup...
+}
+```
+
 ## Built-in Resolvers
 
 ### Environment Variable Resolver (env:)
@@ -29,7 +71,12 @@ database_host: ${env:DATABASE_HOST}
 database_host: ${DATABASE_HOST}
 ```
 
-**Configuration:** No configuration needed - always available.
+**Registration:**
+```go
+config.RegisterPropertyResolver("env", config.NewEnvResolver())
+```
+
+**Configuration:** No additional configuration needed.
 
 ### File Resolver (file:)
 
@@ -42,7 +89,14 @@ server:
   api_key: ${file:api_key}     # Reads from /run/secrets/api_key
 ```
 
-**Configuration:** Set `server.secrets_dir` in your config to enable file-based secrets.
+**Registration:**
+```go
+if cfg.ServerConfig.SecretsDir != "" {
+    config.RegisterPropertyResolver("file", config.NewFileResolver(cfg.ServerConfig.SecretsDir))
+}
+```
+
+**Configuration:** Set `server.secrets_dir` in your YAML config to specify the directory containing secret files.
 
 **File Format:** Files should contain the secret value as plain text. Whitespace is automatically trimmed.
 
@@ -63,7 +117,18 @@ server:
   database_password: ${vault:DB_PASSWORD}
 ```
 
-**Configuration:** Configure the `vault` section in your config file with:
+**Registration:**
+```go
+if cfg.Vault != nil {
+    vaultClient, err := config.CreateVaultClient(cfg.Vault)
+    if err != nil {
+        log.Fatal(err)
+    }
+    config.RegisterPropertyResolver("vault", config.NewVaultResolver(vaultClient, cfg.Vault.Path))
+}
+```
+
+**Configuration:** Configure the `vault` section in your YAML config file with:
 - `address`: Vault server URL
 - `token`: Authentication token
 - `path`: Path to read secrets from (e.g., "secret/data/myapp" for KV v2)
@@ -260,19 +325,23 @@ However, it's recommended to register all resolvers during application initializ
 
 ## Best Practices
 
-1. **Register resolvers early**: Register all custom resolvers before calling `cfg.Load()`
+1. **Register resolvers before Load()**: ALWAYS register all resolvers before calling `cfg.Load()`. The config package does not automatically register any resolvers.
 
-2. **Use descriptive prefixes**: Choose short, memorable prefix names (e.g., "db", "aws", "consul")
+2. **Register env resolver first**: Register the environment resolver first, as it's the default when no prefix is specified.
 
-3. **Handle errors gracefully**: Return clear error messages from your `Resolve()` implementation
+3. **Use descriptive prefixes**: Choose short, memorable prefix names (e.g., "db", "aws", "consul")
 
-4. **Log resolver activity**: Consider logging successful retrievals for debugging (see built-in resolvers for examples)
+4. **Handle errors gracefully**: Return clear error messages from your `Resolve()` implementation
 
-5. **Secure sensitive data**: If your resolver connects to remote services, ensure proper authentication and encryption
+5. **Log resolver activity**: Consider logging successful retrievals for debugging (see built-in resolvers for examples)
 
-6. **Test thoroughly**: Write tests for your custom resolvers, including error cases
+6. **Secure sensitive data**: If your resolver connects to remote services, ensure proper authentication and encryption
 
-7. **Document configuration**: Document what configuration your resolver needs (connection strings, credentials, etc.)
+7. **Test thoroughly**: Write tests for your custom resolvers, including error cases. Remember to register resolvers in your tests!
+
+8. **Document configuration**: Document what configuration your resolver needs (connection strings, credentials, etc.)
+
+9. **Decoupled design**: The config package only provides infrastructure. Your application controls which resolvers are available.
 
 ## Unregistering Resolvers
 

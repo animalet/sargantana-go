@@ -6,12 +6,9 @@ package config
 import (
 	"os"
 	"reflect"
-	"sync"
 
 	"github.com/animalet/sargantana-go/database"
-	"github.com/hashicorp/vault/api"
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -66,73 +63,17 @@ func (c ServerConfig) Validate() error {
 }
 
 func (cfg *Config) Load() (err error) {
-	err = cfg.createSecretSourcesIfNotPresent()
-	if err != nil {
-		return err
-	}
-
 	expandVariables(reflect.ValueOf(&cfg.ServerConfig).Elem())
 	if err = cfg.ServerConfig.Validate(); err != nil {
 		return errors.Wrap(err, "server configuration is invalid")
 	}
 
-	return nil
-}
-
-var logSecretDirAbsent = sync.OnceFunc(func() {
-	log.Warn().Msg("No secrets directory configured, file secrets will fail if requested")
-})
-
-var logVaultAbsent = sync.OnceFunc(func() {
-	log.Warn().Msg("No Vault configuration provided, vault secrets will fail if requested")
-})
-
-func (cfg *Config) createSecretSourcesIfNotPresent() (err error) {
-	// Register the environment resolver (always available)
-	RegisterPropertyResolver("env", NewEnvResolver())
-
-	// Register file resolver if secrets directory is configured
-	if cfg.ServerConfig.SecretsDir != "" {
-		RegisterPropertyResolver("file", NewFileResolver(cfg.ServerConfig.SecretsDir))
-		log.Info().Str("secrets_dir", cfg.ServerConfig.SecretsDir).Msg("File resolver registered")
-	} else {
-		logSecretDirAbsent()
-	}
-
-	// Register Vault resolver if Vault is configured
-	if vaultManagerInstance == nil && cfg.Vault != nil {
-		log.Info().Msg("Vault configuration provided, initializing Vault client")
+	// Expand Vault configuration if present
+	if cfg.Vault != nil {
 		expandVariables(reflect.ValueOf(cfg.Vault).Elem())
-		if err = cfg.Vault.Validate(); err == nil {
-			config := api.DefaultConfig()
-			config.Address = cfg.Vault.Address
-			client, err := api.NewClient(config)
-			if err != nil {
-				return err
-			}
-
-			client.SetToken(cfg.Vault.Token)
-
-			if cfg.Vault.Namespace != "" {
-				client.SetNamespace(cfg.Vault.Namespace)
-			}
-
-			// Store for backward compatibility
-			vaultManagerInstance = client
-			vaultPath = cfg.Vault.Path
-
-			// Register the Vault resolver
-			RegisterPropertyResolver("vault", NewVaultResolver(client, cfg.Vault.Path))
-
-			log.Info().Msg("Vault client created successfully and resolver registered")
-		} else {
-			return errors.Wrap(err, "Vault configuration is invalid")
-		}
-	} else if vaultManagerInstance == nil && cfg.Vault == nil {
-		logVaultAbsent()
 	}
 
-	return err
+	return nil
 }
 
 // ReadConfig reads the YAML configuration file and unmarshalls its content into the provided struct.
@@ -158,10 +99,6 @@ func ReadConfig(file string) (*Config, error) {
 }
 
 func LoadConfig[T Validatable](key string, cfg *Config) (partial *T, err error) {
-	err = cfg.createSecretSourcesIfNotPresent()
-	if err != nil {
-		return nil, err
-	}
 	c, exist := cfg.Other[key]
 	if !exist {
 		return nil, errors.Errorf("no configuration found for %q", key)

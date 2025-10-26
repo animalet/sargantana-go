@@ -62,6 +62,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Register property resolvers
+	// Environment resolver (default - always register first)
+	config.RegisterPropertyResolver("env", config.NewEnvResolver())
+
+	// File resolver (if secrets directory is configured)
+	if cfg.ServerConfig.SecretsDir != "" {
+		config.RegisterPropertyResolver("file", config.NewFileResolver(cfg.ServerConfig.SecretsDir))
+		log.Info().Str("secrets_dir", cfg.ServerConfig.SecretsDir).Msg("File resolver registered")
+	}
+
+	// Vault resolver (if Vault is configured)
+	if cfg.Vault != nil {
+		vaultClient, err := config.CreateVaultClient(cfg.Vault)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to create Vault client")
+			os.Exit(1)
+		}
+		config.RegisterPropertyResolver("vault", config.NewVaultResolver(vaultClient, cfg.Vault.Path))
+		log.Info().Msg("Vault resolver registered")
+	}
+
 	sargantana, err := server.NewServer(cfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create server")

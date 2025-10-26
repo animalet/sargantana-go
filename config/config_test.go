@@ -56,6 +56,10 @@ func TestLoadYaml_FileNotFound(t *testing.T) {
 
 // TestLoad_MissingSessionSecret tests that missing session secret causes error
 func TestLoad_MissingSessionSecret(t *testing.T) {
+	// Register env resolver for expansion
+	RegisterPropertyResolver("env", NewEnvResolver())
+	defer UnregisterPropertyResolver("env")
+
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "test-config.yaml")
 
@@ -188,6 +192,10 @@ type TestConfig struct {
 
 // TestUnmarshalTo tests the generic unmarshaling function
 func TestUnmarshalTo(t *testing.T) {
+	// Register env resolver for expansion
+	RegisterPropertyResolver("env", NewEnvResolver())
+	defer UnregisterPropertyResolver("env")
+
 	// Set up environment variable for testing
 	_ = os.Setenv("TEST_ENV_VAR", "test-value")
 	defer func() { _ = os.Unsetenv("TEST_ENV_VAR") }()
@@ -233,6 +241,10 @@ func TestUnmarshalTo_NilConfig(t *testing.T) {
 
 // TestExpandVariables tests environment variable expansion
 func TestExpandVariables(t *testing.T) {
+	// Register env resolver for expansion
+	RegisterPropertyResolver("env", NewEnvResolver())
+	defer UnregisterPropertyResolver("env")
+
 	// Set up test environment variables
 	_ = os.Setenv("TEST_VAR", "test-value")
 	_ = os.Setenv("TEST_NUMBER", "42")
@@ -286,44 +298,17 @@ vault:
 	}
 }
 
-// TestLoad_VaultCreationError tests error handling when Vault manager creation fails
+// TestLoad_VaultCreationError tests error handling when Vault client creation fails
 func TestLoad_VaultCreationError(t *testing.T) {
-	// Save and reset the global vaultManagerInstance
-	originalVaultManager := vaultManagerInstance
-	vaultManagerInstance = nil
-	defer func() { vaultManagerInstance = originalVaultManager }()
-
-	tempDir := t.TempDir()
-	configFile := filepath.Join(tempDir, "test-config.yaml")
-
-	testConfig := `
-server:
-  address: ":8080"
-  redis_session_store:
-    address: "localhost:6379"
-    max_idle: 10
-    idle_timeout: 240s
-  session_name: "test-session"
-  session_secret: "my-test-secret-key"
-vault:
-  address: "://invalid-malformed-url"
-  token: "test-token"
-  path: "secret/data/test"
-`
-
-	err := os.WriteFile(configFile, []byte(testConfig), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create test config file: %v", err)
+	vaultCfg := &VaultConfig{
+		Address: "://invalid-malformed-url",
+		Token:   "test-token",
+		Path:    "secret/data/test",
 	}
 
-	cfg, err := ReadConfig(configFile)
-	if err != nil {
-		t.Fatalf("Load failed: %v", err)
-	}
-
-	err = cfg.Load()
+	_, err := CreateVaultClient(vaultCfg)
 	if err == nil {
-		t.Fatal("Expected error when loading config with invalid Vault settings")
+		t.Fatal("Expected error when creating Vault client with invalid address")
 	}
 }
 
@@ -362,6 +347,10 @@ func TestUnmarshalTo_Error(t *testing.T) {
 
 // TestExpandVariables_ComplexStructures tests expandVariables with different data types
 func TestExpandVariables_ComplexStructures(t *testing.T) {
+	// Register env resolver for expansion
+	RegisterPropertyResolver("env", NewEnvResolver())
+	defer UnregisterPropertyResolver("env")
+
 	_ = os.Setenv("TEST_EXPAND", "expanded_value")
 	defer func() { _ = os.Unsetenv("TEST_EXPAND") }()
 

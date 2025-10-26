@@ -8,6 +8,32 @@ import (
 	"testing"
 )
 
+// setupResolversForTest registers resolvers for testing based on the provided config
+func setupResolversForTest(cfg *Config) error {
+	// Always register env resolver
+	RegisterPropertyResolver("env", NewEnvResolver())
+
+	// Register file resolver if secrets directory is configured
+	if cfg.ServerConfig.SecretsDir != "" {
+		RegisterPropertyResolver("file", NewFileResolver(cfg.ServerConfig.SecretsDir))
+	}
+
+	// Register Vault resolver if Vault is configured
+	if cfg.Vault != nil {
+		client, err := CreateVaultClient(cfg.Vault)
+		if err != nil {
+			return err
+		}
+		RegisterPropertyResolver("vault", NewVaultResolver(client, cfg.Vault.Path))
+
+		// Store for backward compatibility
+		vaultManagerInstance = client
+		vaultPath = cfg.Vault.Path
+	}
+
+	return nil
+}
+
 // resetVaultState resets the global vault manager instance for test isolation
 func resetVaultState(t *testing.T) func() {
 	original := vaultManagerInstance
@@ -41,9 +67,9 @@ func TestCreateVaultManager_Success(t *testing.T) {
 		},
 	}
 
-	err := config.createSecretSourcesIfNotPresent()
+	err := setupResolversForTest(config)
 	if err != nil {
-		t.Fatalf("createVaultManager failed: %v", err)
+		t.Fatalf("setupResolversForTest failed: %v", err)
 	}
 
 	if vaultManagerInstance == nil {
@@ -62,34 +88,30 @@ func TestCreateVaultManager_Success(t *testing.T) {
 // TestCreateVaultManager_WithNamespace tests Vault manager creation with namespace
 func TestCreateVaultManager_WithNamespace(t *testing.T) {
 	defer resetVaultState(t)()
-	config := &Config{
-		Vault: &VaultConfig{
-			Address:   "http://localhost:8200",
-			Token:     "dev-root-token",
-			Path:      "secret/data/sargantana",
-			Namespace: "test-namespace",
-		},
+	vaultCfg := &VaultConfig{
+		Address:   "http://localhost:8200",
+		Token:     "dev-root-token",
+		Path:      "secret/data/sargantana",
+		Namespace: "test-namespace",
 	}
 
 	// This should succeed even though the namespace doesn't exist in dev mode
-	err := config.createSecretSourcesIfNotPresent()
+	_, err := CreateVaultClient(vaultCfg)
 	if err != nil {
-		t.Fatalf("createVaultManager with namespace failed: %v", err)
+		t.Fatalf("CreateVaultClient with namespace failed: %v", err)
 	}
 }
 
 // TestCreateVaultManager_InvalidConfig tests with invalid Vault configuration
 func TestCreateVaultManager_InvalidConfig(t *testing.T) {
 	defer resetVaultState(t)()
-	config := &Config{
-		Vault: &VaultConfig{
-			Address: "",
-			Token:   "",
-			Path:    "",
-		},
+	vaultCfg := &VaultConfig{
+		Address: "",
+		Token:   "",
+		Path:    "",
 	}
 
-	err := config.createSecretSourcesIfNotPresent()
+	_, err := CreateVaultClient(vaultCfg)
 	if err == nil {
 		t.Error("Expected error with invalid Vault configuration, got nil")
 	}
@@ -101,15 +123,13 @@ func TestCreateVaultManager_InvalidConfig(t *testing.T) {
 // TestCreateVaultManager_ConnectionError tests with unreachable Vault server
 func TestCreateVaultManager_ConnectionError(t *testing.T) {
 	defer resetVaultState(t)()
-	config := &Config{
-		Vault: &VaultConfig{
-			Address: "http://nonexistent-vault-server:8200",
-			Token:   "test-token",
-			Path:    "secret/data/test",
-		},
+	vaultCfg := &VaultConfig{
+		Address: "http://nonexistent-vault-server:8200",
+		Token:   "test-token",
+		Path:    "secret/data/test",
 	}
 
-	err := config.createSecretSourcesIfNotPresent()
+	_, err := CreateVaultClient(vaultCfg)
 	// This might not fail at creation time, but will fail when trying to read secrets
 	// The actual connection is tested during secret retrieval
 	if err != nil && !strings.Contains(err.Error(), "failed to create Vault client") {
@@ -120,15 +140,13 @@ func TestCreateVaultManager_ConnectionError(t *testing.T) {
 // TestCreateVaultManager_InvalidAddress tests with malformed Vault address
 func TestCreateVaultManager_InvalidAddress(t *testing.T) {
 	defer resetVaultState(t)()
-	config := &Config{
-		Vault: &VaultConfig{
-			Address: string([]byte{0, 1, 2, 3}), // Invalid URL with null bytes
-			Token:   "test-token",
-			Path:    "secret/data/test",
-		},
+	vaultCfg := &VaultConfig{
+		Address: string([]byte{0, 1, 2, 3}), // Invalid URL with null bytes
+		Token:   "test-token",
+		Path:    "secret/data/test",
 	}
 
-	err := config.createSecretSourcesIfNotPresent()
+	_, err := CreateVaultClient(vaultCfg)
 	if err == nil {
 		t.Fatal("Expected error when creating Vault client with invalid address")
 	}
@@ -149,9 +167,9 @@ func TestVaultManager_Secret_Success(t *testing.T) {
 		},
 	}
 
-	err := config.createSecretSourcesIfNotPresent()
+	err := setupResolversForTest(config)
 	if err != nil {
-		t.Fatalf("createVaultManager failed: %v", err)
+		t.Fatalf("setupResolversForTest failed: %v", err)
 	}
 
 	// Test retrieving the pre-configured secrets using the resolver
@@ -188,9 +206,9 @@ func TestVaultManager_Secret_KVv1(t *testing.T) {
 		},
 	}
 
-	err := config.createSecretSourcesIfNotPresent()
+	err := setupResolversForTest(config)
 	if err != nil {
-		t.Fatalf("createVaultManager failed: %v", err)
+		t.Fatalf("setupResolversForTest failed: %v", err)
 	}
 
 	// Test retrieving secrets from KV v1 engine using resolver
@@ -219,9 +237,9 @@ func TestVaultManager_Secret_NonexistentPath(t *testing.T) {
 		},
 	}
 
-	err := config.createSecretSourcesIfNotPresent()
+	err := setupResolversForTest(config)
 	if err != nil {
-		t.Fatalf("createVaultManager failed: %v", err)
+		t.Fatalf("setupResolversForTest failed: %v", err)
 	}
 
 	// Test with nonexistent path using resolver
@@ -250,9 +268,9 @@ func TestVaultManager_Secret_NonexistentKey(t *testing.T) {
 		},
 	}
 
-	err := config.createSecretSourcesIfNotPresent()
+	err := setupResolversForTest(config)
 	if err != nil {
-		t.Fatalf("createVaultManager failed: %v", err)
+		t.Fatalf("setupResolversForTest failed: %v", err)
 	}
 
 	// Test with nonexistent key
@@ -281,9 +299,9 @@ func TestVaultManager_Secret_InvalidToken(t *testing.T) {
 		},
 	}
 
-	err := config.createSecretSourcesIfNotPresent()
+	err := setupResolversForTest(config)
 	if err != nil {
-		t.Fatalf("createVaultManager failed: %v", err)
+		t.Fatalf("setupResolversForTest failed: %v", err)
 	}
 
 	// Test with invalid token
@@ -382,9 +400,9 @@ func TestExpand_VaultPrefix(t *testing.T) {
 		},
 	}
 
-	err := config.createSecretSourcesIfNotPresent()
+	err := setupResolversForTest(config)
 	if err != nil {
-		t.Fatalf("createVaultManager failed: %v", err)
+		t.Fatalf("setupResolversForTest failed: %v", err)
 	}
 
 	result := expand("vault:GOOGLE_KEY")
@@ -405,9 +423,9 @@ func TestExpand_VaultPrefix_NonexistentKey(t *testing.T) {
 		},
 	}
 
-	err := config.createSecretSourcesIfNotPresent()
+	err := setupResolversForTest(config)
 	if err != nil {
-		t.Fatalf("createVaultManager failed: %v", err)
+		t.Fatalf("setupResolversForTest failed: %v", err)
 	}
 
 	defer func() {
@@ -447,6 +465,10 @@ func TestExpand_FilePrefix(t *testing.T) {
 
 // TestExpand_EnvPrefix tests the expand function with env: prefix
 func TestExpand_EnvPrefix(t *testing.T) {
+	// Register env resolver
+	RegisterPropertyResolver("env", NewEnvResolver())
+	defer UnregisterPropertyResolver("env")
+
 	_ = os.Setenv("TEST_EXPAND_VAR", "env-value")
 	defer func() { _ = os.Unsetenv("TEST_EXPAND_VAR") }()
 
@@ -459,6 +481,10 @@ func TestExpand_EnvPrefix(t *testing.T) {
 
 // TestExpand_PlainEnvVar tests the expand function with plain environment variable name
 func TestExpand_PlainEnvVar(t *testing.T) {
+	// Register env resolver (used as default when no prefix)
+	RegisterPropertyResolver("env", NewEnvResolver())
+	defer UnregisterPropertyResolver("env")
+
 	_ = os.Setenv("TEST_PLAIN_VAR", "plain-value")
 	defer func() { _ = os.Unsetenv("TEST_PLAIN_VAR") }()
 
