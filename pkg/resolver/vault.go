@@ -17,7 +17,7 @@ type VaultConfig struct {
 }
 
 // Validate checks if the VaultConfig has all required fields set
-func (v VaultConfig) Validate() error {
+func (v *VaultConfig) Validate() error {
 	if v.Address == "" {
 		return errors.New("Vault address is required")
 	}
@@ -28,6 +28,13 @@ func (v VaultConfig) Validate() error {
 		return errors.New("Vault path is required")
 	}
 	return nil
+}
+
+// CreateClient creates and configures a Vault client from this config.
+// Implements the config.ClientFactory interface.
+// Returns *api.Client on success, or an error if client creation fails.
+func (v *VaultConfig) CreateClient() (any, error) {
+	return CreateVaultClient(v)
 }
 
 // CreateVaultClient is a helper function to create and configure a Vault client

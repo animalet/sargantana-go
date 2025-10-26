@@ -45,6 +45,16 @@ func (r RedisConfig) Validate() error {
 	return nil
 }
 
+// CreateClient creates and configures a Redis connection pool from this config.
+// Implements the config.ClientFactory interface.
+// Returns *redis.Pool on success.
+func (r *RedisConfig) CreateClient() (any, error) {
+	if err := r.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid Redis configuration: %w", err)
+	}
+	return NewRedisPoolWithConfig(r), nil
+}
+
 // TLSConfig holds TLS configuration for Redis connections
 type TLSConfig struct {
 	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"`
