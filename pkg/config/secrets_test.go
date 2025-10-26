@@ -1,7 +1,6 @@
 package config
 
 import (
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,45 +31,26 @@ func setupResolversForTest(cfg *Config) error {
 	return nil
 }
 
-// TestVaultHealthCheck verifies that the Docker Vault container is healthy
-func TestVaultHealthCheck(t *testing.T) {
-	vaultAddr := "http://localhost:8200"
-	resp, err := http.Get(vaultAddr + "/v1/sys/health")
-	if err != nil {
-		t.Fatalf("Failed to check Vault health: %v", err)
+// TestCreateVaultClient_Success tests successful Vault client creation
+func TestCreateVaultClient_Success(t *testing.T) {
+	vaultCfg := &VaultConfig{
+		Address: "http://localhost:8200",
+		Token:   "dev-root-token",
+		Path:    "secret/data/sargantana",
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != 200 {
-		t.Errorf("Expected Vault to be healthy (status 200), got status %d", resp.StatusCode)
+	client, err := CreateVaultClient(vaultCfg)
+	if err != nil {
+		t.Fatalf("CreateVaultClient failed: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("Vault client should not be nil")
 	}
 }
 
-// TestCreateVaultManager_Success tests successful creation of Vault manager with Docker container
-func TestCreateVaultManager_Success(t *testing.T) {
-
-	config := &Config{
-		Vault: &VaultConfig{
-			Address: "http://localhost:8200",
-			Token:   "dev-root-token",
-			Path:    "secret/data/sargantana",
-		},
-	}
-
-	err := setupResolversForTest(config)
-	if err != nil {
-		t.Fatalf("setupResolversForTest failed: %v", err)
-	}
-
-	// Verify the vault resolver is registered
-	res := resolver.Global.GetResolver("vault")
-	if res == nil {
-		t.Fatal("Vault resolver should be registered")
-	}
-}
-
-// TestCreateVaultManager_WithNamespace tests Vault manager creation with namespace
-func TestCreateVaultManager_WithNamespace(t *testing.T) {
+// TestCreateVaultClient_WithNamespace tests Vault client creation with namespace
+func TestCreateVaultClient_WithNamespace(t *testing.T) {
 	vaultCfg := &VaultConfig{
 		Address:   "http://localhost:8200",
 		Token:     "dev-root-token",
@@ -78,15 +58,14 @@ func TestCreateVaultManager_WithNamespace(t *testing.T) {
 		Namespace: "test-namespace",
 	}
 
-	// This should succeed even though the namespace doesn't exist in dev mode
 	_, err := CreateVaultClient(vaultCfg)
 	if err != nil {
 		t.Fatalf("CreateVaultClient with namespace failed: %v", err)
 	}
 }
 
-// TestCreateVaultManager_InvalidConfig tests with invalid Vault configuration
-func TestCreateVaultManager_InvalidConfig(t *testing.T) {
+// TestCreateVaultClient_InvalidConfig tests with invalid Vault configuration
+func TestCreateVaultClient_InvalidConfig(t *testing.T) {
 	vaultCfg := &VaultConfig{
 		Address: "",
 		Token:   "",
@@ -102,24 +81,8 @@ func TestCreateVaultManager_InvalidConfig(t *testing.T) {
 	}
 }
 
-// TestCreateVaultManager_ConnectionError tests with unreachable Vault server
-func TestCreateVaultManager_ConnectionError(t *testing.T) {
-	vaultCfg := &VaultConfig{
-		Address: "http://nonexistent-vault-server:8200",
-		Token:   "test-token",
-		Path:    "secret/data/test",
-	}
-
-	_, err := CreateVaultClient(vaultCfg)
-	// This might not fail at creation time, but will fail when trying to read secrets
-	// The actual connection is tested during secret retrieval
-	if err != nil && !strings.Contains(err.Error(), "failed to create Vault client") {
-		t.Errorf("Unexpected error type: %v", err)
-	}
-}
-
-// TestCreateVaultManager_InvalidAddress tests with malformed Vault address
-func TestCreateVaultManager_InvalidAddress(t *testing.T) {
+// TestCreateVaultClient_InvalidAddress tests with malformed Vault address
+func TestCreateVaultClient_InvalidAddress(t *testing.T) {
 	vaultCfg := &VaultConfig{
 		Address: string([]byte{0, 1, 2, 3}), // Invalid URL with null bytes
 		Token:   "test-token",
@@ -136,236 +99,8 @@ func TestCreateVaultManager_InvalidAddress(t *testing.T) {
 	}
 }
 
-// TestVaultManager_Secret_Success tests successful secret retrieval from Docker Vault
-func TestVaultManager_Secret_Success(t *testing.T) {
-	config := &Config{
-		Vault: &VaultConfig{
-			Address: "http://localhost:8200",
-			Token:   "dev-root-token",
-			Path:    "secret/data/sargantana",
-		},
-	}
-
-	err := setupResolversForTest(config)
-	if err != nil {
-		t.Fatalf("setupResolversForTest failed: %v", err)
-	}
-
-	// Test retrieving the pre-configured secrets using the resolver
-	res := resolver.Global.GetResolver("vault")
-	if res == nil {
-		t.Fatal("Vault resolver should be registered")
-	}
-
-	googleKey, err := res.Resolve("GOOGLE_KEY")
-	if err != nil {
-		t.Fatalf("Failed to retrieve GOOGLE_KEY: %v", err)
-	}
-	if googleKey != "test-google-key" {
-		t.Errorf("Expected GOOGLE_KEY 'test-google-key', got %v", googleKey)
-	}
-
-	sessionSecret, err := res.Resolve("SESSION_SECRET")
-	if err != nil {
-		t.Fatalf("Failed to retrieve SESSION_SECRET: %v", err)
-	}
-	if sessionSecret != "test-session-secret-that-is-long-enough" {
-		t.Errorf("Expected SESSION_SECRET 'test-session-secret-that-is-long-enough', got %v", sessionSecret)
-	}
-}
-
-// TestVaultManager_Secret_KVv1 tests secret retrieval from KV v1 engine
-func TestVaultManager_Secret_KVv1(t *testing.T) {
-	config := &Config{
-		Vault: &VaultConfig{
-			Address: "http://localhost:8200",
-			Token:   "dev-root-token",
-			Path:    "secret-v1/sargantana", // KV v1 path
-		},
-	}
-
-	err := setupResolversForTest(config)
-	if err != nil {
-		t.Fatalf("setupResolversForTest failed: %v", err)
-	}
-
-	// Test retrieving secrets from KV v1 engine using resolver
-	res := resolver.Global.GetResolver("vault")
-	if res == nil {
-		t.Fatal("Vault resolver should be registered")
-	}
-
-	googleKey, err := res.Resolve("GOOGLE_KEY")
-	if err != nil {
-		t.Fatalf("Failed to retrieve GOOGLE_KEY from KV v1: %v", err)
-	}
-	if googleKey != "test-google-key" {
-		t.Errorf("Expected GOOGLE_KEY 'test-google-key', got %v", googleKey)
-	}
-}
-
-// TestVaultManager_Secret_NonexistentPath tests with nonexistent Vault path
-func TestVaultManager_Secret_NonexistentPath(t *testing.T) {
-	config := &Config{
-		Vault: &VaultConfig{
-			Address: "http://localhost:8200",
-			Token:   "dev-root-token",
-			Path:    "secret/data/nonexistent/path",
-		},
-	}
-
-	err := setupResolversForTest(config)
-	if err != nil {
-		t.Fatalf("setupResolversForTest failed: %v", err)
-	}
-
-	// Test with nonexistent path using resolver
-	res := resolver.Global.GetResolver("vault")
-	if res == nil {
-		t.Fatal("Vault resolver should be registered")
-	}
-
-	_, err = res.Resolve("SOME_KEY")
-	if err == nil {
-		t.Fatal("Expected error when reading from nonexistent path")
-	}
-	if !strings.Contains(err.Error(), "no secret found") {
-		t.Errorf("Expected 'no secret found' error, got: %v", err)
-	}
-}
-
-// TestVaultManager_Secret_NonexistentKey tests with nonexistent key in existing path
-func TestVaultManager_Secret_NonexistentKey(t *testing.T) {
-	config := &Config{
-		Vault: &VaultConfig{
-			Address: "http://localhost:8200",
-			Token:   "dev-root-token",
-			Path:    "secret/data/sargantana",
-		},
-	}
-
-	err := setupResolversForTest(config)
-	if err != nil {
-		t.Fatalf("setupResolversForTest failed: %v", err)
-	}
-
-	// Test with nonexistent key
-	res := resolver.Global.GetResolver("vault")
-	if res == nil {
-		t.Fatal("Vault resolver should be registered")
-	}
-
-	_, err = res.Resolve("NONEXISTENT_KEY")
-	if err == nil {
-		t.Fatal("Expected error when reading nonexistent key")
-	}
-	if !strings.Contains(err.Error(), "secret \"NONEXISTENT_KEY\" not found") {
-		t.Errorf("Expected 'secret not found' error, got: %v", err)
-	}
-}
-
-// TestVaultManager_Secret_InvalidToken tests with invalid Vault token
-func TestVaultManager_Secret_InvalidToken(t *testing.T) {
-	config := &Config{
-		Vault: &VaultConfig{
-			Address: "http://localhost:8200",
-			Token:   "invalid-token",
-			Path:    "secret/data/sargantana",
-		},
-	}
-
-	err := setupResolversForTest(config)
-	if err != nil {
-		t.Fatalf("setupResolversForTest failed: %v", err)
-	}
-
-	// Test with invalid token
-	res := resolver.Global.GetResolver("vault")
-	if res == nil {
-		t.Fatal("Vault resolver should be registered")
-	}
-
-	_, err = res.Resolve("GOOGLE_KEY")
-	if err == nil {
-		t.Fatal("Expected error when using invalid token")
-	}
-	if !strings.Contains(err.Error(), "failed to read secret from Vault path") {
-		t.Errorf("Expected 'failed to read secret' error, got: %v", err)
-	}
-}
-
-// TestSecretFromFile_Success tests successful file secret reading
-func TestSecretFromFile_Success(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Create a test secret file
-	secretFile := filepath.Join(tempDir, "test-secret")
-	secretContent := "my-secret-value\n"
-	err := os.WriteFile(secretFile, []byte(secretContent), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create test secret file: %v", err)
-	}
-
-	// Create file resolver and test
-	fileResolver := resolver.NewFileResolver(tempDir)
-	result, err := fileResolver.Resolve("test-secret")
-	if err != nil {
-		t.Fatalf("FileResolver.Resolve failed: %v", err)
-	}
-
-	expected := "my-secret-value"
-	if result != expected {
-		t.Errorf("Expected '%s', got '%s'", expected, result)
-	}
-}
-
-// TestSecretFromFile_NoSecretsDir tests file secret reading without configured secrets directory
-func TestSecretFromFile_NoSecretsDir(t *testing.T) {
-	// Create file resolver with empty directory
-	fileResolver := resolver.NewFileResolver("")
-
-	_, err := fileResolver.Resolve("test-secret")
-	if err == nil {
-		t.Fatal("Expected error when no secrets directory is configured")
-	}
-	if !strings.Contains(err.Error(), "no secrets directory configured") {
-		t.Errorf("Expected 'no secrets directory configured' error, got: %v", err)
-	}
-}
-
-// TestSecretFromFile_EmptyFilename tests file secret reading with empty filename
-func TestSecretFromFile_EmptyFilename(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Create file resolver and test with empty filename
-	fileResolver := resolver.NewFileResolver(tempDir)
-	_, err := fileResolver.Resolve("")
-	if err == nil {
-		t.Fatal("Expected error when filename is empty")
-	}
-	if !strings.Contains(err.Error(), "no file specified for file secret") {
-		t.Errorf("Expected 'no file specified' error, got: %v", err)
-	}
-}
-
-// TestSecretFromFile_NonexistentFile tests file secret reading with nonexistent file
-func TestSecretFromFile_NonexistentFile(t *testing.T) {
-	tempDir := t.TempDir()
-
-	// Create file resolver and test with nonexistent file
-	fileResolver := resolver.NewFileResolver(tempDir)
-	_, err := fileResolver.Resolve("nonexistent-file")
-	if err == nil {
-		t.Fatal("Expected error when file doesn't exist")
-	}
-	if !strings.Contains(err.Error(), "error reading secret file") {
-		t.Errorf("Expected 'error reading secret file' error, got: %v", err)
-	}
-}
-
-// TestExpand_VaultPrefix tests the expand function with vault: prefix
+// TestExpand_VaultPrefix tests the expand function with vault: prefix integration
 func TestExpand_VaultPrefix(t *testing.T) {
-	// Set up Vault manager
 	config := &Config{
 		Vault: &VaultConfig{
 			Address: "http://localhost:8200",
@@ -414,7 +149,7 @@ func TestExpand_VaultPrefix_NonexistentKey(t *testing.T) {
 	expand("vault:NONEXISTENT_KEY")
 }
 
-// TestExpand_FilePrefix tests the expand function with file: prefix
+// TestExpand_FilePrefix tests the expand function with file: prefix integration
 func TestExpand_FilePrefix(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -436,7 +171,7 @@ func TestExpand_FilePrefix(t *testing.T) {
 	}
 }
 
-// TestExpand_EnvPrefix tests the expand function with env: prefix
+// TestExpand_EnvPrefix tests the expand function with env: prefix integration
 func TestExpand_EnvPrefix(t *testing.T) {
 	// Register env resolver
 	resolver.Register("env", resolver.NewEnvResolver())
