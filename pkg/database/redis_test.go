@@ -111,7 +111,7 @@ func TestNewRedisPoolWithConfig(t *testing.T) {
 				IdleTimeout: 360 * time.Second,
 				TLS: &TLSConfig{
 					InsecureSkipVerify: false,
-					CAFile:             "../certs/client.key", // Should be a CA file (../certs/ca.crt)
+					CAFile:             "../../certs/client.key", // Should be a CA file (../certs/ca.crt)
 				},
 			},
 			connError: true,
@@ -126,9 +126,9 @@ func TestNewRedisPoolWithConfig(t *testing.T) {
 				IdleTimeout: 360 * time.Second,
 				TLS: &TLSConfig{
 					InsecureSkipVerify: false,
-					CAFile:             "../certs/ca.crt",
-					CertFile:           "../certs/client.crt",
-					KeyFile:            "../certs/client.key",
+					CAFile:             "../../certs/ca.crt",
+					CertFile:           "../../certs/client.crt",
+					KeyFile:            "../../certs/client.key",
 				},
 			},
 		},
@@ -142,7 +142,7 @@ func TestNewRedisPoolWithConfig(t *testing.T) {
 				IdleTimeout: 360 * time.Second,
 				TLS: &TLSConfig{
 					InsecureSkipVerify: false,
-					CAFile:             "../certs/ca.crt",
+					CAFile:             "../../certs/ca.crt",
 					CertFile:           "/path/to/client.crt",
 					KeyFile:            "/path/to/client.key",
 				},
@@ -159,7 +159,7 @@ func TestNewRedisPoolWithConfig(t *testing.T) {
 				IdleTimeout: 360 * time.Second,
 				TLS: &TLSConfig{
 					InsecureSkipVerify: false,
-					CAFile:             "../certs/ca.crt",
+					CAFile:             "../../certs/ca.crt",
 				},
 			},
 		},
@@ -276,9 +276,9 @@ func BenchmarkRedisPool_GetConnection(b *testing.B) {
 				IdleTimeout: 5 * time.Second,
 				TLS: &TLSConfig{
 					InsecureSkipVerify: false,
-					CAFile:             "../certs/ca.crt",
-					CertFile:           "../certs/client.crt",
-					KeyFile:            "../certs/client.key",
+					CAFile:             "../../certs/ca.crt",
+					CertFile:           "../../certs/client.crt",
+					KeyFile:            "../../certs/client.key",
 				},
 			},
 		},
@@ -331,7 +331,7 @@ func BenchmarkRedisPool_TestOnBorrow(b *testing.B) {
 				IdleTimeout: 5 * time.Second,
 				TLS: &TLSConfig{
 					InsecureSkipVerify: true,
-					CAFile:             "../certs/ca.crt",
+					CAFile:             "../../certs/ca.crt",
 				},
 			},
 		},
@@ -345,9 +345,9 @@ func BenchmarkRedisPool_TestOnBorrow(b *testing.B) {
 				IdleTimeout: 5 * time.Second,
 				TLS: &TLSConfig{
 					InsecureSkipVerify: false,
-					CAFile:             "../certs/ca.crt",
-					CertFile:           "../certs/client.crt",
-					KeyFile:            "../certs/client.key",
+					CAFile:             "../../certs/ca.crt",
+					CertFile:           "../../certs/client.crt",
+					KeyFile:            "../../certs/client.key",
 				},
 			},
 		},

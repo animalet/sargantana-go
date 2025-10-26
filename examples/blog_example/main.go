@@ -3,10 +3,10 @@ package main
 import (
 	"os"
 
-	"github.com/animalet/sargantana-go/config"
-	"github.com/animalet/sargantana-go/controller"
 	"github.com/animalet/sargantana-go/examples/blog_example/blog"
-	"github.com/animalet/sargantana-go/server"
+	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/controller"
+	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"

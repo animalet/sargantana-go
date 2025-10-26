@@ -6,16 +6,18 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/animalet/sargantana-go/pkg/resolver"
 )
 
 // setupResolversForTest registers resolvers for testing based on the provided config
 func setupResolversForTest(cfg *Config) error {
 	// Always register env resolver
-	RegisterPropertyResolver("env", NewEnvResolver())
+	resolver.Register("env", resolver.NewEnvResolver())
 
 	// Register file resolver if secrets directory is configured
 	if cfg.ServerConfig.SecretsDir != "" {
-		RegisterPropertyResolver("file", NewFileResolver(cfg.ServerConfig.SecretsDir))
+		resolver.Register("file", resolver.NewFileResolver(cfg.ServerConfig.SecretsDir))
 	}
 
 	// Register Vault resolver if Vault is configured
@@ -24,7 +26,7 @@ func setupResolversForTest(cfg *Config) error {
 		if err != nil {
 			return err
 		}
-		RegisterPropertyResolver("vault", NewVaultResolver(client, cfg.Vault.Path))
+		resolver.Register("vault", resolver.NewVaultResolver(client, cfg.Vault.Path))
 	}
 
 	return nil
@@ -61,8 +63,8 @@ func TestCreateVaultManager_Success(t *testing.T) {
 	}
 
 	// Verify the vault resolver is registered
-	resolver := globalResolverRegistry.GetResolver("vault")
-	if resolver == nil {
+	res := resolver.Global.GetResolver("vault")
+	if res == nil {
 		t.Fatal("Vault resolver should be registered")
 	}
 }
@@ -150,12 +152,12 @@ func TestVaultManager_Secret_Success(t *testing.T) {
 	}
 
 	// Test retrieving the pre-configured secrets using the resolver
-	resolver := globalResolverRegistry.GetResolver("vault")
-	if resolver == nil {
+	res := resolver.Global.GetResolver("vault")
+	if res == nil {
 		t.Fatal("Vault resolver should be registered")
 	}
 
-	googleKey, err := resolver.Resolve("GOOGLE_KEY")
+	googleKey, err := res.Resolve("GOOGLE_KEY")
 	if err != nil {
 		t.Fatalf("Failed to retrieve GOOGLE_KEY: %v", err)
 	}
@@ -163,7 +165,7 @@ func TestVaultManager_Secret_Success(t *testing.T) {
 		t.Errorf("Expected GOOGLE_KEY 'test-google-key', got %v", googleKey)
 	}
 
-	sessionSecret, err := resolver.Resolve("SESSION_SECRET")
+	sessionSecret, err := res.Resolve("SESSION_SECRET")
 	if err != nil {
 		t.Fatalf("Failed to retrieve SESSION_SECRET: %v", err)
 	}
@@ -188,12 +190,12 @@ func TestVaultManager_Secret_KVv1(t *testing.T) {
 	}
 
 	// Test retrieving secrets from KV v1 engine using resolver
-	resolver := globalResolverRegistry.GetResolver("vault")
-	if resolver == nil {
+	res := resolver.Global.GetResolver("vault")
+	if res == nil {
 		t.Fatal("Vault resolver should be registered")
 	}
 
-	googleKey, err := resolver.Resolve("GOOGLE_KEY")
+	googleKey, err := res.Resolve("GOOGLE_KEY")
 	if err != nil {
 		t.Fatalf("Failed to retrieve GOOGLE_KEY from KV v1: %v", err)
 	}
@@ -218,12 +220,12 @@ func TestVaultManager_Secret_NonexistentPath(t *testing.T) {
 	}
 
 	// Test with nonexistent path using resolver
-	resolver := globalResolverRegistry.GetResolver("vault")
-	if resolver == nil {
+	res := resolver.Global.GetResolver("vault")
+	if res == nil {
 		t.Fatal("Vault resolver should be registered")
 	}
 
-	_, err = resolver.Resolve("SOME_KEY")
+	_, err = res.Resolve("SOME_KEY")
 	if err == nil {
 		t.Fatal("Expected error when reading from nonexistent path")
 	}
@@ -248,12 +250,12 @@ func TestVaultManager_Secret_NonexistentKey(t *testing.T) {
 	}
 
 	// Test with nonexistent key
-	resolver := globalResolverRegistry.GetResolver("vault")
-	if resolver == nil {
+	res := resolver.Global.GetResolver("vault")
+	if res == nil {
 		t.Fatal("Vault resolver should be registered")
 	}
 
-	_, err = resolver.Resolve("NONEXISTENT_KEY")
+	_, err = res.Resolve("NONEXISTENT_KEY")
 	if err == nil {
 		t.Fatal("Expected error when reading nonexistent key")
 	}
@@ -278,12 +280,12 @@ func TestVaultManager_Secret_InvalidToken(t *testing.T) {
 	}
 
 	// Test with invalid token
-	resolver := globalResolverRegistry.GetResolver("vault")
-	if resolver == nil {
+	res := resolver.Global.GetResolver("vault")
+	if res == nil {
 		t.Fatal("Vault resolver should be registered")
 	}
 
-	_, err = resolver.Resolve("GOOGLE_KEY")
+	_, err = res.Resolve("GOOGLE_KEY")
 	if err == nil {
 		t.Fatal("Expected error when using invalid token")
 	}
@@ -305,8 +307,8 @@ func TestSecretFromFile_Success(t *testing.T) {
 	}
 
 	// Create file resolver and test
-	resolver := NewFileResolver(tempDir)
-	result, err := resolver.Resolve("test-secret")
+	fileResolver := resolver.NewFileResolver(tempDir)
+	result, err := fileResolver.Resolve("test-secret")
 	if err != nil {
 		t.Fatalf("FileResolver.Resolve failed: %v", err)
 	}
@@ -320,9 +322,9 @@ func TestSecretFromFile_Success(t *testing.T) {
 // TestSecretFromFile_NoSecretsDir tests file secret reading without configured secrets directory
 func TestSecretFromFile_NoSecretsDir(t *testing.T) {
 	// Create file resolver with empty directory
-	resolver := NewFileResolver("")
+	fileResolver := resolver.NewFileResolver("")
 
-	_, err := resolver.Resolve("test-secret")
+	_, err := fileResolver.Resolve("test-secret")
 	if err == nil {
 		t.Fatal("Expected error when no secrets directory is configured")
 	}
@@ -336,8 +338,8 @@ func TestSecretFromFile_EmptyFilename(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create file resolver and test with empty filename
-	resolver := NewFileResolver(tempDir)
-	_, err := resolver.Resolve("")
+	fileResolver := resolver.NewFileResolver(tempDir)
+	_, err := fileResolver.Resolve("")
 	if err == nil {
 		t.Fatal("Expected error when filename is empty")
 	}
@@ -351,8 +353,8 @@ func TestSecretFromFile_NonexistentFile(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create file resolver and test with nonexistent file
-	resolver := NewFileResolver(tempDir)
-	_, err := resolver.Resolve("nonexistent-file")
+	fileResolver := resolver.NewFileResolver(tempDir)
+	_, err := fileResolver.Resolve("nonexistent-file")
 	if err == nil {
 		t.Fatal("Expected error when file doesn't exist")
 	}
@@ -425,8 +427,8 @@ func TestExpand_FilePrefix(t *testing.T) {
 	}
 
 	// Register file resolver for this test
-	RegisterPropertyResolver("file", NewFileResolver(tempDir))
-	defer UnregisterPropertyResolver("file")
+	resolver.Register("file", resolver.NewFileResolver(tempDir))
+	defer resolver.Unregister("file")
 
 	result := expand("file:test-secret")
 	if result != secretContent {
@@ -437,8 +439,8 @@ func TestExpand_FilePrefix(t *testing.T) {
 // TestExpand_EnvPrefix tests the expand function with env: prefix
 func TestExpand_EnvPrefix(t *testing.T) {
 	// Register env resolver
-	RegisterPropertyResolver("env", NewEnvResolver())
-	defer UnregisterPropertyResolver("env")
+	resolver.Register("env", resolver.NewEnvResolver())
+	defer resolver.Unregister("env")
 
 	_ = os.Setenv("TEST_EXPAND_VAR", "env-value")
 	defer func() { _ = os.Unsetenv("TEST_EXPAND_VAR") }()
@@ -453,8 +455,8 @@ func TestExpand_EnvPrefix(t *testing.T) {
 // TestExpand_PlainEnvVar tests the expand function with plain environment variable name
 func TestExpand_PlainEnvVar(t *testing.T) {
 	// Register env resolver (used as default when no prefix)
-	RegisterPropertyResolver("env", NewEnvResolver())
-	defer UnregisterPropertyResolver("env")
+	resolver.Register("env", resolver.NewEnvResolver())
+	defer resolver.Unregister("env")
 
 	_ = os.Setenv("TEST_PLAIN_VAR", "plain-value")
 	defer func() { _ = os.Unsetenv("TEST_PLAIN_VAR") }()

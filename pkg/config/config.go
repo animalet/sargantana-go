@@ -7,7 +7,8 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/animalet/sargantana-go/database"
+	"github.com/animalet/sargantana-go/pkg/database"
+	"github.com/animalet/sargantana-go/pkg/resolver"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
@@ -181,7 +182,7 @@ func UnmarshalTo[T Validatable](c ControllerConfig) (*T, error) {
 // If no known prefix is found, it returns the original string unchanged.
 func expand(s string) string {
 	// Use the global resolver registry to resolve the property
-	value, err := globalResolverRegistry.Resolve(s)
+	value, err := resolver.Global.Resolve(s)
 	if err != nil {
 		panic(errors.Wrapf(err, "error resolving property %q", s))
 	}

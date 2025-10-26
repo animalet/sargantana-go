@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/animalet/sargantana-go/config"
+	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"

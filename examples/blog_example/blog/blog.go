@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/animalet/sargantana-go/config"
-	"github.com/animalet/sargantana-go/controller"
+	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"

@@ -5,7 +5,7 @@
 package controller
 
 import (
-	"github.com/animalet/sargantana-go/config"
+	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )

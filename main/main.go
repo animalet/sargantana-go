@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/animalet/sargantana-go/config"
-	"github.com/animalet/sargantana-go/controller"
-	"github.com/animalet/sargantana-go/database"
-	"github.com/animalet/sargantana-go/server"
-	"github.com/animalet/sargantana-go/session"
+	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/controller"
+	"github.com/animalet/sargantana-go/pkg/database"
+	"github.com/animalet/sargantana-go/pkg/resolver"
+	"github.com/animalet/sargantana-go/pkg/server"
+	"github.com/animalet/sargantana-go/pkg/session"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -64,11 +65,11 @@ func main() {
 
 	// Register property resolvers
 	// Environment resolver (default - always register first)
-	config.RegisterPropertyResolver("env", config.NewEnvResolver())
+	resolver.Register("env", resolver.NewEnvResolver())
 
 	// File resolver (if secrets directory is configured)
 	if cfg.ServerConfig.SecretsDir != "" {
-		config.RegisterPropertyResolver("file", config.NewFileResolver(cfg.ServerConfig.SecretsDir))
+		resolver.Register("file", resolver.NewFileResolver(cfg.ServerConfig.SecretsDir))
 		log.Info().Str("secrets_dir", cfg.ServerConfig.SecretsDir).Msg("File resolver registered")
 	}
 
@@ -79,7 +80,7 @@ func main() {
 			log.Fatal().Err(err).Msg("Failed to create Vault client")
 			os.Exit(1)
 		}
-		config.RegisterPropertyResolver("vault", config.NewVaultResolver(vaultClient, cfg.Vault.Path))
+		resolver.Register("vault", resolver.NewVaultResolver(vaultClient, cfg.Vault.Path))
 		log.Info().Msg("Vault resolver registered")
 	}
 
