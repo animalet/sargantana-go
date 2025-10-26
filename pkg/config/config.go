@@ -47,19 +47,24 @@ type Validatable interface {
 	Validate() error
 }
 
-// ClientFactory is an interface for configurations that can create clients
+// ClientFactory is a generic interface for configurations that can create clients
 // for data sources like Vault, Redis, databases, etc.
+// The type parameter T specifies the concrete client type that will be returned.
 // Implementations should create and configure the appropriate client type
 // from their configuration details.
 //
 // Example implementations:
-//   - VaultConfig.CreateClient() returns *api.Client (Vault client)
-//   - RedisConfig.CreateClient() returns *redis.Pool (Redis connection pool)
-type ClientFactory interface {
+//   - VaultConfig implements ClientFactory[*api.Client]
+//   - RedisConfig implements ClientFactory[*redis.Pool]
+//
+// Usage:
+//
+//	client, err := cfg.Vault.CreateClient()  // Returns (*api.Client, error) directly
+type ClientFactory[T any] interface {
 	Validatable
 	// CreateClient creates and configures a client from the config details.
-	// Returns the client as any type and an error if creation fails.
-	CreateClient() (any, error)
+	// Returns the strongly-typed client T and an error if creation fails.
+	CreateClient() (T, error)
 }
 
 // Validate checks if the ServerConfig has all required fields set.

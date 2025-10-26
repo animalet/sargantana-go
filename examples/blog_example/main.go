@@ -8,7 +8,6 @@ import (
 	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/resolver"
 	"github.com/animalet/sargantana-go/pkg/server"
-	"github.com/hashicorp/vault/api"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -68,11 +67,10 @@ func main() {
 
 	// Register Vault resolver if configured
 	if cfg.Vault != nil {
-		client, err := cfg.Vault.CreateClient()
+		vaultClient, err := cfg.Vault.CreateClient()
 		if err != nil {
 			panic(errors.Wrap(err, "failed to create Vault client"))
 		}
-		vaultClient := client.(*api.Client)
 		resolver.Register("vault", resolver.NewVaultResolver(vaultClient, cfg.Vault.Path))
 	}
 

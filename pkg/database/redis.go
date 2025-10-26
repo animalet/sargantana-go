@@ -46,9 +46,9 @@ func (r RedisConfig) Validate() error {
 }
 
 // CreateClient creates and configures a Redis connection pool from this config.
-// Implements the config.ClientFactory interface.
+// Implements the config.ClientFactory[*redis.Pool] interface.
 // Returns *redis.Pool on success.
-func (r *RedisConfig) CreateClient() (any, error) {
+func (r *RedisConfig) CreateClient() (*redis.Pool, error) {
 	if err := r.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid Redis configuration: %w", err)
 	}

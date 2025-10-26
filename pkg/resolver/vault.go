@@ -31,9 +31,9 @@ func (v *VaultConfig) Validate() error {
 }
 
 // CreateClient creates and configures a Vault client from this config.
-// Implements the config.ClientFactory interface.
+// Implements the config.ClientFactory[*api.Client] interface.
 // Returns *api.Client on success, or an error if client creation fails.
-func (v *VaultConfig) CreateClient() (any, error) {
+func (v *VaultConfig) CreateClient() (*api.Client, error) {
 	return CreateVaultClient(v)
 }
 
