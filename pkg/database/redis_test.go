@@ -167,7 +167,7 @@ func TestNewRedisPoolWithConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pool := NewRedisPoolWithConfig(tt.config)
+			pool := newRedisPoolWithConfig(tt.config)
 			defer func() {
 				err := pool.Close()
 				if err != nil {
@@ -286,7 +286,7 @@ func BenchmarkRedisPool_GetConnection(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			pool := NewRedisPoolWithConfig(bm.config)
+			pool := newRedisPoolWithConfig(bm.config)
 			defer func() {
 				err := pool.Close()
 				if err != nil {
@@ -355,7 +355,7 @@ func BenchmarkRedisPool_TestOnBorrow(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			pool := NewRedisPoolWithConfig(bm.config)
+			pool := newRedisPoolWithConfig(bm.config)
 			defer func() {
 				err := pool.Close()
 				if err != nil {

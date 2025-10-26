@@ -6,40 +6,13 @@ import (
 	"github.com/animalet/sargantana-go/examples/blog_example/blog"
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/controller"
+	"github.com/animalet/sargantana-go/pkg/database"
 	"github.com/animalet/sargantana-go/pkg/resolver"
 	"github.com/animalet/sargantana-go/pkg/server"
-	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
-
-type DatabaseConfig struct {
-	Host     string `yaml:"host"`
-	Port     uint16 `yaml:"port"`
-	Database string `yaml:"database"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-}
-
-func (d DatabaseConfig) Validate() error {
-	if d.Host == "" {
-		return errors.New("host must be set and non-empty")
-	}
-	if d.Port == 0 {
-		return errors.New("port must be set and non-zero")
-	}
-	if d.Database == "" {
-		return errors.New("database must be set and non-empty")
-	}
-	if d.User == "" {
-		return errors.New("user must be set and non-empty")
-	}
-	if d.Password == "" {
-		return errors.New("password must be set and non-empty")
-	}
-	return nil
-}
 
 func main() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{
@@ -74,29 +47,18 @@ func main() {
 		resolver.Register("vault", resolver.NewVaultResolver(vaultClient, cfg.Vault.Path))
 	}
 
-	dbConfig, err := config.LoadConfig[DatabaseConfig]("database", cfg)
+	postgresCfg, err := config.LoadConfig[database.PostgresConfig]("database", cfg)
 	if err != nil {
-		panic(err)
+		panic(errors.Wrap(err, "failed to load PostgreSQL configuration"))
 	}
 
-	database, err := pgx.Connect(pgx.ConnConfig{
-		Host:     dbConfig.Host,
-		Port:     dbConfig.Port,
-		Database: dbConfig.Database,
-		User:     dbConfig.User,
-		Password: dbConfig.Password,
-	})
-
+	pool, err := postgresCfg.CreateClient()
 	if err != nil {
-		panic(err)
+		panic(errors.Wrap(err, "failed to create PostgreSQL connection pool"))
 	}
-	defer func() {
-		if err := database.Close(); err != nil {
-			log.Printf("Error closing database: %v", err)
-		}
-	}()
+	defer pool.Close()
 
-	server.AddControllerType("blog", blog.NewBlogController(database))
+	server.AddControllerType("blog", blog.NewBlogController(pool))
 
 	sargantana, err := server.NewServer(cfg)
 

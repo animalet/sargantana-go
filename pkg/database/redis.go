@@ -48,11 +48,11 @@ func (r RedisConfig) Validate() error {
 // CreateClient creates and configures a Redis connection pool from this config.
 // Implements the config.ClientFactory[*redis.Pool] interface.
 // Returns *redis.Pool on success.
-func (r *RedisConfig) CreateClient() (*redis.Pool, error) {
+func (r RedisConfig) CreateClient() (*redis.Pool, error) {
 	if err := r.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid Redis configuration: %w", err)
 	}
-	return NewRedisPoolWithConfig(r), nil
+	return newRedisPoolWithConfig(&r), nil
 }
 
 // TLSConfig holds TLS configuration for Redis connections
@@ -63,14 +63,14 @@ type TLSConfig struct {
 	CAFile             string `yaml:"ca_file"`
 }
 
-// NewRedisPoolWithConfig creates a new Redis connection pool with custom configuration.
+// newRedisPoolWithConfig creates a new Redis connection pool with custom configuration.
 // This function provides full control over connection parameters including TLS settings.
 //
 // Parameters:
 //   - config: RedisConfig struct containing all connection parameters
 //
 // Returns a configured Redis connection pool ready for use.
-func NewRedisPoolWithConfig(config *RedisConfig) *redis.Pool {
+func newRedisPoolWithConfig(config *RedisConfig) *redis.Pool {
 	return &redis.Pool{
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
 			if time.Since(t) < time.Minute {

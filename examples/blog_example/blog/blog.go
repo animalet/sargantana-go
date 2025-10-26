@@ -1,6 +1,7 @@
 package blog
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"time"
@@ -10,7 +11,8 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -18,7 +20,7 @@ import (
 type (
 	Controller struct {
 		config   *Config
-		database *pgx.Conn
+		database *pgxpool.Pool
 	}
 	Config struct {
 		FeedPath      string `yaml:"feed_path"`
@@ -50,14 +52,14 @@ func (b *Controller) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 
 func (b *Controller) Close() error { return nil }
 
-func NewBlogController(db *pgx.Conn) controller.Constructor {
+func NewBlogController(db *pgxpool.Pool) controller.Constructor {
 	return func(configData config.ControllerConfig, _ controller.ControllerContext) (controller.IController, error) {
 		cfg, err := config.UnmarshalTo[Config](configData)
 		if err != nil {
 			return nil, err
 		}
 
-		tag, err := db.Exec(`CREATE TABLE IF NOT EXISTS posts (
+		tag, err := db.Exec(context.Background(), `CREATE TABLE IF NOT EXISTS posts (
         id SERIAL PRIMARY KEY,
         title TEXT NOT NULL,
         content TEXT NOT NULL,
@@ -92,7 +94,7 @@ const (
 
 func (b *Controller) getPost(c *gin.Context) {
 	p := post{}
-	err := b.database.QueryRow("SELECT id, title, content, publication_date, owner FROM posts WHERE id=$1", c.Param("id")).
+	err := b.database.QueryRow(context.Background(), "SELECT id, title, content, publication_date, owner FROM posts WHERE id=$1", c.Param("id")).
 		Scan(&p.Id, &p.Title, &p.Content, &p.PublicationDate, &p.Owner)
 	if isDBError(c, err) {
 		return
@@ -121,7 +123,7 @@ func (b *Controller) createPost(c *gin.Context) {
 
 	if newPost.Id != 0 {
 		var owner string
-		err := b.database.QueryRow("SELECT owner FROM posts WHERE id=$1", newPost.Id).Scan(&owner)
+		err := b.database.QueryRow(context.Background(), "SELECT owner FROM posts WHERE id=$1", newPost.Id).Scan(&owner)
 		if isDBError(c, err) {
 			return
 		}
@@ -129,13 +131,13 @@ func (b *Controller) createPost(c *gin.Context) {
 			_ = c.AbortWithError(http.StatusForbidden, err)
 			return
 		}
-		_, err = b.database.Exec("UPDATE posts SET title=$1, content=$2 WHERE id=$3 RETURNING id", newPost.Title, newPost.Content, newPost.Id)
+		_, err = b.database.Exec(context.Background(), "UPDATE posts SET title=$1, content=$2 WHERE id=$3 RETURNING id", newPost.Title, newPost.Content, newPost.Id)
 		if isDBError(c, err) {
 			return
 		}
 		id = newPost.Id
 	} else {
-		err := b.database.QueryRow("INSERT INTO posts (title, content, owner) VALUES ($1,$2, $3) RETURNING id", newPost.Title, newPost.Content, userId).Scan(&id)
+		err := b.database.QueryRow(context.Background(), "INSERT INTO posts (title, content, owner) VALUES ($1,$2, $3) RETURNING id", newPost.Title, newPost.Content, userId).Scan(&id)
 		if isDBError(c, err) {
 			return
 		}
@@ -144,7 +146,7 @@ func (b *Controller) createPost(c *gin.Context) {
 }
 
 func (b *Controller) deletePost(c *gin.Context) {
-	_, err := b.database.Exec("DELETE FROM posts WHERE id=$1", c.Param("id"))
+	_, err := b.database.Exec(context.Background(), "DELETE FROM posts WHERE id=$1", c.Param("id"))
 	if isDBError(c, err) {
 		return
 	}
@@ -152,7 +154,7 @@ func (b *Controller) deletePost(c *gin.Context) {
 }
 
 func (b *Controller) getFeed(c *gin.Context) {
-	rows, err := b.database.Query("SELECT id, title, content, publication_date, owner FROM posts ORDER BY id DESC LIMIT 10")
+	rows, err := b.database.Query(context.Background(), "SELECT id, title, content, publication_date, owner FROM posts ORDER BY id DESC LIMIT 10")
 	if isDBError(c, err) {
 		return
 	}

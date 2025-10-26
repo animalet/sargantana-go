@@ -15,7 +15,6 @@ import (
 
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/controller"
-	"github.com/animalet/sargantana-go/pkg/database"
 	"github.com/animalet/sargantana-go/pkg/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -272,9 +271,11 @@ func (s *Server) createSessionStore(isReleaseMode bool) (*sessions.Store, error)
 		sessionStore = session.NewCookieStore(isReleaseMode, sessionSecret)
 	default:
 		log.Info().Msg("Using Redis for session storage")
-		pool := database.NewRedisPoolWithConfig(s.config.ServerConfig.RedisSessionStore)
+		pool, err := s.config.ServerConfig.RedisSessionStore.CreateClient()
+		if err != nil {
+			return nil, fmt.Errorf("error creating Redis connection pool: %v", err)
+		}
 		s.addShutdownHook(func() error { return pool.Close() })
-		var err error
 		sessionStore, err = session.NewRedisSessionStore(isReleaseMode, sessionSecret, pool)
 		if err != nil {
 			return nil, fmt.Errorf("error creating Redis session store: %v", err)

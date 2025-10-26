@@ -24,7 +24,7 @@ type PostgresConfig struct {
 }
 
 // Validate checks if the PostgresConfig has all required fields set
-func (p *PostgresConfig) Validate() error {
+func (p PostgresConfig) Validate() error {
 	if p.Host == "" {
 		return fmt.Errorf("postgres host must be set and non-empty")
 	}
@@ -82,7 +82,7 @@ func (p *PostgresConfig) Validate() error {
 // CreateClient creates and configures a PostgreSQL connection pool from this config.
 // Implements the config.ClientFactory[*pgxpool.Pool] interface.
 // Returns *pgxpool.Pool on success.
-func (p *PostgresConfig) CreateClient() (*pgxpool.Pool, error) {
+func (p PostgresConfig) CreateClient() (*pgxpool.Pool, error) {
 	if err := p.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid PostgreSQL configuration: %w", err)
 	}
@@ -130,7 +130,7 @@ func (p *PostgresConfig) CreateClient() (*pgxpool.Pool, error) {
 }
 
 // buildConnectionString creates a PostgreSQL connection string from the config
-func (p *PostgresConfig) buildConnectionString() string {
+func (p PostgresConfig) buildConnectionString() string {
 	sslMode := p.SSLMode
 	if sslMode == "" {
 		sslMode = "prefer" // Default to prefer if not specified
@@ -145,12 +145,4 @@ func (p *PostgresConfig) buildConnectionString() string {
 		p.Password,
 		sslMode,
 	)
-}
-
-// NewPostgresPool is a convenience function to create a PostgreSQL connection pool
-// from a PostgresConfig. This is equivalent to calling config.CreateClient().
-//
-// Deprecated: Use PostgresConfig.CreateClient() directly instead.
-func NewPostgresPool(config *PostgresConfig) (*pgxpool.Pool, error) {
-	return config.CreateClient()
 }
