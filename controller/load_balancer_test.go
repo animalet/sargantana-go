@@ -66,7 +66,7 @@ func TestNewLoadBalancerController(t *testing.T) {
 				t.Fatalf("Failed to marshal config: %v", err)
 			}
 
-			controller, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+			controller, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 
 			if tt.expectedError {
 				if err == nil {
@@ -118,7 +118,7 @@ func TestLoadBalancer_Bind(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			configBytes, _ := yaml.Marshal(tt.configData)
-			lbController, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+			lbController, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 			if err != nil {
 				t.Fatalf("Failed to create load balancer controller: %v", err)
 			}
@@ -162,7 +162,7 @@ func TestLoadBalancer_NextEndpoint(t *testing.T) {
 		Endpoints: []string{"http://backend1.com", "http://backend2.com", "http://backend3.com"},
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+	controller, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create load balancer controller: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestLoadBalancer_Forward(t *testing.T) {
 		Endpoints: []string{backend.URL},
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	lbController, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+	lbController, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create load balancer controller: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestLoadBalancer_ForwardWithBody(t *testing.T) {
 		Endpoints: []string{backend.URL},
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	lbController, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+	lbController, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create load balancer controller: %v", err)
 	}
@@ -310,7 +310,7 @@ func TestLoadBalancer_Close(t *testing.T) {
 		Endpoints: []string{"http://backend1.com"},
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	lbController, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+	lbController, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create load balancer controller: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestLoadBalancer_ConcurrentAccess(t *testing.T) {
 		Endpoints: []string{"http://backend1.com", "http://backend2.com"},
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+	controller, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create load balancer controller: %v", err)
 	}
@@ -367,7 +367,7 @@ func TestLoadBalancer_ForwardFailedBackend(t *testing.T) {
 		Endpoints: []string{"http://nonexistent-backend.com:9999"},
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	lbController, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+	lbController, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create load balancer controller: %v", err)
 	}
@@ -428,7 +428,7 @@ func TestLoadBalancer_ForwardWithSetCookieHeader(t *testing.T) {
 		Endpoints: []string{backend.URL},
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	lbController, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+	lbController, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create load balancer controller: %v", err)
 	}
@@ -460,7 +460,7 @@ func TestNewLoadBalancerController_InvalidURL(t *testing.T) {
 	}
 	configBytes, _ := yaml.Marshal(configData)
 
-	controller, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+	controller, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 
 	if err == nil {
 		t.Fatal("Expected error for invalid URL, but got none")
@@ -497,7 +497,7 @@ func TestLoadBalancer_ForwardWithFilteredHeaders(t *testing.T) {
 		Endpoints: []string{backend.URL},
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	lbController, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+	lbController, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create load balancer controller: %v", err)
 	}
@@ -572,7 +572,7 @@ func TestLoadBalancer_ForwardWithInvalidRequest(t *testing.T) {
 		Endpoints: []string{backend.URL},
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	lbController, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+	lbController, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create load balancer controller: %v", err)
 	}
@@ -621,7 +621,7 @@ func TestLoadBalancer_ForwardWithCopyError(t *testing.T) {
 		Endpoints: []string{backend.URL},
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	lbController, err := NewLoadBalancerController(configBytes, config.ServerConfig{})
+	lbController, err := NewLoadBalancerController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create load balancer controller: %v", err)
 	}

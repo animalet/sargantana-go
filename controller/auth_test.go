@@ -13,7 +13,6 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
-	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/openidConnect"
 	"gopkg.in/yaml.v3"
 )
@@ -37,6 +36,14 @@ func newTestAuthConfig() AuthControllerConfig {
 				Secret: "test-client-secret",
 			},
 		},
+	}
+}
+
+// Helper function to create a test ControllerContext
+func newTestControllerContext(serverConfig config.ServerConfig, sessionStore *sessions.Store) ControllerContext {
+	return ControllerContext{
+		ServerConfig: serverConfig,
+		SessionStore: sessionStore,
 	}
 }
 
@@ -99,7 +106,8 @@ func TestNewAuthController(t *testing.T) {
 				t.Fatalf("Failed to marshal config: %v", err)
 			}
 
-			authController, err := NewAuthController(configBytes, tt.serverConfig)
+			ctx := newTestControllerContext(tt.serverConfig, nil)
+			authController, err := NewAuthController(configBytes, ctx)
 
 			if tt.expectedError && err == nil {
 				t.Error("Expected error but got none")
@@ -119,7 +127,7 @@ func TestAuth_UserFactory(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	controller, err := NewAuthController(configBytes, serverConfig)
+	controller, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
@@ -249,7 +257,7 @@ func TestAuth_Close(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	controller, err := NewAuthController(configBytes, serverConfig)
+	controller, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
@@ -268,7 +276,7 @@ func TestAuth_Routes(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	authController, err := NewAuthController(configBytes, serverConfig)
+	authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
@@ -309,7 +317,7 @@ func TestAuth_UserRoute_NoAuth(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	authController, err := NewAuthController(configBytes, serverConfig)
+	authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
@@ -336,7 +344,7 @@ func TestAuth_AuthRouteHandler(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	authController, err := NewAuthController(configBytes, serverConfig)
+	authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
@@ -365,7 +373,7 @@ func TestAuth_CallbackRouteHandler(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	authController, err := NewAuthController(configBytes, serverConfig)
+	authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
@@ -394,7 +402,7 @@ func TestAuth_LogoutRouteHandler(t *testing.T) {
 	configBytes, _ := yaml.Marshal(configData)
 	serverConfig := config.ServerConfig{Address: "localhost:8080"}
 
-	authController, err := NewAuthController(configBytes, serverConfig)
+	authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
@@ -476,7 +484,7 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 			configBytes, _ := yaml.Marshal(configData)
 			serverConfig := config.ServerConfig{Address: tt.configAddress}
 
-			authController, err := NewAuthController(configBytes, serverConfig)
+			authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 			if err != nil {
 				t.Fatalf("Failed to create auth controller: %v", err)
 			}
@@ -815,15 +823,18 @@ func TestAuth_IntegrationTest(t *testing.T) {
 	engine := gin.New()
 	store := cookie.NewStore([]byte("test-secret"))
 	engine.Use(sessions.Sessions("test", store))
-	gothic.Store = store
 
 	configData := newTestAuthConfig()
 
 	address := "localhost:8080"
 	ProviderFactory = &MockProviderFactory{}
-	serverConfig := config.ServerConfig{Address: address}
+	serverConfig := config.ServerConfig{
+		Address: address,
+	}
 	configBytes, _ := yaml.Marshal(configData)
-	authController, err := NewAuthController(configBytes, serverConfig)
+	var sessionStore sessions.Store = store
+	ctx := newTestControllerContext(serverConfig, &sessionStore)
+	authController, err := NewAuthController(configBytes, ctx)
 	if err != nil {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}

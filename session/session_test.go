@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/gomodule/redigo/redis"
-	"github.com/markbates/goth/gothic"
 )
 
 func TestNewCookieStore(t *testing.T) {
@@ -43,10 +42,7 @@ func TestNewCookieStore(t *testing.T) {
 				t.Fatal("NewCookieStore returned nil")
 			}
 
-			// Verify that gothic.Store was set
-			if gothic.Store == nil {
-				t.Error("gothic.Store was not set")
-			}
+			// Note: gothic.Store is now set by the Auth controller, not by NewCookieStore
 		})
 	}
 }
@@ -111,10 +107,7 @@ func TestNewRedisSessionStore(t *testing.T) {
 				t.Fatal("NewRedisSessionStore returned nil")
 			}
 
-			// Verify that gothic.Store was set
-			if gothic.Store == nil {
-				t.Error("gothic.Store was not set")
-			}
+			// Note: gothic.Store is now set by the Auth controller, not by NewRedisSessionStore
 		})
 	}
 }
@@ -144,10 +137,7 @@ func TestNewRedisSessionStore_WithConnectionError(t *testing.T) {
 		t.Error("NewRedisSessionStore should return nil store on connection error")
 	}
 
-	// Verify that gothic.Store was set despite connection issues
-	if gothic.Store == nil {
-		t.Error("gothic.Store was not set")
-	}
+	// Note: gothic.Store is now set by the Auth controller, not by NewRedisSessionStore
 }
 
 func TestNewRedisSessionStore_WithInvalidSecret(t *testing.T) {

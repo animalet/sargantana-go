@@ -51,7 +51,7 @@ func (m *MockController) Close() error {
 
 func setupTestEnvironment() {
 	// Register a mock controller for testing
-	AddControllerType("mock", func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
+	AddControllerType("mock", func(controllerConfig config.ControllerConfig, ctx controller.ControllerContext) (controller.IController, error) {
 		return &MockController{}, nil
 	})
 }
@@ -135,10 +135,8 @@ controllers:
 		t.Error("Expected session name to be 'test_session'")
 	}
 
-	// Verify controllers were configured during NewServer
-	if len(server.controllers) != 1 {
-		t.Errorf("Expected 1 controller, got %d", len(server.controllers))
-	}
+	// Note: Controllers are now configured during Start() (in bootstrap()), not in NewServer()
+	// This is because they need access to the session store via ControllerContext
 
 	// Start server (this will attempt to create Redis session store and may fail)
 	err = server.Start()
@@ -159,10 +157,14 @@ controllers:
 
 	// If server started successfully, verify the mock controller was bound
 	if err == nil && server.httpServer != nil {
-		if mockController, ok := server.controllers[0].(*MockController); ok {
-			if !mockController.bindCalled {
-				t.Error("Expected controller Bind method to be called when server starts successfully")
+		if len(server.controllers) > 0 {
+			if mockController, ok := server.controllers[0].(*MockController); ok {
+				if !mockController.bindCalled {
+					t.Error("Expected controller Bind method to be called when server starts successfully")
+				}
 			}
+		} else {
+			t.Error("Expected controllers to be configured after successful start")
 		}
 
 		// Cleanup if server started successfully
@@ -175,13 +177,9 @@ controllers:
 		// The important part is that we verified the configuration was loaded correctly
 		t.Logf("Server failed to start (expected in test environment without Redis): %v", err)
 
-		// Even if server failed to start, we can still verify the controller was configured
-		if mockController, ok := server.controllers[0].(*MockController); ok {
-			// The controller should be created but not bound if server failed to start
-			if mockController.bindCalled {
-				t.Log("Controller was bound despite server start failure (unexpected but not critical)")
-			}
-		}
+		// Controllers are only configured if bootstrap() succeeds (which requires session store creation)
+		// So if Start() fails, controllers won't be configured - this is expected
+		t.Log("Controllers not configured because session store creation failed (expected behavior)")
 	}
 }
 
@@ -588,9 +586,10 @@ controllers:
 	if server == nil {
 		t.Fatal("NewServer returned nil")
 	}
-	if len(server.controllers) == 0 {
-		t.Error("Expected at least one controller to be configured")
-	}
+
+	// Note: Controllers are now configured during Start() (in bootstrap()), not in NewServer()
+	// This is because they need access to the session store via ControllerContext
+	// So we need to start the server to test controller configuration
 }
 
 func TestServer_Start(t *testing.T) {
@@ -864,7 +863,7 @@ func TestAddControllerType(t *testing.T) {
 	}()
 
 	// Test adding a new controller type
-	mockConstructor := func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
+	mockConstructor := func(controllerConfig config.ControllerConfig, ctx controller.ControllerContext) (controller.IController, error) {
 		return &MockController{}, nil
 	}
 
@@ -875,7 +874,7 @@ func TestAddControllerType(t *testing.T) {
 	}
 
 	// Test overriding an existing controller type
-	mockConstructor2 := func(controllerConfig config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
+	mockConstructor2 := func(controllerConfig config.ControllerConfig, ctx controller.ControllerContext) (controller.IController, error) {
 		return &MockController{}, nil
 	}
 

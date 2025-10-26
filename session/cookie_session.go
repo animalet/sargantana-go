@@ -11,8 +11,7 @@ import (
 )
 
 // NewCookieStore creates a new cookie-based session store with secure default settings.
-// The store is configured with appropriate security settings based on the deployment mode
-// and integrates with the Goth authentication library for OAuth2 session management.
+// The store is configured with appropriate security settings based on the deployment mode.
 //
 // Parameters:
 //   - isReleaseMode: Whether the application is running in production mode (affects cookie security)

@@ -82,7 +82,7 @@ func TestNewStaticController(t *testing.T) {
 				t.Fatalf("Failed to marshal config: %v", err)
 			}
 
-			controller, err := NewStaticController(configBytes, config.ServerConfig{})
+			controller, err := NewStaticController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 
 			if tt.expectedError {
 				if err == nil {
@@ -131,7 +131,7 @@ func TestStatic_BindDirectory(t *testing.T) {
 		Dir:  staticDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewStaticController(configBytes, config.ServerConfig{})
+	controller, err := NewStaticController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestStatic_BindFile(t *testing.T) {
 		File: faviconPath,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
+	staticController, err := NewStaticController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestStatic_Close(t *testing.T) {
 		Dir:  staticDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	staticController, err := NewStaticController(configBytes, config.ServerConfig{})
+	staticController, err := NewStaticController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
@@ -288,12 +288,13 @@ func TestStatic_MultipleInstances(t *testing.T) {
 	publicBytes, _ := yaml.Marshal(publicConfig)
 	adminBytes, _ := yaml.Marshal(adminConfig)
 
-	publicController, err := NewStaticController(publicBytes, config.ServerConfig{})
+	ctx := ControllerContext{ServerConfig: config.ServerConfig{}}
+	publicController, err := NewStaticController(publicBytes, ctx)
 	if err != nil {
 		t.Fatalf("Failed to create public controller: %v", err)
 	}
 
-	adminController, err := NewStaticController(adminBytes, config.ServerConfig{})
+	adminController, err := NewStaticController(adminBytes, ctx)
 	if err != nil {
 		t.Fatalf("Failed to create admin controller: %v", err)
 	}

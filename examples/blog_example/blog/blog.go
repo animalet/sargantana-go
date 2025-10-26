@@ -51,7 +51,7 @@ func (b *Controller) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 func (b *Controller) Close() error { return nil }
 
 func NewBlogController(db *pgx.Conn) controller.Constructor {
-	return func(configData config.ControllerConfig, _ config.ServerConfig) (controller.IController, error) {
+	return func(configData config.ControllerConfig, _ controller.ControllerContext) (controller.IController, error) {
 		cfg, err := config.UnmarshalTo[Config](configData)
 		if err != nil {
 			return nil, err

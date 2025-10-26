@@ -19,7 +19,6 @@ import (
 	"github.com/animalet/sargantana-go/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"github.com/markbates/goth/gothic"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -90,17 +89,9 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		return nil, errors.Wrap(err, "failed to load configuration")
 	}
 
-	controllers, configurationErrors := configureControllers(cfg)
-	if len(configurationErrors) > 0 {
-		log.Error().Msg("Configuration errors encountered, affected controllers have been excluded from bootstrap:")
-		for _, configErr := range configurationErrors {
-			log.Error().Msgf(" - %v", configErr)
-		}
-	} else {
-		log.Info().Msg("Configuration loaded successfully")
-	}
+	log.Info().Msg("Configuration loaded successfully")
 
-	return &Server{config: cfg, controllers: controllers}, nil
+	return &Server{config: cfg}, nil
 }
 
 func AddControllerType(typeName string, factory controller.Constructor) {
@@ -112,8 +103,14 @@ func AddControllerType(typeName string, factory controller.Constructor) {
 	controllerRegistry[typeName] = factory
 }
 
-func configureControllers(c *config.Config) (controllers []controller.IController, configErrors []error) {
+func configureControllers(c *config.Config, sessionStore *sessions.Store) (controllers []controller.IController, configErrors []error) {
 	instanceCounts := make(map[string]int) // Track instances per type for auto-naming
+
+	// Build the controller context with runtime dependencies
+	ctx := controller.ControllerContext{
+		ServerConfig: c.ServerConfig,
+		SessionStore: sessionStore,
+	}
 
 	for _, binding := range c.ControllerBindings {
 		// Generate instance name
@@ -134,7 +131,7 @@ func configureControllers(c *config.Config) (controllers []controller.IControlle
 			continue
 		}
 
-		newController, err := newController(c, instanceName, binding, factory)
+		newController, err := newController(ctx, instanceName, binding, factory)
 		if err == nil {
 			controllers = append(controllers, newController)
 		} else {
@@ -144,7 +141,7 @@ func configureControllers(c *config.Config) (controllers []controller.IControlle
 	return controllers, configErrors
 }
 
-func newController(c *config.Config, name string, binding config.ControllerBinding, factory controller.Constructor) (newController controller.IController, err error) {
+func newController(ctx controller.ControllerContext, name string, binding config.ControllerBinding, factory controller.Constructor) (newController controller.IController, err error) {
 	log.Info().Msgf("Configuring %s controller of type: %s", name, binding.TypeName)
 	defer func() {
 		if r := recover(); r != nil {
@@ -152,7 +149,7 @@ func newController(c *config.Config, name string, binding config.ControllerBindi
 			newController = nil
 		}
 	}()
-	if newController, err = factory(binding.ConfigData, c.ServerConfig); err != nil {
+	if newController, err = factory(binding.ConfigData, ctx); err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to configure %s controller of type: %s", name, binding.TypeName))
 	}
 	return newController, err
@@ -216,6 +213,16 @@ func (s *Server) Start() (err error) {
 func (s *Server) bootstrap() error {
 	log.Info().Msg("Bootstrapping server...")
 
+	// Configure controllers with session store now that it's available
+	controllers, configurationErrors := configureControllers(s.config, s.sessionStore)
+	if len(configurationErrors) > 0 {
+		log.Error().Msg("Configuration errors encountered, affected controllers have been excluded from bootstrap:")
+		for _, configErr := range configurationErrors {
+			log.Error().Msgf(" - %v", configErr)
+		}
+	}
+	s.controllers = controllers
+
 	// Initialize Gin engine
 	gin.ForceConsoleColor()
 	engine := gin.New()
@@ -273,7 +280,6 @@ func (s *Server) createSessionStore(isReleaseMode bool) (*sessions.Store, error)
 			return nil, fmt.Errorf("error creating Redis session store: %v", err)
 		}
 	}
-	gothic.Store = sessionStore
 	return &sessionStore, nil
 }
 

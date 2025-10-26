@@ -9,8 +9,7 @@ import (
 )
 
 // NewRedisSessionStore creates a new Redis-based session store with secure default settings.
-// This store provides distributed session storage suitable for multi-instance deployments
-// and integrates with the Goth authentication library for OAuth2 session management.
+// This store provides distributed session storage suitable for multi-instance deployments.
 //
 // Parameters:
 //   - isReleaseMode: Whether the application is running in production mode (affects cookie security)
@@ -24,7 +23,7 @@ import (
 //   - HttpOnly: true (prevents JavaScript access to cookies)
 //   - SameSite: Lax mode (balanced security and functionality)
 //
-// The function will log fatal errors and exit if Redis store creation fails.
+// Returns an error if Redis store creation or configuration fails.
 func NewRedisSessionStore(isReleaseMode bool, secret []byte, pool *redis.Pool) (sessions.Store, error) {
 	store, err := redissessions.NewStoreWithPool(pool, secret)
 	if err != nil {

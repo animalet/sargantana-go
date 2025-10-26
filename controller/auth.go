@@ -131,7 +131,7 @@ func (a AuthControllerConfig) Validate() error {
 	return nil
 }
 
-func NewAuthController(configData config.ControllerConfig, serverConfig config.ServerConfig) (IController, error) {
+func NewAuthController(configData config.ControllerConfig, ctx ControllerContext) (IController, error) {
 	c, err := config.UnmarshalTo[AuthControllerConfig](configData)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal auth controller config")
@@ -141,7 +141,7 @@ func NewAuthController(configData config.ControllerConfig, serverConfig config.S
 	if c.CallbackHost != "" {
 		callbackEndpoint = c.CallbackHost
 	} else {
-		address := serverConfig.Address
+		address := ctx.ServerConfig.Address
 		// Add http:// if not present
 		if !strings.Contains(address, "://") {
 			address = "http://" + address
@@ -168,6 +168,12 @@ func NewAuthController(configData config.ControllerConfig, serverConfig config.S
 	providers := providerFactory.CreateProviders(callbackURLTemplate)
 	if len(providers) > 0 {
 		goth.UseProviders(providers...)
+	}
+
+	// Set the gothic store if available in controller context
+	if ctx.SessionStore != nil {
+		gothic.Store = *ctx.SessionStore
+		log.Debug().Msg("Auth controller: gothic.Store configured from controller context")
 	}
 
 	return &auth{

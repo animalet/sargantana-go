@@ -15,7 +15,7 @@ type TemplateControllerConfig struct {
 	Path string `yaml:"path"`
 }
 
-func NewTemplateController(configData config.ControllerConfig, _ config.ServerConfig) (IController, error) {
+func NewTemplateController(configData config.ControllerConfig, _ ControllerContext) (IController, error) {
 	c, err := config.UnmarshalTo[TemplateControllerConfig](configData)
 	if err != nil {
 		return nil, err
