@@ -2,101 +2,11 @@ package config
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/hashicorp/vault/api"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
-
-// ========================================
-// Environment Variable Resolver
-// ========================================
-
-// EnvResolver resolves properties from environment variables.
-// This is the default resolver when no prefix is specified.
-//
-// Example usage in config:
-//
-//	address: ${PORT}           # Resolves from env (implicit)
-//	address: ${env:PORT}       # Resolves from env (explicit)
-type EnvResolver struct{}
-
-// NewEnvResolver creates a new environment variable resolver
-func NewEnvResolver() *EnvResolver {
-	return &EnvResolver{}
-}
-
-// Resolve retrieves an environment variable value
-func (e *EnvResolver) Resolve(key string) (string, error) {
-	value := os.Getenv(key)
-	// Note: We don't treat empty/missing as an error - Go's os.Expand behavior
-	return value, nil
-}
-
-// Name returns the resolver name
-func (e *EnvResolver) Name() string {
-	return "Environment"
-}
-
-// ========================================
-// File Resolver
-// ========================================
-
-// FileResolver reads secrets from files in a configured directory.
-// Useful for Docker secrets, Kubernetes secrets, or local development.
-//
-// Example usage in config:
-//
-//	password: ${file:db_password}  # Reads from <secretsDir>/db_password
-//
-// The file contents are trimmed of whitespace.
-type FileResolver struct {
-	secretsDir string
-}
-
-// NewFileResolver creates a new file-based resolver
-//
-// Parameters:
-//   - secretsDir: The directory containing secret files
-func NewFileResolver(secretsDir string) *FileResolver {
-	return &FileResolver{
-		secretsDir: secretsDir,
-	}
-}
-
-// Resolve reads a secret from a file
-func (f *FileResolver) Resolve(key string) (string, error) {
-	if f.secretsDir == "" {
-		return "", errors.New("no secrets directory configured")
-	}
-
-	key = strings.TrimSpace(key)
-	if key == "" {
-		return "", errors.New("no file specified for file secret")
-	}
-
-	filePath := filepath.Join(f.secretsDir, key)
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return "", errors.Wrapf(err, "error reading secret file %q", filePath)
-	}
-
-	secret := strings.TrimSpace(string(content))
-	log.Info().Str("file", filePath).Msg("Retrieved secret from file")
-	return secret, nil
-}
-
-// Name returns the resolver name
-func (f *FileResolver) Name() string {
-	return "File"
-}
-
-// ========================================
-// Vault Resolver
-// ========================================
 
 // VaultResolver retrieves secrets from HashiCorp Vault.
 // Supports both KV v1 and KV v2 secret engines.
