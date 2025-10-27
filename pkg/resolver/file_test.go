@@ -110,6 +110,16 @@ func TestFileResolver_Name(t *testing.T) {
 
 // TestFileResolverConfig_Validate tests the Validate method
 func TestFileResolverConfig_Validate(t *testing.T) {
+	// Create a temporary directory for valid tests
+	tempDir := t.TempDir()
+
+	// Create a temporary file for testing "not a directory" case
+	tempFile := filepath.Join(tempDir, "notadir")
+	err := os.WriteFile(tempFile, []byte("test"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+
 	tests := []struct {
 		name      string
 		config    FileResolverConfig
@@ -119,7 +129,7 @@ func TestFileResolverConfig_Validate(t *testing.T) {
 		{
 			name: "valid config",
 			config: FileResolverConfig{
-				SecretsDir: "/path/to/secrets",
+				SecretsDir: tempDir,
 			},
 			wantError: false,
 		},
@@ -130,6 +140,22 @@ func TestFileResolverConfig_Validate(t *testing.T) {
 			},
 			wantError: true,
 			errorMsg:  "secrets_dir is required",
+		},
+		{
+			name: "non-existent directory",
+			config: FileResolverConfig{
+				SecretsDir: "/path/to/nonexistent/directory",
+			},
+			wantError: true,
+			errorMsg:  "does not exist",
+		},
+		{
+			name: "path is a file not a directory",
+			config: FileResolverConfig{
+				SecretsDir: tempFile,
+			},
+			wantError: true,
+			errorMsg:  "is not a directory",
 		},
 	}
 
@@ -153,6 +179,9 @@ func TestFileResolverConfig_Validate(t *testing.T) {
 
 // TestFileResolverConfig_CreateClient tests the CreateClient method
 func TestFileResolverConfig_CreateClient(t *testing.T) {
+	// Create a temporary directory for valid tests
+	tempDir := t.TempDir()
+
 	tests := []struct {
 		name      string
 		config    FileResolverConfig
@@ -161,7 +190,7 @@ func TestFileResolverConfig_CreateClient(t *testing.T) {
 		{
 			name: "valid config",
 			config: FileResolverConfig{
-				SecretsDir: "/path/to/secrets",
+				SecretsDir: tempDir,
 			},
 			wantError: false,
 		},
@@ -169,6 +198,13 @@ func TestFileResolverConfig_CreateClient(t *testing.T) {
 			name: "invalid config - empty secrets dir",
 			config: FileResolverConfig{
 				SecretsDir: "",
+			},
+			wantError: true,
+		},
+		{
+			name: "invalid config - non-existent directory",
+			config: FileResolverConfig{
+				SecretsDir: "/nonexistent/path/to/secrets",
 			},
 			wantError: true,
 		},

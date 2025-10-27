@@ -19,6 +19,18 @@ func (f FileResolverConfig) Validate() error {
 	if f.SecretsDir == "" {
 		return errors.New("secrets_dir is required for file resolver")
 	}
+
+	// Test if the directory exists and is a directory
+	info, err := os.Stat(f.SecretsDir)
+	if os.IsNotExist(err) {
+		return errors.Errorf("secrets_dir %q does not exist", f.SecretsDir)
+	}
+	if err != nil {
+		return errors.Wrapf(err, "error accessing secrets_dir %q", f.SecretsDir)
+	}
+	if !info.IsDir() {
+		return errors.Errorf("secrets_dir %q is not a directory", f.SecretsDir)
+	}
 	return nil
 }
 

@@ -33,27 +33,37 @@ func main() {
     // Environment resolver (default - always register first)
     resolver.Register("env", resolver.NewEnvResolver())
 
-    // File resolver (if secrets directory is configured)
-    if cfg.ServerConfig.SecretsDir != "" {
-        resolver.Register("file", resolver.NewFileResolver(cfg.ServerConfig.SecretsDir))
+    // File resolver (if file_resolver is configured)
+    fileResolverCfg, err := config.LoadConfig[resolver.FileResolverConfig]("file_resolver", cfg)
+    if err == nil {
+        fileResolver, err := fileResolverCfg.CreateClient()
+        if err != nil {
+            log.Fatal().Err(err).Msg("Failed to create file resolver")
+        }
+        resolver.Register("file", fileResolver)
+        log.Info().Str("secrets_dir", fileResolverCfg.SecretsDir).Msg("File resolver registered")
     }
 
-    // Vault resolver (if Vault is configured)
-    if cfg.Vault != nil {
-        vaultClient, err := cfg.Vault.CreateClient()
+    // Vault resolver (if vault is configured)
+    vaultCfg, err := config.LoadConfig[resolver.VaultConfig]("vault", cfg)
+    if err == nil {
+        vaultClient, err := vaultCfg.CreateClient()
         if err != nil {
-            log.Fatal(err)
+            log.Fatal().Err(err).Msg("Failed to create Vault client")
         }
-        resolver.Register("vault", resolver.NewVaultResolver(vaultClient, cfg.Vault.Path))
+        resolver.Register("vault", resolver.NewVaultResolver(vaultClient, vaultCfg.Path))
+        log.Info().Msg("Vault resolver registered")
     }
 
-    // AWS Secrets Manager resolver (if AWS is configured)
-    if cfg.AWS != nil {
-        awsClient, err := cfg.AWS.CreateClient()
+    // AWS Secrets Manager resolver (if aws is configured)
+    awsCfg, err := config.LoadConfig[resolver.AWSConfig]("aws", cfg)
+    if err == nil {
+        awsClient, err := awsCfg.CreateClient()
         if err != nil {
-            log.Fatal(err)
+            log.Fatal().Err(err).Msg("Failed to create AWS client")
         }
-        resolver.Register("aws", resolver.NewAWSResolver(awsClient, cfg.AWS.SecretName))
+        resolver.Register("aws", resolver.NewAWSResolver(awsClient, awsCfg.SecretName))
+        log.Info().Msg("AWS resolver registered")
     }
 
     // Now load and expand the configuration
@@ -94,19 +104,33 @@ Reads secrets from files in a configured directory. Useful for Docker secrets, K
 
 **Usage:**
 ```yaml
-server:
+file_resolver:
   secrets_dir: "/run/secrets"  # Configure the directory
+
+server:
   api_key: ${file:api_key}     # Reads from /run/secrets/api_key
+  db_password: ${file:db_password}
 ```
 
 **Registration:**
 ```go
-if cfg.ServerConfig.SecretsDir != "" {
-    resolver.Register("file", resolver.NewFileResolver(cfg.ServerConfig.SecretsDir))
+fileResolverCfg, err := config.LoadConfig[resolver.FileResolverConfig]("file_resolver", cfg)
+if err == nil {
+    fileResolver, err := fileResolverCfg.CreateClient()
+    if err != nil {
+        log.Fatal().Err(err).Msg("Failed to create file resolver")
+    }
+    resolver.Register("file", fileResolver)
 }
 ```
 
-**Configuration:** Set `server.secrets_dir` in your YAML config to specify the directory containing secret files.
+**Configuration:** Add a `file_resolver` section to your YAML config:
+- `secrets_dir`: Directory containing secret files (required)
+
+**Validation:** The file resolver validates that:
+- The `secrets_dir` is not empty
+- The directory exists
+- The path is actually a directory (not a file)
 
 **File Format:** Files should contain the secret value as plain text. Whitespace is automatically trimmed.
 
@@ -129,12 +153,13 @@ server:
 
 **Registration:**
 ```go
-if cfg.Vault != nil {
-    vaultClient, err := cfg.Vault.CreateClient()
+vaultCfg, err := config.LoadConfig[resolver.VaultConfig]("vault", cfg)
+if err == nil {
+    vaultClient, err := vaultCfg.CreateClient()
     if err != nil {
-        log.Fatal(err)
+        log.Fatal().Err(err).Msg("Failed to create Vault client")
     }
-    resolver.Register("vault", resolver.NewVaultResolver(vaultClient, cfg.Vault.Path))
+    resolver.Register("vault", resolver.NewVaultResolver(vaultClient, vaultCfg.Path))
 }
 ```
 
@@ -164,12 +189,13 @@ server:
 
 **Registration:**
 ```go
-if cfg.AWS != nil {
-    awsClient, err := cfg.AWS.CreateClient()
+awsCfg, err := config.LoadConfig[resolver.AWSConfig]("aws", cfg)
+if err == nil {
+    awsClient, err := awsCfg.CreateClient()
     if err != nil {
-        log.Fatal(err)
+        log.Fatal().Err(err).Msg("Failed to create AWS client")
     }
-    resolver.Register("aws", resolver.NewAWSResolver(awsClient, cfg.AWS.SecretName))
+    resolver.Register("aws", resolver.NewAWSResolver(awsClient, awsCfg.SecretName))
 }
 ```
 
@@ -363,13 +389,50 @@ resolver.Unregister("custom")
 
 This is primarily useful in tests or when dynamically managing resolvers.
 
+## Modular Configuration Pattern
+
+All resolver configurations (except the environment resolver) use the modular `LoadConfig[T]()` pattern:
+
+```yaml
+# Optional resolver configurations
+file_resolver:
+  secrets_dir: "./secrets"
+
+vault:
+  address: "http://localhost:8200"
+  token: "${env:VAULT_TOKEN}"
+  path: "secret/data/myapp"
+
+aws:
+  region: "us-east-1"
+  secret_name: "myapp/prod"
+```
+
+**Key principles:**
+1. **Optional by design**: If a resolver section is not present in the config, it's simply not loaded
+2. **Type-safe**: Each resolver config implements `Validatable` interface
+3. **ClientFactory pattern**: Each config has a `CreateClient()` method that returns the typed client
+4. **Consistent loading**: All use `config.LoadConfig[T]("key", cfg)` pattern
+5. **Validation**: Configs are validated before client creation
+
+**Example configuration types:**
+- `resolver.FileResolverConfig` - File-based secrets
+- `resolver.VaultConfig` - HashiCorp Vault
+- `resolver.AWSConfig` - AWS Secrets Manager
+
+This pattern ensures the core `ServerConfig` remains minimal and focused only on essential server settings (address, session name/secret), while optional components are loaded modularly.
+
 ## Architecture Notes
 
 The property resolver system is located in the `pkg/resolver/` package and uses:
 - **PropertyResolver interface**: Contract for all resolvers (`resolver` package)
 - **PropertyResolverRegistry**: Thread-safe registry mapping prefixes to resolvers (`resolver` package)
-- **Global registry**: `Global` instance used by the config system
+- **Global registry**: `Global()` instance used by the config system
 - **Parser**: Splits "prefix:key" syntax (defaults to "env:" if no prefix)
 - **Expansion**: Integrated with Go's `os.Expand()` during config loading
 
-The system is fully decoupled from the config package - the config package calls `resolver.Global.Resolve()` to resolve properties, but doesn't contain any resolver implementations.
+The system is fully decoupled from the config package:
+- The `config` package calls `resolver.Global().Resolve()` to resolve properties
+- The `resolver` package contains all resolver implementations
+- The `config` package has no knowledge of specific resolvers
+- Applications control which resolvers are available by registering them
