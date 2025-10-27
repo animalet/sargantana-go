@@ -15,20 +15,33 @@
 
 ## What is this?
 
-Sargantana Go is a performant web application framework built on top of [Gin](https://github.com/gin-gonic/gin) that
-provides simple solutions for common web development scenarios. It includes built-in support for multi-provider
-authentication,
-session management, static file serving, load balancing, and database integration.
+Sargantana Go is a modular configuration-driven web framework built on [Gin](https://github.com/gin-gonic/gin) that provides:
 
-I started this as a side project to improve my Go skills and to have a solid base for building web applications quickly.
-It is designed to be easy to use and extend, allowing developers to focus on building their applications rather than
-dealing with boilerplate code.
+** Configuration System with Secret Management**
+- YAML-based configuration with environment variable expansion
+- Pluggable property resolvers (env, file, Vault, AWS Secrets Manager)
+- Type-safe configuration loading with validation via `ClientFactory[T]` pattern
 
-## Disclaimer
+** Modular Web Server Architecture**
+- Controller-based system where each controller type can have multiple instances
+- Built-in controllers: OAuth authentication (via Goth), static file serving, template rendering, load balancing
+- Easy to extend with custom controllers
+- Graceful shutdown with cleanup hooks
 
-This project is currently in active development and may not be suitable for production use. While I have implemented
-basic functionality and tested it in development environments, there are no guarantees regarding its stability,
-security, or performance yet. Use at your own risk.
+** Data Source Integration**
+- **Databases**: PostgreSQL (pgxpool), Redis, Neo4j
+- **Secret Management**: HashiCorp Vault, AWS Secrets Manager, file-based secrets
+- All use the `ClientFactory[T]` pattern for type-safe, validated client creation
+
+** Flexible Session Management**
+- Cookie-based or Redis-backed sessions
+- Inject custom session stores via `SetSessionStore()`
+
+**The key differentiator** is the tight integration between configuration, secret management, and the web framework - allowing you to build highly customized web applications where secrets are resolved at runtime from multiple sources, controllers are dynamically registered and configured, and database clients are created with validated, type-safe configs. It's a **"batteries-included but swappable"** framework - you get sensible defaults and common integrations out of the box, but every piece is designed to be replaceable or extended.
+
+### Personal Learning Project
+
+This is a personal side project I created for my own learning and practicing with both Go and vibe coding (AI-assisted development). While it's functional and includes comprehensive tests, it's primarily an educational endeavor to explore Go's ecosystem, web framework patterns, and modern development workflows. Feel free to use it, learn from it, or contribute to it!
 
 ## Features
 
