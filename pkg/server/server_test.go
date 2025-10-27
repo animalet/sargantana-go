@@ -346,10 +346,6 @@ controllers:
 		t.Error("Expected cookie session storage message not found in logs")
 	}
 
-	if server.config.ServerConfig.RedisSessionStore != nil {
-		t.Error("Expected Redis session store to be nil when not configured")
-	}
-
 	// Cleanup
 	if server.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -470,7 +466,6 @@ func TestNewServer(t *testing.T) {
 
 			configContent := `server:
   address: "` + tt.configData.ServerConfig.Address + `"
-  secrets_dir: "` + tt.configData.ServerConfig.SecretsDir + `"
   session_name: "` + tt.configData.ServerConfig.SessionName + `"
   session_secret: "` + tt.configData.ServerConfig.SessionSecret + `"
 controllers: []`
@@ -501,14 +496,6 @@ controllers: []`
 					t.Errorf("Address = %v, want %v", server.config.ServerConfig.Address, tt.configData.ServerConfig.Address)
 				}
 
-				// Redis session store should be nil for basic config
-				if server.config.ServerConfig.RedisSessionStore != nil {
-					t.Error("Expected Redis session store to be nil for basic config")
-				}
-
-				if server.config.ServerConfig.SecretsDir != tt.configData.ServerConfig.SecretsDir {
-					t.Errorf("SecretsDir = %v, want %v", server.config.ServerConfig.SecretsDir, tt.configData.ServerConfig.SecretsDir)
-				}
 				if server.config.ServerConfig.SessionName != tt.configData.ServerConfig.SessionName {
 					t.Errorf("SessionName = %v, want %v", server.config.ServerConfig.SessionName, tt.configData.ServerConfig.SessionName)
 				}

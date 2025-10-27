@@ -9,6 +9,29 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// FileResolverConfig holds configuration for the file-based resolver
+type FileResolverConfig struct {
+	SecretsDir string `yaml:"secrets_dir"`
+}
+
+// Validate checks if the FileResolverConfig has all required fields set
+func (f FileResolverConfig) Validate() error {
+	if f.SecretsDir == "" {
+		return errors.New("secrets_dir is required for file resolver")
+	}
+	return nil
+}
+
+// CreateClient creates a FileResolver from this config.
+// Implements a factory pattern similar to other configs.
+// Returns *FileResolver on success, or an error if creation fails.
+func (f FileResolverConfig) CreateClient() (*FileResolver, error) {
+	if err := f.Validate(); err != nil {
+		return nil, err
+	}
+	return newFileResolver(f.SecretsDir), nil
+}
+
 // FileResolver reads secrets from files in a configured directory.
 // Useful for Docker secrets, Kubernetes secrets, or local development.
 //
@@ -21,11 +44,11 @@ type FileResolver struct {
 	secretsDir string
 }
 
-// NewFileResolver creates a new file-based resolver
+// newFileResolver creates a new file-based resolver
 //
 // Parameters:
 //   - secretsDir: The directory containing secret files
-func NewFileResolver(secretsDir string) *FileResolver {
+func newFileResolver(secretsDir string) *FileResolver {
 	return &FileResolver{
 		secretsDir: secretsDir,
 	}

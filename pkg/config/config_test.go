@@ -205,16 +205,12 @@ func TestExpandVariables(t *testing.T) {
 	testConfig := `
 server:
   address: "${TEST_VAR}:8080"
-  redis_session_store:
-    address: "localhost:${TEST_NUMBER}"
-    max_idle: 10
-    idle_timeout: 240s
   session_name: "test-session"
   session_secret: "my-test-secret-key"
-vault:
-  address: "http://localhost:8200"
-  token: "${TEST_VAR}"
-  path: "secret/data/test"
+redis:
+  address: "localhost:${TEST_NUMBER}"
+  max_idle: 10
+  idle_timeout: 240s
 `
 
 	err := os.WriteFile(configFile, []byte(testConfig), 0644)
@@ -233,15 +229,26 @@ vault:
 	if cfg.ServerConfig.Address != "test-value:8080" {
 		t.Errorf("Expected address 'test-value:8080', got '%s'", cfg.ServerConfig.Address)
 	}
-	if cfg.ServerConfig.RedisSessionStore == nil {
-		t.Fatal("Expected RedisSessionStore to be configured")
+
+	// Test that Redis config can be loaded separately
+	redisCfg, err := LoadConfig[RedisExpandTestConfig]("redis", cfg)
+	if err != nil {
+		t.Fatalf("Failed to load Redis config: %v", err)
 	}
-	if cfg.ServerConfig.RedisSessionStore.Address != "localhost:42" {
-		t.Errorf("Expected redis store address 'localhost:42', got '%s'", cfg.ServerConfig.RedisSessionStore.Address)
+	if redisCfg.Address != "localhost:42" {
+		t.Errorf("Expected redis address 'localhost:42', got '%s'", redisCfg.Address)
 	}
-	if cfg.Vault.Token != "test-value" {
-		t.Errorf("Expected Vault token 'test-value', got '%s'", cfg.Vault.Token)
-	}
+}
+
+// RedisExpandTestConfig is a test config type for variable expansion tests
+type RedisExpandTestConfig struct {
+	Address     string `yaml:"address"`
+	MaxIdle     int    `yaml:"max_idle"`
+	IdleTimeout string `yaml:"idle_timeout"`
+}
+
+func (r RedisExpandTestConfig) Validate() error {
+	return nil
 }
 
 // TestControllerConfig_UnmarshalYAML_Error tests error handling in YAML unmarshaling

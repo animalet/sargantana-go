@@ -67,20 +67,27 @@ func main() {
 	// Environment resolver (default - always register first)
 	resolver.Register("env", resolver.NewEnvResolver())
 
-	// File resolver (if secrets directory is configured)
-	if cfg.ServerConfig.SecretsDir != "" {
-		resolver.Register("file", resolver.NewFileResolver(cfg.ServerConfig.SecretsDir))
-		log.Info().Str("secrets_dir", cfg.ServerConfig.SecretsDir).Msg("File resolver registered")
+	// File resolver (if file resolver is configured)
+	fileResolverCfg, err := config.LoadConfig[resolver.FileResolverConfig]("file_resolver", cfg)
+	if err == nil {
+		fileResolver, err := fileResolverCfg.CreateClient()
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to create file resolver")
+			os.Exit(1)
+		}
+		resolver.Register("file", fileResolver)
+		log.Info().Str("secrets_dir", fileResolverCfg.SecretsDir).Msg("File resolver registered")
 	}
 
 	// Vault resolver (if Vault is configured)
-	if cfg.Vault != nil {
-		vaultClient, err := cfg.Vault.CreateClient()
+	vaultCfg, err := config.LoadConfig[resolver.VaultConfig]("vault", cfg)
+	if err == nil {
+		vaultClient, err := vaultCfg.CreateClient()
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to create Vault client")
 			os.Exit(1)
 		}
-		resolver.Register("vault", resolver.NewVaultResolver(vaultClient, cfg.Vault.Path))
+		resolver.Register("vault", resolver.NewVaultResolver(vaultClient, vaultCfg.Path))
 		log.Info().Msg("Vault resolver registered")
 	}
 

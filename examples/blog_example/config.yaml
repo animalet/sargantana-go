@@ -2,19 +2,22 @@ server:
   address: "localhost:8080"
   session_secret: "${file:SESSION_SECRET}"
   session_name: "sargantana_session"
+
+file_resolver:  # File-based secrets resolver
   secrets_dir: "./secrets"
-  redis_session_store:  # TLS-enabled Redis for session storage
-    address: "localhost:6380"  # TLS Redis server address
-    username: "redisuser"           # Redis password (if any)
-    password: "redispass"           # Redis password (if any)
-    database: 0                  # Redis database number
-    max_idle: 10          # Max idle connections
-    idle_timeout: "2m"     # Idle timeout in seconds
-    tls:                   # TLS configuration for secure connections
-      insecure_skip_verify: true   # Skip certificate verification for self-signed certs
-      cert_file: "../../certs/redis.crt"  # Client certificate file
-      key_file: "../../certs/redis.key"   # Client private key file
-      ca_file: "../../certs/ca.crt"        # CA certificate file
+
+redis:  # TLS-enabled Redis for session storage
+  address: "localhost:6380"  # TLS Redis server address
+  username: "redisuser"           # Redis password (if any)
+  password: "redispass"           # Redis password (if any)
+  database: 0                  # Redis database number
+  max_idle: 10          # Max idle connections
+  idle_timeout: "2m"     # Idle timeout in seconds
+  tls:                   # TLS configuration for secure connections
+    insecure_skip_verify: true   # Skip certificate verification for self-signed certs
+    cert_file: "../../certs/redis.crt"  # Client certificate file
+    key_file: "../../certs/redis.key"   # Client private key file
+    ca_file: "../../certs/ca.crt"        # CA certificate file
 
 database: # postgresql
   host: "localhost"

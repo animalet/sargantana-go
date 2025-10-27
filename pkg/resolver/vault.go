@@ -17,7 +17,7 @@ type VaultConfig struct {
 }
 
 // Validate checks if the VaultConfig has all required fields set
-func (v *VaultConfig) Validate() error {
+func (v VaultConfig) Validate() error {
 	if v.Address == "" {
 		return errors.New("Vault address is required")
 	}

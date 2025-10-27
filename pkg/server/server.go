@@ -172,18 +172,8 @@ func (s *Server) StartAndWaitForSignal() error {
 func (s *Server) Start() (err error) {
 	if debug {
 		log.Debug().Msg("Debug mode is enabled")
-		if s.config.ServerConfig.SecretsDir == "" {
-			log.Debug().Msg("No secrets directory configured")
-		} else {
-			log.Debug().Msgf("Secrets directory: %q", s.config.ServerConfig.SecretsDir)
-		}
 		log.Debug().Msgf("Listen address: %q", s.config.ServerConfig.Address)
 		log.Debug().Msgf("Session cookie name: %q", s.config.ServerConfig.SessionName)
-		if s.config.Vault != nil {
-			log.Debug().Msgf("Using Vault for secrets at %q, path: %q, namespace: %q", s.config.Vault.Address, s.config.Vault.Path, s.config.Vault.Namespace)
-		} else {
-			log.Debug().Msg("Not using Vault for secrets")
-		}
 		log.Debug().Msg("Expected controllers:")
 		for _, binding := range s.config.ControllerBindings {
 			log.Debug().Msgf(" - Type: %s, Name: %s\n%s", binding.TypeName, binding.Name, string(binding.ConfigData))

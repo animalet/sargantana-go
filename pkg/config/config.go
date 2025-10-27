@@ -7,7 +7,6 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/animalet/sargantana-go/pkg/database"
 	"github.com/animalet/sargantana-go/pkg/resolver"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
@@ -18,19 +17,16 @@ type (
 	// It encapsulates all necessary configuration parameters including network settings,
 	// session storage options, security settings, and debugging preferences.
 	Config struct {
-		ServerConfig       ServerConfig          `yaml:"server"`
-		Vault              *resolver.VaultConfig `yaml:"vault,omitempty"`
-		ControllerBindings []ControllerBinding   `yaml:"controllers"`
-		Other              map[string]any        `yaml:",inline"`
+		ServerConfig       ServerConfig        `yaml:"server"`
+		ControllerBindings []ControllerBinding `yaml:"controllers"`
+		Other              map[string]any      `yaml:",inline"`
 	}
 
 	// ServerConfig holds the core server configuration parameters.
 	ServerConfig struct {
-		Address           string                `yaml:"address"`
-		RedisSessionStore *database.RedisConfig `yaml:"redis_session_store"`
-		SecretsDir        string                `yaml:"secrets_dir,omitempty"`
-		SessionName       string                `yaml:"session_name"`
-		SessionSecret     string                `yaml:"session_secret"`
+		Address       string `yaml:"address"`
+		SessionName   string `yaml:"session_name"`
+		SessionSecret string `yaml:"session_secret"`
 	}
 
 	// ControllerBinding represents the configuration for a single controller.
@@ -79,11 +75,6 @@ func (cfg *Config) Load() (err error) {
 	expandVariables(reflect.ValueOf(&cfg.ServerConfig).Elem())
 	if err = cfg.ServerConfig.Validate(); err != nil {
 		return errors.Wrap(err, "server configuration is invalid")
-	}
-
-	// Expand Vault configuration if present
-	if cfg.Vault != nil {
-		expandVariables(reflect.ValueOf(cfg.Vault).Elem())
 	}
 
 	return nil
