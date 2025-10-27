@@ -38,7 +38,7 @@ security, or performance yet. Use at your own risk.
 - **Session Management**: Flexible session storage with Redis or cookie-based options
 - **Static File Serving**: Built-in static file and template serving capabilities
 - **Load Balancing**: Round-robin load balancer with optional authentication
-- **Database Support**: Redis and Neo4j integration
+- **Database Support**: Redis, PostgreSQL, and Neo4j integration with type-safe client factory pattern
 - **Configuration**: YAML-based configuration with environment variable, Vault and file secrets support
 
 ## Quick Start
@@ -470,16 +470,23 @@ controllers:
 
 ### Redis
 
-Redis support is very basic and is currently used for session storage. You can also use it directly in your controllers.
-
-There is currently no support for authentication or TLS, but you can extend the `NewRedisPool` function to add these
-features. Pull requests are welcome!
+Redis support includes TLS configuration and uses the `ClientFactory` pattern for type-safe client creation.
 
 ```go
-import "github.com/animalet/sargantana-go/database"
+import "github.com/animalet/sargantana-go/pkg/database"
+import "github.com/animalet/sargantana-go/pkg/config"
 
-// Create Redis connection pool
-pool := database.NewRedisPool("localhost:6379")
+// Load Redis configuration from YAML
+redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Create connection pool using ClientFactory
+pool, err := redisCfg.CreateClient()
+if err != nil {
+    log.Fatal(err)
+}
 defer pool.Close()
 
 // Get connection
@@ -488,6 +495,64 @@ defer conn.Close()
 
 // Use Redis commands
 conn.Do("SET", "key", "value")
+```
+
+Configuration example:
+```yaml
+redis:
+  address: "localhost:6379"
+  username: "redisuser"     # Optional
+  password: "${REDIS_PASS}" # Optional
+  database: 0
+  max_idle: 10
+  idle_timeout: 240s
+  tls:                      # Optional TLS configuration
+    insecure_skip_verify: false
+    cert_file: "/path/to/cert.pem"
+    key_file: "/path/to/key.pem"
+    ca_file: "/path/to/ca.pem"
+```
+
+### PostgreSQL
+
+PostgreSQL support with connection pooling using pgx/v5.
+
+```go
+import "github.com/animalet/sargantana-go/pkg/database"
+import "github.com/animalet/sargantana-go/pkg/config"
+
+// Load PostgreSQL configuration from YAML
+postgresCfg, err := config.LoadConfig[database.PostgresConfig]("postgres", cfg)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Create connection pool using ClientFactory
+pool, err := postgresCfg.CreateClient()
+if err != nil {
+    log.Fatal(err)
+}
+defer pool.Close()
+
+// Use the connection pool
+var result string
+err = pool.QueryRow(context.Background(), "SELECT version()").Scan(&result)
+```
+
+Configuration example:
+```yaml
+postgres:
+  host: "localhost"
+  port: 5432
+  database: "myapp"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+  ssl_mode: "prefer"              # disable, allow, prefer, require, verify-ca, verify-full
+  max_conns: 10                   # Optional: maximum connections
+  min_conns: 2                    # Optional: minimum connections
+  max_conn_lifetime: 1h           # Optional: max connection lifetime
+  max_conn_idle_time: 30m         # Optional: max idle time
+  health_check_period: 1m         # Optional: health check interval
 ```
 
 ### Neo4j

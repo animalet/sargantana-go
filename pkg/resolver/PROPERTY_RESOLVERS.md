@@ -14,7 +14,7 @@ server:
   host: ${DATABASE_HOST}                     # Defaults to env: prefix
 ```
 
-**Important:** The config package provides the infrastructure (interfaces and registry) but **does not automatically register any resolvers**. Your application must explicitly register the resolvers it needs before loading configuration.
+**Important:** The resolver package is decoupled from config and provides both the infrastructure (interfaces and registry) and built-in resolver implementations. Your application must explicitly register the resolvers it needs before loading configuration.
 
 ## Registering Resolvers
 
@@ -30,20 +30,20 @@ func main() {
 
     // Register resolvers BEFORE calling Load()
     // Environment resolver (default - always register first)
-    config.RegisterPropertyResolver("env", config.NewEnvResolver())
+    resolver.Register("env", resolver.NewEnvResolver())
 
     // File resolver (if secrets directory is configured)
     if cfg.ServerConfig.SecretsDir != "" {
-        config.RegisterPropertyResolver("file", config.NewFileResolver(cfg.ServerConfig.SecretsDir))
+        resolver.Register("file", resolver.NewFileResolver(cfg.ServerConfig.SecretsDir))
     }
 
     // Vault resolver (if Vault is configured)
     if cfg.Vault != nil {
-        vaultClient, err := config.CreateVaultClient(cfg.Vault)
+        vaultClient, err := cfg.Vault.CreateClient()
         if err != nil {
             log.Fatal(err)
         }
-        config.RegisterPropertyResolver("vault", config.NewVaultResolver(vaultClient, cfg.Vault.Path))
+        resolver.Register("vault", resolver.NewVaultResolver(vaultClient, cfg.Vault.Path))
     }
 
     // Now load and expand the configuration
@@ -73,7 +73,7 @@ database_host: ${DATABASE_HOST}
 
 **Registration:**
 ```go
-config.RegisterPropertyResolver("env", config.NewEnvResolver())
+resolver.Register("env", resolver.NewEnvResolver())
 ```
 
 **Configuration:** No additional configuration needed.
@@ -92,7 +92,7 @@ server:
 **Registration:**
 ```go
 if cfg.ServerConfig.SecretsDir != "" {
-    config.RegisterPropertyResolver("file", config.NewFileResolver(cfg.ServerConfig.SecretsDir))
+    resolver.Register("file", resolver.NewFileResolver(cfg.ServerConfig.SecretsDir))
 }
 ```
 
@@ -120,11 +120,11 @@ server:
 **Registration:**
 ```go
 if cfg.Vault != nil {
-    vaultClient, err := config.CreateVaultClient(cfg.Vault)
+    vaultClient, err := cfg.Vault.CreateClient()
     if err != nil {
         log.Fatal(err)
     }
-    config.RegisterPropertyResolver("vault", config.NewVaultResolver(vaultClient, cfg.Vault.Path))
+    resolver.Register("vault", resolver.NewVaultResolver(vaultClient, cfg.Vault.Path))
 }
 ```
 
@@ -144,7 +144,7 @@ You can create custom resolvers to retrieve configuration from any source: datab
 package mypackage
 
 import (
-    "github.com/animalet/sargantana-go/config"
+    "github.com/animalet/sargantana-go/pkg/resolver"
     "github.com/pkg/errors"
 )
 
@@ -155,7 +155,7 @@ type CustomResolver struct {
 }
 
 // NewCustomResolver creates a new instance
-func NewCustomResolver(endpoint, apiKey string) *CustomResolver {
+func NewCustomResolver(endpoint, apiKey string) resolver.PropertyResolver {
     return &CustomResolver{
         apiEndpoint: endpoint,
         apiKey:      apiKey,
@@ -170,11 +170,6 @@ func (c *CustomResolver) Resolve(key string) (string, error) {
         return "", errors.Wrapf(err, "failed to retrieve %q from custom source", key)
     }
     return value, nil
-}
-
-// Name returns the resolver name (for logging/debugging)
-func (c *CustomResolver) Name() string {
-    return "Custom API"
 }
 
 func (c *CustomResolver) fetchFromAPI(key string) (string, error) {
@@ -192,7 +187,8 @@ Register your custom resolver before loading the configuration:
 package main
 
 import (
-    "github.com/animalet/sargantana-go/config"
+    "github.com/animalet/sargantana-go/pkg/config"
+    "github.com/animalet/sargantana-go/pkg/resolver"
     "mypackage"
 )
 
@@ -202,7 +198,7 @@ func main() {
         "https://api.example.com",
         "your-api-key",
     )
-    config.RegisterPropertyResolver("custom", customResolver)
+    resolver.Register("custom", customResolver)
 
     // Now load your configuration
     cfg, err := config.ReadConfig("config.yaml")
@@ -239,7 +235,7 @@ type DatabaseResolver struct {
     tableName string
 }
 
-func NewDatabaseResolver(db *sql.DB, tableName string) *DatabaseResolver {
+func NewDatabaseResolver(db *sql.DB, tableName string) resolver.PropertyResolver {
     return &DatabaseResolver{db: db, tableName: tableName}
 }
 
@@ -251,10 +247,6 @@ func (d *DatabaseResolver) Resolve(key string) (string, error) {
         return "", errors.Wrapf(err, "failed to retrieve %q from database", key)
     }
     return value, nil
-}
-
-func (d *DatabaseResolver) Name() string {
-    return "Database"
 }
 ```
 
@@ -270,7 +262,7 @@ type AWSSecretsResolver struct {
     client *secretsmanager.SecretsManager
 }
 
-func NewAWSSecretsResolver(region string) *AWSSecretsResolver {
+func NewAWSSecretsResolver(region string) resolver.PropertyResolver {
     sess := session.Must(session.NewSession())
     return &AWSSecretsResolver{
         client: secretsmanager.New(sess),
@@ -289,15 +281,11 @@ func (a *AWSSecretsResolver) Resolve(key string) (string, error) {
 
     return *result.SecretString, nil
 }
-
-func (a *AWSSecretsResolver) Name() string {
-    return "AWS Secrets Manager"
-}
 ```
 
 Usage:
 ```go
-config.RegisterPropertyResolver("aws", NewAWSSecretsResolver("us-east-1"))
+resolver.Register("aws", NewAWSSecretsResolver("us-east-1"))
 ```
 
 Configuration:
@@ -348,18 +336,18 @@ However, it's recommended to register all resolvers during application initializ
 You can unregister a resolver if needed:
 
 ```go
-config.UnregisterPropertyResolver("custom")
+resolver.Unregister("custom")
 ```
 
 This is primarily useful in tests or when dynamically managing resolvers.
 
 ## Architecture Notes
 
-The property resolver system uses:
-- **PropertyResolver interface**: Contract for all resolvers
-- **PropertyResolverRegistry**: Thread-safe registry mapping prefixes to resolvers
-- **Global registry**: `globalResolverRegistry` used by the config system
-- **Parser**: `parseProperty()` splits "prefix:key" (defaults to "env:" if no prefix)
-- **Expansion**: `expand()` function called by Go's `os.Expand()` during config loading
+The property resolver system is located in the `pkg/resolver/` package and uses:
+- **PropertyResolver interface**: Contract for all resolvers (`resolver` package)
+- **PropertyResolverRegistry**: Thread-safe registry mapping prefixes to resolvers (`resolver` package)
+- **Global registry**: `Global` instance used by the config system
+- **Parser**: Splits "prefix:key" syntax (defaults to "env:" if no prefix)
+- **Expansion**: Integrated with Go's `os.Expand()` during config loading
 
-The system integrates seamlessly with Go's standard `os.Expand()` function, which processes `${...}` placeholders in configuration strings.
+The system is fully decoupled from the config package - the config package calls `resolver.Global.Resolve()` to resolve properties, but doesn't contain any resolver implementations.

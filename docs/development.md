@@ -124,23 +124,19 @@ make uninstall
 
 ```
 sargantana-go/
-├── .github/            # GitHub workflows and configuration
-├── .secrets/           # Local secrets directory (gitignored)
 ├── main/               # Main application entry point
-├── server/             # Core server implementation
-├── controller/         # Built-in controllers (auth, static, load balancer)
-├── config/             # Configuration management
-├── database/           # Database clients (Redis, Neo4j)
-├── session/            # Session storage implementations
+├── pkg/                # Core packages
+│   ├── config/         # Configuration management
+│   ├── controller/     # Built-in controllers (auth, static, load balancer)
+│   ├── database/       # Database clients (Redis, PostgreSQL, Neo4j)
+│   ├── resolver/       # Property resolvers (env, file, vault)
+│   ├── server/         # Core server implementation
+│   └── session/        # Session storage implementations
 ├── docs/               # Project documentation
-├── examples/           # Example configuration files
-├── certs/              # SSL certificates directory
-├── bin/                # Built binaries (created by make build)
-├── dist/               # Cross-platform binaries (created by make build-all)
-├── docker-compose.yml  # Docker services for development/testing
+├── examples/           # Example applications
+│   └── blog_example/   # Blog example with PostgreSQL
 ├── .golangci.yml       # Linter configuration
-├── .testcoverage.yml   # Test coverage configuration
-├── config.local.yaml   # Local configuration file
+├── docker-compose.yml  # Docker services for development/testing
 └── Makefile            # Development commands
 ```
 

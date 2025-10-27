@@ -26,18 +26,24 @@ Sargantana Go is a Go web framework built on top of Gin. It provides a modular, 
 3. **Configuration** (`config/`)
    - YAML-based configuration
    - Environment variable expansion (`${VAR}` syntax)
-   - Support for secrets from:
+   - Generic `ClientFactory[T]` interface for type-safe client creation
+   - Generic unmarshaling with validation
+
+4. **Resolver** (`resolver/`)
+   - Pluggable property resolver system
+   - Built-in resolvers:
      - Environment variables (`env:VAR_NAME`)
      - Files (`file:filename`)
      - HashiCorp Vault (`vault:secret/path`)
-   - Generic unmarshaling with validation
+   - Custom resolver support
 
-4. **Database** (`database/`)
-   - Redis connection pooling
-   - PostgreSQL support
+5. **Database** (`database/`)
+   - Redis connection pooling with TLS support
+   - PostgreSQL connection pooling with comprehensive configuration
    - Neo4j graph database support
+   - All use `ClientFactory[T]` pattern for type-safe client creation
 
-5. **Session Management** (`session/`)
+6. **Session Management** (`session/`)
    - Cookie-based sessions
    - Redis-backed sessions
    - Integration with Gin sessions middleware
@@ -61,6 +67,17 @@ vault:                                  # Optional: HashiCorp Vault integration
   address: "http://localhost:8200"
   token: "${VAULT_TOKEN}"
   path: "secret/data/myapp"
+
+# Optional: PostgreSQL database
+postgres:
+  host: "localhost"
+  port: 5432
+  database: "myapp"
+  user: "${file:DB_USER}"
+  password: "${vault:DB_PASSWORD}"
+  ssl_mode: "prefer"
+  max_conns: 10
+  min_conns: 2
 
 controllers:
   - type: "auth"
@@ -175,27 +192,29 @@ make format
 ## Project Structure
 
 ```
-.
-├── config/           # Configuration management
-│   ├── config.go     # Core config types and loading
-│   └── secrets.go    # Secret management (env, file, vault)
-├── controller/       # Controller implementations
-│   ├── auth.go       # OAuth authentication
-│   ├── static.go     # Static file serving
-│   └── template.go   # Template rendering
-├── database/         # Database connections
-│   ├── neo4j.go      # Neo4j graph database
-│   ├── postgres.go   # PostgreSQL
-│   └── redis.go      # Redis
-├── server/           # Server core
-│   └── server.go     # Main server implementation
-├── session/          # Session management
-│   ├── cookie.go     # Cookie-based sessions
-│   └── redis.go      # Redis-backed sessions
-├── examples/         # Example applications
-│   └── blog_example/ # Blog example with auth
+sargantana-go/
 ├── main/             # Entry point
 │   └── main.go
+├── pkg/              # Core packages
+│   ├── config/       # Configuration management
+│   ├── controller/   # Controller implementations
+│   │   ├── auth.go
+│   │   ├── static.go
+│   │   └── template.go
+│   ├── database/     # Database connections with ClientFactory
+│   │   ├── neo4j.go
+│   │   ├── postgres.go
+│   │   └── redis.go
+│   ├── resolver/     # Property resolvers
+│   │   ├── env.go
+│   │   ├── file.go
+│   │   ├── vault.go
+│   │   └── registry.go
+│   ├── server/       # Server core
+│   └── session/      # Session management
+├── examples/         # Example applications
+│   └── blog_example/
+├── docs/             # Documentation
 └── Makefile          # Build automation
 ```
 
@@ -221,6 +240,40 @@ type Validatable interface {
     Validate() error
 }
 ```
+
+### ClientFactory
+
+Database and service configurations implement the generic `ClientFactory[T]` interface for type-safe client creation:
+
+```go
+type ClientFactory[T any] interface {
+    Validatable
+    CreateClient() (T, error)
+}
+```
+
+**Examples:**
+- `VaultConfig` implements `ClientFactory[*api.Client]`
+- `RedisConfig` implements `ClientFactory[*redis.Pool]`
+- `PostgresConfig` implements `ClientFactory[*pgxpool.Pool]`
+
+**Usage:**
+```go
+// Load and create PostgreSQL client
+postgresCfg, err := config.LoadConfig[database.PostgresConfig]("postgres", cfg)
+pool, err := postgresCfg.CreateClient()  // Returns *pgxpool.Pool directly
+defer pool.Close()
+
+// Load and create Redis client
+redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
+redisPool, err := redisCfg.CreateClient()  // Returns *redis.Pool directly
+defer redisPool.Close()
+```
+
+**Benefits:**
+- Type-safe: No type assertions needed
+- Consistent: All data sources use the same pattern
+- Validated: Configuration is validated before client creation
 
 ## Adding a New Controller
 
@@ -357,7 +410,7 @@ Key dependencies:
 - **gomodule/redigo**: Redis client
 - **hashicorp/vault/api**: Vault client
 - **neo4j/neo4j-go-driver**: Neo4j driver
-- **jackc/pgx**: PostgreSQL driver
+- **jackc/pgx/v5**: PostgreSQL driver with connection pooling
 - **rs/zerolog**: Structured logging
 
 ## Development Workflow
@@ -377,5 +430,8 @@ Key dependencies:
 - Configuration uses YAML with validation
 - Controllers are dynamically registered and configured
 - Session management can be either cookie-based or Redis-based
-- Secret management supports multiple backends (env, file, vault)
-- All configuration structs must implement `Validate()` method
+- Property resolvers are in `pkg/resolver/` package (decoupled from config)
+- Vault configuration and client creation are in `resolver` package, not `config`
+- All database configs use `ClientFactory[T]` pattern for type-safe client creation
+- Configuration structs implement `Validate()` with **value receivers** (not pointer receivers)
+- Use `config.LoadConfig[T]` to load partial configuration sections with validation

@@ -1,8 +1,10 @@
 # Vault Secrets Integration
 
-Sargantana Go supports loading secrets from HashiCorp Vault. This document explains how to configure and use Vault for secret management.
+Sargantana Go supports loading secrets from HashiCorp Vault through the property resolver system. This document explains how to configure and use Vault for secret management.
 
 ## Configuration
+
+Vault configuration is now located in the `resolver` package and uses the `ClientFactory` pattern for type-safe client creation.
 
 To enable Vault integration, add the following section to your YAML configuration file:
 
@@ -14,7 +16,7 @@ vault:
   namespace: ""                               # Optional: Vault namespace (for Enterprise)
 ```
 
-If the `vault` section is present and valid, the Vault client will be initialized at startup.
+If the `vault` section is present and valid, the Vault resolver must be registered in your application's main function using the `ClientFactory` pattern.
 
 ### Configuration Fields
 
@@ -22,6 +24,44 @@ If the `vault` section is present and valid, the Vault client will be initialize
 -   **token**: An authentication token for Vault access (required). It's recommended to supply this via an environment variable.
 -   **path**: The path where your secrets are stored in Vault (required).
 -   **namespace**: The Vault namespace for Enterprise installations (optional).
+
+### Registering the Vault Resolver
+
+After loading your configuration, you must explicitly register the Vault resolver before calling `cfg.Load()`:
+
+```go
+import (
+    "github.com/animalet/sargantana-go/pkg/config"
+    "github.com/animalet/sargantana-go/pkg/resolver"
+)
+
+func main() {
+    // Read configuration
+    cfg, err := config.ReadConfig("config.yaml")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Register Vault resolver if configured
+    if cfg.Vault != nil {
+        // Use ClientFactory pattern to create Vault client
+        vaultClient, err := cfg.Vault.CreateClient()
+        if err != nil {
+            log.Fatal().Err(err).Msg("Failed to create Vault client")
+        }
+
+        // Register the Vault resolver
+        resolver.Register("vault", resolver.NewVaultResolver(vaultClient, cfg.Vault.Path))
+        log.Info().Msg("Vault resolver registered")
+    }
+
+    // Now load and expand configuration
+    err = cfg.Load()
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
 
 ## Usage
 
