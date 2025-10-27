@@ -124,12 +124,16 @@ configs:
         "enabled": true,
         "users": [
           {
-            "username": "test-user",
+            "username": "test",
             "enabled": true,
+            "email": "testuser@example.com",
+            "emailVerified": true,
+            "firstName": "Test",
+            "lastName": "User",
             "credentials": [
               {
                 "type": "password",
-                "value": "password",
+                "value": "test",
                 "temporary": false
               }
             ],
