@@ -120,26 +120,6 @@ make install
 make uninstall
 ```
 
-## Project Structure
-
-```
-sargantana-go/
-├── main/               # Main application entry point
-├── pkg/                # Core packages
-│   ├── config/         # Configuration management
-│   ├── controller/     # Built-in controllers (auth, static, load balancer)
-│   ├── database/       # Database clients (Redis, PostgreSQL, Neo4j)
-│   ├── resolver/       # Property resolvers (env, file, vault)
-│   ├── server/         # Core server implementation
-│   └── session/        # Session storage implementations
-├── docs/               # Project documentation
-├── examples/           # Example applications
-│   └── blog_example/   # Blog example with PostgreSQL
-├── .golangci.yml       # Linter configuration
-├── docker-compose.yml  # Docker services for development/testing
-└── Makefile            # Development commands
-```
-
 ## Development Workflow
 
 ### 1. Setting up your development environment

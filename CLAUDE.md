@@ -189,35 +189,6 @@ make lint
 make format
 ```
 
-## Project Structure
-
-```
-sargantana-go/
-├── main/             # Entry point
-│   └── main.go
-├── pkg/              # Core packages
-│   ├── config/       # Configuration management
-│   ├── controller/   # Controller implementations
-│   │   ├── auth.go
-│   │   ├── static.go
-│   │   └── template.go
-│   ├── database/     # Database connections with ClientFactory
-│   │   ├── neo4j.go
-│   │   ├── postgres.go
-│   │   └── redis.go
-│   ├── resolver/     # Property resolvers
-│   │   ├── env.go
-│   │   ├── file.go
-│   │   ├── vault.go
-│   │   └── registry.go
-│   ├── server/       # Server core
-│   └── session/      # Session management
-├── examples/         # Example applications
-│   └── blog_example/
-├── docs/             # Documentation
-└── Makefile          # Build automation
-```
-
 ## Key Interfaces
 
 ### IController

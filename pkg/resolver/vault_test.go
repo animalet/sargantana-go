@@ -149,3 +149,180 @@ func TestVaultResolver_Name(t *testing.T) {
 		t.Errorf("Expected name 'Vault', got '%s'", resolver.Name())
 	}
 }
+
+// TestVaultConfig_Validate tests VaultConfig validation
+func TestVaultConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name          string
+		config        *VaultConfig
+		errorExpected bool
+		errorContains string
+	}{
+		{
+			name: "valid config",
+			config: &VaultConfig{
+				Address: "http://localhost:8200",
+				Token:   "test-token",
+				Path:    "secret/data/test",
+			},
+			errorExpected: false,
+		},
+		{
+			name: "valid config with namespace",
+			config: &VaultConfig{
+				Address:   "http://localhost:8200",
+				Token:     "test-token",
+				Path:      "secret/data/test",
+				Namespace: "test-namespace",
+			},
+			errorExpected: false,
+		},
+		{
+			name: "missing address",
+			config: &VaultConfig{
+				Address: "",
+				Token:   "test-token",
+				Path:    "secret/data/test",
+			},
+			errorExpected: true,
+			errorContains: "Vault address is required",
+		},
+		{
+			name: "missing token",
+			config: &VaultConfig{
+				Address: "http://localhost:8200",
+				Token:   "",
+				Path:    "secret/data/test",
+			},
+			errorExpected: true,
+			errorContains: "Vault token is required",
+		},
+		{
+			name: "missing path",
+			config: &VaultConfig{
+				Address: "http://localhost:8200",
+				Token:   "test-token",
+				Path:    "",
+			},
+			errorExpected: true,
+			errorContains: "Vault path is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if tt.errorExpected {
+				if err == nil {
+					t.Error("Expected error but got nil")
+				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("Expected error containing %q, got: %v", tt.errorContains, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// TestCreateVaultClient_Success tests successful Vault client creation
+func TestCreateVaultClient_Success(t *testing.T) {
+	vaultCfg := &VaultConfig{
+		Address: "http://localhost:8200",
+		Token:   "dev-root-token",
+		Path:    "secret/data/sargantana",
+	}
+
+	client, err := CreateVaultClient(vaultCfg)
+	if err != nil {
+		t.Fatalf("CreateVaultClient failed: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("Vault client should not be nil")
+	}
+
+	// Verify client is configured correctly
+	if client.Address() != "http://localhost:8200" {
+		t.Errorf("Expected address 'http://localhost:8200', got '%s'", client.Address())
+	}
+}
+
+// TestCreateVaultClient_WithNamespace tests Vault client creation with namespace
+func TestCreateVaultClient_WithNamespace(t *testing.T) {
+	vaultCfg := &VaultConfig{
+		Address:   "http://localhost:8200",
+		Token:     "dev-root-token",
+		Path:      "secret/data/sargantana",
+		Namespace: "test-namespace",
+	}
+
+	client, err := CreateVaultClient(vaultCfg)
+	if err != nil {
+		t.Fatalf("CreateVaultClient with namespace failed: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("Vault client should not be nil")
+	}
+}
+
+// TestCreateVaultClient_InvalidConfig tests with invalid Vault configuration
+func TestCreateVaultClient_InvalidConfig(t *testing.T) {
+	vaultCfg := &VaultConfig{
+		Address: "",
+		Token:   "",
+		Path:    "",
+	}
+
+	_, err := CreateVaultClient(vaultCfg)
+	if err == nil {
+		t.Error("Expected error with invalid Vault configuration, got nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "Vault address is required") {
+		t.Errorf("Expected address validation error, got: %v", err)
+	}
+}
+
+// TestCreateVaultClient_InvalidAddress tests with malformed Vault address
+func TestCreateVaultClient_InvalidAddress(t *testing.T) {
+	vaultCfg := &VaultConfig{
+		Address: string([]byte{0, 1, 2, 3}), // Invalid URL with null bytes
+		Token:   "test-token",
+		Path:    "secret/data/test",
+	}
+
+	_, err := CreateVaultClient(vaultCfg)
+	if err == nil {
+		t.Fatal("Expected error when creating Vault client with invalid address")
+	}
+
+	if !strings.Contains(err.Error(), "invalid control character in URL") {
+		t.Errorf("Error should mention invalid control character, got: %v", err)
+	}
+}
+
+// TestVaultConfig_CreateClient tests the ClientFactory pattern
+func TestVaultConfig_CreateClient(t *testing.T) {
+	vaultCfg := &VaultConfig{
+		Address: "http://localhost:8200",
+		Token:   "dev-root-token",
+		Path:    "secret/data/sargantana",
+	}
+
+	// Test using ClientFactory interface
+	client, err := vaultCfg.CreateClient()
+	if err != nil {
+		t.Fatalf("CreateClient failed: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("Client should not be nil")
+	}
+
+	if client.Address() != "http://localhost:8200" {
+		t.Errorf("Expected address 'http://localhost:8200', got '%s'", client.Address())
+	}
+}

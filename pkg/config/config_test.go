@@ -90,61 +90,6 @@ server:
 	}
 }
 
-// TestVaultConfig_IsValid tests the VaultConfig validation
-func TestVaultConfig_IsValid(t *testing.T) {
-	tests := []struct {
-		name          string
-		config        *resolver.VaultConfig
-		errorExpected bool
-	}{
-		{
-			name: "valid config",
-			config: &resolver.VaultConfig{
-				Address: "http://localhost:8200",
-				Token:   "test-token",
-				Path:    "secret/data/test",
-			},
-			errorExpected: false,
-		},
-		{
-			name: "missing address",
-			config: &resolver.VaultConfig{
-				Address: "",
-				Token:   "test-token",
-				Path:    "secret/data/test",
-			},
-			errorExpected: true,
-		},
-		{
-			name: "missing token",
-			config: &resolver.VaultConfig{
-				Address: "http://localhost:8200",
-				Token:   "",
-				Path:    "secret/data/test",
-			},
-			errorExpected: true,
-		},
-		{
-			name: "missing path",
-			config: &resolver.VaultConfig{
-				Address: "http://localhost:8200",
-				Token:   "test-token",
-				Path:    "",
-			},
-			errorExpected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
-			if err != nil && !tt.errorExpected {
-				t.Errorf("Validate() = %v, errorExpected %v", err, tt.errorExpected)
-			}
-		})
-	}
-}
-
 // TestControllerConfig_UnmarshalYAML tests ControllerConfig YAML unmarshaling
 func TestControllerConfig_UnmarshalYAML(t *testing.T) {
 	yamlData := `
@@ -296,20 +241,6 @@ vault:
 	}
 	if cfg.Vault.Token != "test-value" {
 		t.Errorf("Expected Vault token 'test-value', got '%s'", cfg.Vault.Token)
-	}
-}
-
-// TestLoad_VaultCreationError tests error handling when Vault client creation fails
-func TestLoad_VaultCreationError(t *testing.T) {
-	vaultCfg := &resolver.VaultConfig{
-		Address: "://invalid-malformed-url",
-		Token:   "test-token",
-		Path:    "secret/data/test",
-	}
-
-	_, err := resolver.CreateVaultClient(vaultCfg)
-	if err == nil {
-		t.Fatal("Expected error when creating Vault client with invalid address")
 	}
 }
 
