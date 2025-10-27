@@ -3,10 +3,10 @@
 package resolver
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 )
 
 // PropertyResolver defines the interface that all property resolvers must implement.
@@ -74,7 +74,7 @@ func (r *Registry) Register(prefix string, resolver PropertyResolver) {
 
 	if _, exists := r.resolvers[prefix]; exists {
 		// Log warning about override (but don't fail)
-		fmt.Printf("Warning: Overriding existing resolver for prefix %q\n", prefix)
+		log.Warn().Msgf("Overriding existing resolver for prefix %q", prefix)
 	}
 
 	r.resolvers[prefix] = resolver

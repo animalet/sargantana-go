@@ -49,7 +49,7 @@ func (f *FileResolver) Resolve(key string) (string, error) {
 	}
 
 	secret := strings.TrimSpace(string(content))
-	log.Info().Str("file", filePath).Msg("Retrieved secret from file")
+	log.Debug().Str("file", filePath).Msg("Retrieved secret from file")
 	return secret, nil
 }
 

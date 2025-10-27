@@ -144,7 +144,7 @@ func (a *AWSResolver) Resolve(key string) (string, error) {
 	if err := json.Unmarshal([]byte(secretString), &secretData); err == nil {
 		// It's a JSON object, extract the requested key
 		if value, ok := secretData[key].(string); ok {
-			log.Info().
+			log.Debug().
 				Str("secret_name", a.secretName).
 				Str("key", key).
 				Msg("Retrieved secret from AWS Secrets Manager")
@@ -155,7 +155,7 @@ func (a *AWSResolver) Resolve(key string) (string, error) {
 
 	// Not JSON, treat the entire secret as a single value
 	// In this case, the key is ignored and the entire secret value is returned
-	log.Info().
+	log.Debug().
 		Str("secret_name", a.secretName).
 		Msg("Retrieved secret from AWS Secrets Manager (plain text)")
 	return secretString, nil

@@ -126,7 +126,7 @@ func (v *VaultResolver) Resolve(key string) (string, error) {
 
 	// Extract the requested key
 	if strValue, ok := data[key].(string); ok {
-		log.Info().
+		log.Debug().
 			Str("secret_name", key).
 			Str("vault_path", v.path).
 			Msg("Retrieved secret from Vault")
