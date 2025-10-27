@@ -31,8 +31,12 @@ func NewTemplateController(configData config.ControllerConfig, _ ControllerConte
 }
 
 func (c TemplateControllerConfig) Validate() error {
-	if stat, err := os.Stat(c.Path); err != nil || !stat.IsDir() {
-		return errors.Wrap(err, "templates directory not present or is not a directory")
+	stat, err := os.Stat(c.Path)
+	if err != nil {
+		return errors.Wrap(err, "templates directory not present or cannot be accessed")
+	}
+	if !stat.IsDir() {
+		return errors.New("templates path is not a directory")
 	}
 	return nil
 }
