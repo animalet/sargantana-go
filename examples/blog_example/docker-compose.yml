@@ -51,6 +51,9 @@ services:
       - ./config.docker.yaml:/app/config.yaml:ro
       # Mount secrets directory
       - ./secrets:/app/secrets:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "localhost:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,16 +105,20 @@ services:
       # Admin credentials for managing Keycloak UI
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      # Hostname configuration for localhost development
-      KC_HOSTNAME: localhost
-      KC_HOSTNAME_PORT: 8081
+      # Hostname configuration - use proxy mode to respect X-Forwarded headers
+      KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: true
-      KC_HOSTNAME_STRICT: false
       KC_HEALTH_ENABLED: true
       KC_METRICS_ENABLED: true
     configs:
       - source: keycloak_realm_config
         target: /opt/keycloak/data/import/blog-realm.json
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /realms/blog-realm HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
 volumes:
   postgres_data:
   redis_data:

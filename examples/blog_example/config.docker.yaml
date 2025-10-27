@@ -71,11 +71,11 @@ controllers:
       redirect_on_login: "/blog/feed"
       redirect_on_logout: "/blog/feed"
       providers:
-        # Uses Keycloak container with blog-realm imported from keycloak-realm.json
+        # Uses Keycloak - accesses via host network using extra_hosts mapping
         openid-connect:
           key: "${file:OPENID_CONNECT_KEY}"
           secret: "${vault:OPENID_CONNECT_SECRET}"
-          url: "http://host.docker.internal:8081/realms/blog-realm/.well-known/openid-configuration"
+          url: "http://localhost:8081/realms/blog-realm/.well-known/openid-configuration"
           scopes:
             - "openid"
             - "profile"
