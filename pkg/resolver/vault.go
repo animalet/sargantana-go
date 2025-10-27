@@ -34,10 +34,10 @@ func (v *VaultConfig) Validate() error {
 // Implements the config.ClientFactory[*api.Client] interface.
 // Returns *api.Client on success, or an error if client creation fails.
 func (v *VaultConfig) CreateClient() (*api.Client, error) {
-	return CreateVaultClient(v)
+	return createVaultClient(v)
 }
 
-// CreateVaultClient is a helper function to create and configure a Vault client
+// createVaultClient is a helper function to create and configure a Vault client
 // from a VaultConfig. This is typically called by applications during startup
 // to set up the Vault resolver.
 //
@@ -48,7 +48,7 @@ func (v *VaultConfig) CreateClient() (*api.Client, error) {
 //	    log.Fatal(err)
 //	}
 //	resolver.Register("vault", resolver.NewVaultResolver(client, cfg.Vault.Path))
-func CreateVaultClient(vaultCfg *VaultConfig) (*api.Client, error) {
+func createVaultClient(vaultCfg *VaultConfig) (*api.Client, error) {
 	if vaultCfg == nil {
 		return nil, errors.New("vault configuration is nil")
 	}

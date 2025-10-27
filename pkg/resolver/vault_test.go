@@ -243,7 +243,7 @@ func TestCreateVaultClient_Success(t *testing.T) {
 		Path:    "secret/data/sargantana",
 	}
 
-	client, err := CreateVaultClient(vaultCfg)
+	client, err := createVaultClient(vaultCfg)
 	if err != nil {
 		t.Fatalf("CreateVaultClient failed: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestCreateVaultClient_WithNamespace(t *testing.T) {
 		Namespace: "test-namespace",
 	}
 
-	client, err := CreateVaultClient(vaultCfg)
+	client, err := createVaultClient(vaultCfg)
 	if err != nil {
 		t.Fatalf("CreateVaultClient with namespace failed: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestCreateVaultClient_InvalidConfig(t *testing.T) {
 		Path:    "",
 	}
 
-	_, err := CreateVaultClient(vaultCfg)
+	_, err := createVaultClient(vaultCfg)
 	if err == nil {
 		t.Error("Expected error with invalid Vault configuration, got nil")
 	}
@@ -302,7 +302,7 @@ func TestCreateVaultClient_InvalidAddress(t *testing.T) {
 		Path:    "secret/data/test",
 	}
 
-	_, err := CreateVaultClient(vaultCfg)
+	_, err := createVaultClient(vaultCfg)
 	if err == nil {
 		t.Fatal("Expected error when creating Vault client with invalid address")
 	}

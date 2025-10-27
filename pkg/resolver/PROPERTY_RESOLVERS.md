@@ -10,6 +10,7 @@ The property resolver system allows you to reference secrets and configuration v
 server:
   session_secret: ${vault:SESSION_SECRET}    # From HashiCorp Vault
   api_key: ${file:api_key}                   # From file in secrets directory
+  database_password: ${aws:DB_PASSWORD}      # From AWS Secrets Manager
   port: ${env:PORT}                          # From environment variable
   host: ${DATABASE_HOST}                     # Defaults to env: prefix
 ```
@@ -44,6 +45,15 @@ func main() {
             log.Fatal(err)
         }
         resolver.Register("vault", resolver.NewVaultResolver(vaultClient, cfg.Vault.Path))
+    }
+
+    // AWS Secrets Manager resolver (if AWS is configured)
+    if cfg.AWS != nil {
+        awsClient, err := cfg.AWS.CreateClient()
+        if err != nil {
+            log.Fatal(err)
+        }
+        resolver.Register("aws", resolver.NewAWSResolver(awsClient, cfg.AWS.SecretName))
     }
 
     // Now load and expand the configuration
@@ -133,6 +143,61 @@ if cfg.Vault != nil {
 - `token`: Authentication token
 - `path`: Path to read secrets from (e.g., "secret/data/myapp" for KV v2)
 - `namespace`: Optional Vault namespace
+
+### AWS Secrets Manager Resolver (aws:)
+
+Retrieves secrets from AWS Secrets Manager. Supports both JSON-formatted secrets (with multiple key-value pairs) and plain text secrets.
+
+**Usage:**
+```yaml
+aws:
+  region: "us-east-1"
+  access_key_id: "${AWS_ACCESS_KEY_ID}"    # Optional - uses IAM role if not provided
+  secret_access_key: "${AWS_SECRET_ACCESS_KEY}"  # Optional
+  secret_name: "myapp/prod"
+  endpoint: "http://localhost:4566"         # Optional - for LocalStack or custom endpoints
+
+server:
+  session_secret: ${aws:SESSION_SECRET}      # From JSON secret
+  api_key: ${aws:API_KEY}                    # From JSON secret
+```
+
+**Registration:**
+```go
+if cfg.AWS != nil {
+    awsClient, err := cfg.AWS.CreateClient()
+    if err != nil {
+        log.Fatal(err)
+    }
+    resolver.Register("aws", resolver.NewAWSResolver(awsClient, cfg.AWS.SecretName))
+}
+```
+
+**Configuration:** Configure the `aws` section in your YAML config file with:
+- `region`: AWS region (required)
+- `access_key_id`: AWS access key (optional - uses default credential chain if not provided)
+- `secret_access_key`: AWS secret key (optional - uses default credential chain if not provided)
+- `secret_name`: Name of the secret in AWS Secrets Manager (required)
+- `endpoint`: Custom endpoint URL (optional - useful for LocalStack or custom endpoints)
+
+**Secret Formats:**
+1. **JSON format** (multiple key-value pairs):
+   ```json
+   {
+     "SESSION_SECRET": "my-session-secret",
+     "API_KEY": "my-api-key",
+     "DB_PASSWORD": "my-db-password"
+   }
+   ```
+   Use `${aws:SESSION_SECRET}` to retrieve individual keys.
+
+2. **Plain text format** (single value):
+   ```
+   my-secret-value
+   ```
+   For plain text secrets, the key parameter is ignored and the entire secret value is returned.
+
+**IAM Credentials:** If `access_key_id` and `secret_access_key` are not provided, the resolver will use the AWS default credential chain (IAM role, environment variables, shared credentials file, etc.)
 
 ## Creating Custom Resolvers
 
@@ -250,49 +315,6 @@ func (d *DatabaseResolver) Resolve(key string) (string, error) {
 }
 ```
 
-### AWS Secrets Manager Resolver
-
-```go
-import (
-    "github.com/aws/aws-sdk-go/aws/session"
-    "github.com/aws/aws-sdk-go/service/secretsmanager"
-)
-
-type AWSSecretsResolver struct {
-    client *secretsmanager.SecretsManager
-}
-
-func NewAWSSecretsResolver(region string) resolver.PropertyResolver {
-    sess := session.Must(session.NewSession())
-    return &AWSSecretsResolver{
-        client: secretsmanager.New(sess),
-    }
-}
-
-func (a *AWSSecretsResolver) Resolve(key string) (string, error) {
-    input := &secretsmanager.GetSecretValueInput{
-        SecretId: aws.String(key),
-    }
-
-    result, err := a.client.GetSecretValue(input)
-    if err != nil {
-        return "", errors.Wrapf(err, "failed to retrieve %q from AWS Secrets Manager", key)
-    }
-
-    return *result.SecretString, nil
-}
-```
-
-Usage:
-```go
-resolver.Register("aws", NewAWSSecretsResolver("us-east-1"))
-```
-
-Configuration:
-```yaml
-server:
-  database_password: ${aws:prod/db/password}
-```
 
 ## Error Handling
 

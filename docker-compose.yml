@@ -63,21 +63,59 @@ services:
       - |
         apk add --no-cache openssl
         mkdir -p /certs && rm -f /certs/* && cd /certs
+
+        # Generate CA with proper extensions
+        cat > ca.cnf <<EOF
+        [req]
+        distinguished_name = req_distinguished_name
+        x509_extensions = v3_ca
+
+        [req_distinguished_name]
+
+        [v3_ca]
+        basicConstraints = critical,CA:TRUE
+        keyUsage = critical,keyCertSign,cRLSign
+        subjectKeyIdentifier = hash
+        EOF
+
         openssl genrsa -out ca.key 4096
-        openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=Redis CA'
+        openssl req -new -x509 -days 365 -key ca.key -out ca.crt \
+          -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=Redis CA' \
+          -config ca.cnf -extensions v3_ca
+
+        # Generate Redis server certificate with SAN
         openssl genrsa -out redis.key 2048
-        openssl req -new -key redis.key -out redis.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis'
+        openssl req -new -key redis.key -out redis.csr \
+          -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis'
+
         cat > san.cnf <<EOF
         [req_ext]
         subjectAltName = @alt_names
+        keyUsage = critical,digitalSignature,keyEncipherment
+        extendedKeyUsage = serverAuth
+
         [alt_names]
         DNS.1 = localhost
         DNS.2 = redis
         EOF
-        openssl x509 -req -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out redis.crt -days 365 -extfile san.cnf -extensions req_ext
+
+        openssl x509 -req -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+          -out redis.crt -days 365 -extfile san.cnf -extensions req_ext
+
+        # Generate client certificate
         openssl genrsa -out client.key 2048
-        openssl req -new -key client.key -out client.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=client'
-        openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365
+        openssl req -new -key client.key -out client.csr \
+          -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=client'
+
+        cat > client.cnf <<EOF
+        [req_ext]
+        keyUsage = critical,digitalSignature,keyEncipherment
+        extendedKeyUsage = clientAuth
+        EOF
+
+        openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+          -out client.crt -days 365 -extfile client.cnf -extensions req_ext
+
         chmod 644 *.crt *.key
         echo 'TLS certificates generated successfully'
     volumes:
@@ -156,6 +194,39 @@ services:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sargantana-network
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack-dev
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: secretsmanager
+      DEBUG: 0
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        /usr/local/bin/docker-entrypoint.sh &
+        echo "Waiting for LocalStack to be ready..."
+        until awslocal secretsmanager list-secrets --region us-east-1 >/dev/null 2>&1; do
+          sleep 1
+        done
+        echo "LocalStack is ready, initializing secrets..."
+        awslocal secretsmanager create-secret --name sargantana/test --secret-string '{"GOOGLE_KEY":"test-google-key","GOOGLE_SECRET":"test-google-secret","SESSION_SECRET":"test-session-secret-that-is-long-enough"}' --region us-east-1
+        awslocal secretsmanager create-secret --name sargantana/plain-secret --secret-string 'plain-text-secret-value' --region us-east-1
+        echo "AWS Secrets Manager initialized with test secrets"
+        wait
+    healthcheck:
+      test: ["CMD", "awslocal", "secretsmanager", "list-secrets", "--query", "length(SecretList)", "--output", "text"]
       interval: 10s
       timeout: 5s
       retries: 10
