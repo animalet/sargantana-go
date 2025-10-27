@@ -16,11 +16,8 @@
             <p class="subtitle">Thoughts, stories and ideas</p>
             {{if eq $.user ""}}
             <div class="header-login">
-                <a href="/auth/openid-connect" class="header-btn" aria-label="Login with OpenID Connect">
-                    🔐 Login with OpenID
-                </a>
-                <a href="/auth/google" class="header-btn" aria-label="Login with Google">
-                    🌐 Login with Google
+                <a href="/auth/openid-connect" class="header-btn" aria-label="Login with OAuth">
+                    🌐 Login with OAuth
                 </a>
             </div>
             {{end}}

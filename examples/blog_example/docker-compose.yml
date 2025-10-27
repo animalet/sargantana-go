@@ -1,0 +1,131 @@
+version: '3.8'
+
+# Blog Example Docker Compose Configuration
+#
+# Services included:
+# - postgres: PostgreSQL 16 database
+# - redis: Redis 7 for session storage
+# - vault: HashiCorp Vault for secrets management
+# - mockoidc: Mock OAuth2 server (Google OAuth for local testing)
+# - blog: The blog application
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: my_blog_db
+      POSTGRES_USER: bloguser
+      POSTGRES_PASSWORD: blogpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bloguser -d my_blog_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass redispass
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  blog:
+    build:
+      context: ../..
+      dockerfile: examples/blog_example/Dockerfile
+    image: sargantana-blog:latest
+    pull_policy: build
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount configuration file
+      - ./config.docker.yaml:/app/config.yaml:ro
+      # Mount secrets directory
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+      mockoidc:
+        condition: service_started  # No health check available, but starts quickly
+    restart: no
+
+  vault:
+    image: hashicorp/vault:1.17
+    container_name: blog-vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    command: >
+      sh -c "
+        vault server -dev -dev-root-token-id=dev-root-token -dev-listen-address=0.0.0.0:8200 &
+        sleep 10 &&
+        export VAULT_ADDR=http://0.0.0.0:8200 VAULT_TOKEN=dev-root-token &&
+        vault kv put secret/blog DB_PASSWORD=blogpass DB_USER=bloguser SESSION_SECRET=supersecret OPENID_CONNECT_SECRET=mock-client-secret &&
+        echo 'Vault initialized with blog secrets' &&
+        tail -f /dev/null
+      "
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  mockoidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.1
+    ports:
+      - "8082:8082"
+    environment:
+      SERVER_PORT: 8082
+      JSON_CONFIG: >
+        {
+          "interactiveLogin": true,
+          "httpServer": "NettyWrapper",
+          "tokenCallbacks": [
+            {
+              "issuerId": "google",
+              "tokenExpiry": 3600,
+              "requestMappings": [
+                {
+                  "requestParam": "scope",
+                  "match": "*",
+                  "claims": {
+                    "sub": "test-user-123",
+                    "email": "testuser@example.com",
+                    "email_verified": true,
+                    "name": "Test User",
+                    "given_name": "Test",
+                    "family_name": "User",
+                    "picture": "https://via.placeholder.com/150"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+    # Note: No health check because the image is distroless (no shell)
+    # The service starts very quickly (~5 seconds) and is ready immediately
+    # Use start_period with sleep in blog service if timing issues occur
+
+volumes:
+  postgres_data:
+  redis_data:
