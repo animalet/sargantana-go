@@ -199,7 +199,7 @@ Before running in debug mode, ensure you have:
 
 1. An existing (and valid) YAML configuration file (e.g., `config.yaml`)
 2. Optional: Configure Vault, Redis, or file resolver if you need them (all are modular and optional)
-3. Required services running if using Redis/Neo4j/Vault (see docker-compose.yml)
+3. Required services running if using Redis/Vault (see docker-compose.yml)
 
 ### Common debugging scenarios
 

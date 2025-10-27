@@ -1,6 +1,3 @@
-// Package database provides database connectivity and integration for the Sargantana Go web framework.
-// It includes Redis connection pooling for session storage and caching, as well as Neo4j driver
-// configuration for graph database operations.
 package database
 
 import (

@@ -4,9 +4,9 @@ A complete blog application demonstrating the Sargantana Go framework with authe
 
 ## Features
 
-- **Authentication**: Mock OAuth2 provider (Google-like) for easy local development
+- **Authentication**: Keycloak OAuth2/OIDC for local development
 - **Database**: PostgreSQL with connection pooling
-- **Sessions**: Redis-backed session storage
+- **Sessions**: Redis-backed session storage (unlimited size for OAuth tokens)
 - **Secrets Management**: Hybrid approach using file-based secrets and HashiCorp Vault
 - **Template Rendering**: Server-side HTML templates
 - **Static Assets**: CSS and favicon serving
@@ -30,15 +30,17 @@ A complete blog application demonstrating the Sargantana Go framework with authe
 
 2. **Access the application:**
    - Blog: http://localhost:8080/blog/feed
+   - Keycloak Admin: http://localhost:8081 (admin/admin)
    - Vault UI: http://localhost:8200 (token: dev-root-token)
 
 ### Authentication
 
-**🌐 Google OAuth (Mock)**
-- Works immediately, no configuration needed
-- Simulates Google OAuth for development
-- Enter any username to log in
-- Perfect for testing without real OAuth credentials
+** Keycloak Login**
+- Pre-configured test user: `test` / `test`
+- Click "Login with OAuth" on the blog
+- Redirects to Keycloak at http://localhost:8081
+- After login, returns to blog with authenticated session
+- Full OAuth2/OIDC flow for realistic development testing
 
 ## Architecture
 
@@ -50,19 +52,19 @@ A complete blog application demonstrating the Sargantana Go framework with authe
 | **postgres** | 5432 | Database |
 | **redis** | 6379 | Session storage |
 | **vault** | 8200 | Secrets management |
-| **mockoidc** | 8082 | Mock OAuth2 server |
+| **keycloak** | 8081 | OAuth2/OIDC provider |
 
 ### Configuration
 
 The example demonstrates **modular configuration** with multiple secret sources:
 
 ```yaml
-# All secrets from Vault (auto-initialized on startup)
-session_secret: "${vault:SESSION_SECRET}"
-user: "${vault:DB_USER}"
-password: "${vault:DB_PASSWORD}"
-key: "${vault:OPENID_CONNECT_KEY}"
-secret: "${vault:OPENID_CONNECT_SECRET}"
+# Hybrid secret sources (file and Vault)
+session_secret: "${vault:SESSION_SECRET}"        # From Vault
+user: "${vault:DB_USER}"                         # From Vault
+password: "${vault:DB_PASSWORD}"                 # From Vault
+key: "${file:OPENID_CONNECT_KEY}"                # From secrets/OPENID_CONNECT_KEY
+secret: "${vault:OPENID_CONNECT_SECRET}"         # From Vault
 ```
 
 **Key files:**
@@ -75,12 +77,16 @@ secret: "${vault:OPENID_CONNECT_SECRET}"
 
 ### Secrets Management
 
-**All secrets are stored in Vault** (`secret/data/blog`) and auto-initialized on startup:
+**Hybrid approach** mixing file-based and Vault secrets:
+
+**Vault Secrets** (`secret/data/blog`) - auto-initialized on startup:
 - `SESSION_SECRET` - Session encryption key
 - `DB_USER` - PostgreSQL username
 - `DB_PASSWORD` - PostgreSQL password
-- `OPENID_CONNECT_KEY` - OAuth client ID
 - `OPENID_CONNECT_SECRET` - OAuth client secret
+
+**File Secrets** (`secrets/` directory):
+- `OPENID_CONNECT_KEY` - OAuth client ID (value: `sargantana`)
 
 **Vault Commands:**
 ```bash
@@ -107,12 +113,13 @@ CREATE TABLE IF NOT EXISTS posts (
 
 ### Authentication Flow
 
-1. User clicks "Login with Google"
-2. Redirected to mock OAuth2 server
-3. User enters any username
-4. After successful login, redirected to callback endpoint
-5. Session created with user information
-6. User redirected to `/blog/feed`
+1. User clicks "Login with OAuth" on blog
+2. Redirected to Keycloak at `http://localhost:8081`
+3. User enters credentials (`test` / `test`)
+4. Keycloak validates and redirects back with authorization code
+5. Blog exchanges code for access token
+6. Session created in Redis with OAuth data
+7. User redirected to `/blog/feed` as authenticated
 
 ### Controller Registration
 
@@ -170,25 +177,31 @@ blog_example/
 ## Troubleshooting
 
 **Blog service won't start:**
-- Check that Vault is healthy: `docker-compose ps`
-- Verify secrets exist: `docker exec blog-vault vault kv get secret/blog`
+- Check all services are healthy: `docker-compose ps`
+- Verify Vault secrets exist: `docker exec blog-vault vault kv get secret/blog`
+- Verify file secret exists: `cat secrets/OPENID_CONNECT_KEY`
 - Check logs: `docker-compose logs blog`
 
 **Authentication fails:**
-- Verify mock OAuth2 server is running: `docker-compose ps mockoidc`
-- Check mockoidc logs: `docker-compose logs mockoidc`
-- Verify callback URL in config matches: `http://localhost:8080/auth/google/callback`
+- Verify Keycloak is running: `docker-compose ps keycloak`
+- Check Keycloak logs: `docker-compose logs keycloak`
+- Verify test user exists in Keycloak Admin UI (http://localhost:8081)
+- Check callback URL matches: `http://localhost:8080/auth/openid-connect/callback`
+
+**Session "too big" error:**
+- Redis session store should be configured automatically
+- Check blog logs for "Redis session store configured"
+- Verify Redis is healthy: `docker-compose ps redis`
 
 ## What This Example Demonstrates
 
-✅ **Modular Architecture**: Controllers, resolvers, and services are independently configured
-✅ **OAuth2 Authentication**: Mock OAuth2 provider for easy development testing
-✅ **Hybrid Secrets**: Mix file-based and Vault secrets in same configuration
-✅ **Production Patterns**: Connection pooling, health checks, graceful shutdown
-✅ **Template Rendering**: Server-side HTML with Go templates
-✅ **Session Management**: Redis-backed sessions with authentication
-✅ **Database Integration**: PostgreSQL with automatic schema creation and CRUD operations
-✅ **Docker Best Practices**: Multi-stage builds, health checks, dependency ordering
+- **Modular Architecture**: Controllers, resolvers, and services are independently configured
+- **OAuth2/OIDC Authentication**: Full OAuth2 flow integration
+- **Hybrid Secrets**: Mix file-based and Vault secrets in same configuration
+- **Production Patterns**: Connection pooling, graceful shutdown
+- **Template Rendering**: Server-side HTML with Go templates
+- **Session Management**: Redis-backed sessions.
+- **Database Integration**: PostgreSQL with automatic schema creation and CRUD operations
 
 ## License
 

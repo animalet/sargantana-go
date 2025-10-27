@@ -40,7 +40,6 @@ Sargantana Go is a Go web framework built on top of Gin. It provides a modular, 
 5. **Database** (`database/`)
    - Redis connection pooling with TLS support
    - PostgreSQL connection pooling with comprehensive configuration
-   - Neo4j graph database support
    - All use `ClientFactory[T]` pattern for type-safe client creation
 
 6. **Session Management** (`session/`)
@@ -380,7 +379,6 @@ Key dependencies:
 - **markbates/goth**: OAuth authentication
 - **gomodule/redigo**: Redis client
 - **hashicorp/vault/api**: Vault client
-- **neo4j/neo4j-go-driver**: Neo4j driver
 - **jackc/pgx/v5**: PostgreSQL driver with connection pooling
 - **rs/zerolog**: Structured logging
 

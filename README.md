@@ -29,7 +29,7 @@ Sargantana Go is a modular configuration-driven web framework built on [Gin](htt
 - Graceful shutdown with cleanup hooks
 
 ** Data Source Integration**
-- **Databases**: PostgreSQL (pgxpool), Redis, Neo4j
+- **Databases**: PostgreSQL (pgxpool), Redis
 - **Secret Management**: HashiCorp Vault, AWS Secrets Manager, file-based secrets
 - All use the `ClientFactory[T]` pattern for type-safe, validated client creation
 
@@ -48,10 +48,10 @@ This is a personal side project I created for my own learning and practicing wit
 - **Web Server**: High-performance HTTP server using [Gin](https://github.com/gin-gonic/gin)
 - **Authentication**: Multi-provider authentication support via [Goth](https://github.com/markbates/goth) with 50+
   providers
-- **Session Management**: Flexible session storage with Redis or cookie-based options
+- **Session Management**: Flexible session storage with Redis or cookie-based options. Any session store can be used, it only needs to be supported by github.com/gin-contrib/sessions
 - **Static File Serving**: Built-in static file and template serving capabilities
 - **Load Balancing**: Round-robin load balancer with optional authentication
-- **Database Support**: Redis, PostgreSQL, and Neo4j integration with type-safe client factory pattern
+- **Database Support**: Redis and PostgreSQL integration with type-safe client factory pattern
 - **Configuration**: YAML-based configuration with environment variable, Vault and file secrets support
 
 ## Quick Start
@@ -566,31 +566,6 @@ postgres:
   max_conn_lifetime: 1h           # Optional: max connection lifetime
   max_conn_idle_time: 30m         # Optional: max idle time
   health_check_period: 1m         # Optional: health check interval
-```
-
-### Neo4j
-
-```go
-import "github.com/animalet/sargantana-go/database"
-
-// Option 1: Using environment variables (recommended)
-// Configure via environment variables:
-// NEO4J_URI=bolt://localhost:7687
-// NEO4J_USERNAME=neo4j  
-// NEO4J_PASSWORD=password
-// NEO4J_REALM=          (optional)
-
-driver, cleanup := database.NewNeo4jDriverFromEnv()
-defer cleanup()
-
-// Option 2: Using explicit configuration
-driver, cleanup := database.NewNeo4jDriver(&database.Neo4jOptions{
-Uri:      "bolt://localhost:7687",
-Username: "neo4j",
-Password: "password",
-Realm:    "", // optional
-})
-defer cleanup()
 ```
 
 ## Examples
