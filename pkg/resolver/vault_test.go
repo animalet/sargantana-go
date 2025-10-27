@@ -64,22 +64,30 @@ func TestVaultResolver_Success(t *testing.T) {
 
 // TestVaultResolver_KVv1 tests Vault KV v1 secret engine
 func TestVaultResolver_KVv1(t *testing.T) {
-	t.Skip("Skipping KV v1 test - requires separate Vault KV v1 setup")
-
 	client, err := createTestVaultClient("http://localhost:8200", "dev-root-token")
 	if err != nil {
 		t.Fatalf("Failed to create Vault client: %v", err)
 	}
 
-	// KV v1 uses a different path structure
-	resolver := NewVaultResolver(client, "secret/sargantana_v1")
+	// KV v1 uses a different path structure (no /data/ in the path)
+	resolver := NewVaultResolver(client, "secret-v1/sargantana")
 
+	// Test retrieving GOOGLE_KEY from KV v1
 	googleKey, err := resolver.Resolve("GOOGLE_KEY")
 	if err != nil {
 		t.Fatalf("Resolve failed for GOOGLE_KEY in KV v1: %v", err)
 	}
-	if googleKey != "test-google-key-v1" {
-		t.Errorf("Expected 'test-google-key-v1', got '%s'", googleKey)
+	if googleKey != "test-google-key" {
+		t.Errorf("Expected 'test-google-key', got '%s'", googleKey)
+	}
+
+	// Test retrieving SESSION_SECRET from KV v1
+	sessionSecret, err := resolver.Resolve("SESSION_SECRET")
+	if err != nil {
+		t.Fatalf("Resolve failed for SESSION_SECRET in KV v1: %v", err)
+	}
+	if sessionSecret != "test-session-secret-that-is-long-enough" {
+		t.Errorf("Expected 'test-session-secret-that-is-long-enough', got '%s'", sessionSecret)
 	}
 }
 
@@ -324,5 +332,158 @@ func TestVaultConfig_CreateClient(t *testing.T) {
 
 	if client.Address() != "http://localhost:8200" {
 		t.Errorf("Expected address 'http://localhost:8200', got '%s'", client.Address())
+	}
+}
+
+// TestVaultPropertyResolution_Success tests property resolution using Vault resolver with Docker
+func TestVaultPropertyResolution_Success(t *testing.T) {
+	// Set up Vault resolver using docker compose Vault instance
+	vaultCfg := &VaultConfig{
+		Address: "http://localhost:8200",
+		Token:   "dev-root-token",
+		Path:    "secret/data/sargantana",
+	}
+
+	client, err := vaultCfg.CreateClient()
+	if err != nil {
+		t.Fatalf("Failed to create Vault client: %v", err)
+	}
+
+	vaultResolver := NewVaultResolver(client, vaultCfg.Path)
+
+	// Register the resolver
+	Register("vault", vaultResolver)
+	defer Unregister("vault")
+
+	// Test resolving a property using vault: prefix
+	result, err := Global.Resolve("vault:GOOGLE_KEY")
+	if err != nil {
+		t.Fatalf("Failed to resolve vault:GOOGLE_KEY: %v", err)
+	}
+
+	expected := "test-google-key"
+	if result != expected {
+		t.Errorf("Expected '%s', got '%s'", expected, result)
+	}
+
+	// Test resolving another property
+	sessionSecret, err := Global.Resolve("vault:SESSION_SECRET")
+	if err != nil {
+		t.Fatalf("Failed to resolve vault:SESSION_SECRET: %v", err)
+	}
+
+	expectedSecret := "test-session-secret-that-is-long-enough"
+	if sessionSecret != expectedSecret {
+		t.Errorf("Expected '%s', got '%s'", expectedSecret, sessionSecret)
+	}
+}
+
+// TestVaultPropertyResolution_NonexistentKey tests property resolution with nonexistent key
+func TestVaultPropertyResolution_NonexistentKey(t *testing.T) {
+	vaultCfg := &VaultConfig{
+		Address: "http://localhost:8200",
+		Token:   "dev-root-token",
+		Path:    "secret/data/sargantana",
+	}
+
+	client, err := vaultCfg.CreateClient()
+	if err != nil {
+		t.Fatalf("Failed to create Vault client: %v", err)
+	}
+
+	vaultResolver := NewVaultResolver(client, vaultCfg.Path)
+	Register("vault", vaultResolver)
+	defer Unregister("vault")
+
+	_, err = Global.Resolve("vault:NONEXISTENT_KEY")
+	if err == nil {
+		t.Fatal("Expected error when resolving nonexistent Vault key")
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected 'not found' error, got: %v", err)
+	}
+}
+
+// TestVaultPropertyResolution_InvalidToken tests property resolution with invalid token
+func TestVaultPropertyResolution_InvalidToken(t *testing.T) {
+	vaultCfg := &VaultConfig{
+		Address: "http://localhost:8200",
+		Token:   "invalid-token",
+		Path:    "secret/data/sargantana",
+	}
+
+	client, err := vaultCfg.CreateClient()
+	if err != nil {
+		t.Fatalf("Failed to create Vault client: %v", err)
+	}
+
+	vaultResolver := NewVaultResolver(client, vaultCfg.Path)
+	Register("vault", vaultResolver)
+	defer Unregister("vault")
+
+	_, err = Global.Resolve("vault:GOOGLE_KEY")
+	if err == nil {
+		t.Fatal("Expected error when using invalid token")
+	}
+
+	if !strings.Contains(err.Error(), "failed to read secret") && !strings.Contains(err.Error(), "permission denied") {
+		t.Errorf("Expected authentication error, got: %v", err)
+	}
+}
+
+// TestVaultPropertyResolution_NoResolverRegistered tests behavior when no resolver is registered
+func TestVaultPropertyResolution_NoResolverRegistered(t *testing.T) {
+	// Make sure vault resolver is not registered
+	Unregister("vault")
+
+	_, err := Global.Resolve("vault:SOME_KEY")
+	if err == nil {
+		t.Fatal("Expected error when vault resolver is not registered")
+	}
+
+	if !strings.Contains(err.Error(), "no resolver registered") {
+		t.Errorf("Expected 'no resolver registered' error, got: %v", err)
+	}
+}
+
+// TestVaultPropertyResolution_KVv1 tests property resolution using KV v1 secret engine
+func TestVaultPropertyResolution_KVv1(t *testing.T) {
+	// Set up Vault resolver for KV v1
+	vaultCfg := &VaultConfig{
+		Address: "http://localhost:8200",
+		Token:   "dev-root-token",
+		Path:    "secret-v1/sargantana",
+	}
+
+	client, err := vaultCfg.CreateClient()
+	if err != nil {
+		t.Fatalf("Failed to create Vault client: %v", err)
+	}
+
+	vaultResolver := NewVaultResolver(client, vaultCfg.Path)
+	Register("vault", vaultResolver)
+	defer Unregister("vault")
+
+	// Test resolving from KV v1
+	result, err := Global.Resolve("vault:GOOGLE_KEY")
+	if err != nil {
+		t.Fatalf("Failed to resolve vault:GOOGLE_KEY from KV v1: %v", err)
+	}
+
+	expected := "test-google-key"
+	if result != expected {
+		t.Errorf("Expected '%s', got '%s'", expected, result)
+	}
+
+	// Test another property from KV v1
+	sessionSecret, err := Global.Resolve("vault:SESSION_SECRET")
+	if err != nil {
+		t.Fatalf("Failed to resolve vault:SESSION_SECRET from KV v1: %v", err)
+	}
+
+	expectedSecret := "test-session-secret-that-is-long-enough"
+	if sessionSecret != expectedSecret {
+		t.Errorf("Expected '%s', got '%s'", expectedSecret, sessionSecret)
 	}
 }

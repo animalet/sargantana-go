@@ -8,42 +8,28 @@ secrets:
 
 services:
   neo4j:
-    # The Docker image to use for the container
     image: neo4j:5.15-community
-
-    # Environment variables passed to the container
     environment:
-      # Sets the authentication credentials for the Neo4j database
-      - NEO4J_AUTH=neo4j/testpassword
-      # Specifies a list of plugins to install on startup
-      - NEO4J_PLUGINS=["apoc"]
-
-    # Port mappings from the host machine to the container
+      NEO4J_AUTH: neo4j/testpassword
+      NEO4J_PLUGINS: '["apoc"]'
     ports:
-      # Maps the Bolt protocol port (for database drivers)
       - "7687:7687"
-      # Maps the HTTP/HTTPS port (for the Neo4j Browser)
       - "7474:7474"
-
-    # Health check to determine if the container is running properly
     healthcheck:
-      # The command to run to check the health of the service
-      test: [ "CMD-SHELL", "cypher-shell -u neo4j -p testpassword 'RETURN 1'" ]
-      # How often to run the health check
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p testpassword 'RETURN 1'"]
       interval: 10s
-      # How long to wait for the check to complete before considering it failed
       timeout: 5s
-      # How many consecutive failures are needed to mark the container as unhealthy
       retries: 10
     networks:
       - sargantana-network
 
   redis:
-    hostname: redis
     image: redis:7.2-alpine
+    hostname: redis
     command: >
       sh -c "
-      echo 'user default off' > users.acl && echo 'user redisuser on >redispass allcommands allkeys' >> users.acl &&
+      echo 'user default off' > users.acl &&
+      echo 'user redisuser on >redispass allcommands allkeys' >> users.acl &&
       redis-server
       --port 6379
       --tls-port 6380
@@ -54,12 +40,10 @@ services:
       --aclfile users.acl
       "
     ports:
-      - "6380:6380"
       - "6379:6379"
+      - "6380:6380"
     volumes:
       - ./certs:/certs:ro
-    networks:
-      - sargantana-network
     depends_on:
       generate-certs:
         condition: service_completed_successfully
@@ -68,49 +52,36 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - sargantana-network
 
   generate-certs:
     image: alpine:latest
-    command: >
-      sh -c "
-        apk add --no-cache openssl &&
-        mkdir -p /certs &&
-        rm -f /certs/* &&
-        cd /certs &&
-      
-        # Generate CA private key and certificate
-        openssl genrsa -out ca.key 4096 &&
-        openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=Redis CA' &&
-      
-        # Generate server private key and certificate signing request (CSR)
-        openssl genrsa -out redis.key 2048 &&
-        openssl req -new -key redis.key -out redis.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis' &&
-      
-        # Create a config file to define the Subject Alternative Names (SANs)
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssl
+        mkdir -p /certs && rm -f /certs/* && cd /certs
+        openssl genrsa -out ca.key 4096
+        openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=Redis CA'
+        openssl genrsa -out redis.key 2048
+        openssl req -new -key redis.key -out redis.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis'
         cat > san.cnf <<EOF
         [req_ext]
         subjectAltName = @alt_names
         [alt_names]
         DNS.1 = localhost
         DNS.2 = redis
-      EOF
-
-        # Generate the server certificate using the SAN config file
-        # This makes the certificate valid for 'localhost' (for tests) and 'redis' (for inter-container communication)
-        openssl x509 -req -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out redis.crt -days 365 -extfile san.cnf -extensions req_ext &&
-
-        # Generate client certificate for tests that require it
-        openssl genrsa -out client.key 2048 &&
-        openssl req -new -key client.key -out client.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=client' &&
-        openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365 &&
-      
-        # Set proper permissions
-        chmod 644 *.crt &&
-        chmod 644 *.key &&
-        echo 'TLS certificates (CA, server with SAN, and client) generated successfully'
-      "
+        EOF
+        openssl x509 -req -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out redis.crt -days 365 -extfile san.cnf -extensions req_ext
+        openssl genrsa -out client.key 2048
+        openssl req -new -key client.key -out client.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=client'
+        openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365
+        chmod 644 *.crt *.key
+        echo 'TLS certificates generated successfully'
     volumes:
-      - './certs:/certs'
+      - ./certs:/certs
     networks:
       - sargantana-network
 
@@ -154,23 +125,24 @@ services:
     ports:
       - "8200:8200"
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: "dev-root-token"
-      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-      VAULT_ADDR: "http://0.0.0.0:8200"
+      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://0.0.0.0:8200
     cap_add:
       - IPC_LOCK
     command: >
       sh -c "
         vault server -dev -dev-root-token-id=dev-root-token -dev-listen-address=0.0.0.0:8200 &
         sleep 10 &&
-        export VAULT_ADDR=http://0.0.0.0:8200 &&
-        export VAULT_TOKEN=dev-root-token &&
+        export VAULT_ADDR=http://0.0.0.0:8200 VAULT_TOKEN=dev-root-token &&
         vault kv put secret/sargantana GOOGLE_KEY=test-google-key GOOGLE_SECRET=test-google-secret SESSION_SECRET=test-session-secret-that-is-long-enough &&
         vault secrets enable -version=1 -path=secret-v1 kv &&
         vault kv put secret-v1/sargantana GOOGLE_KEY=test-google-key GOOGLE_SECRET=test-google-secret SESSION_SECRET=test-session-secret-that-is-long-enough &&
-        echo 'Vault initialized with test secrets for both KV v1 and KV v2' &&
+        echo 'Vault initialized with test secrets' &&
         tail -f /dev/null
       "
+    networks:
+      - sargantana-network
 
   postgresql:
     image: postgres:16-alpine
@@ -182,20 +154,16 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-    networks:
-      - sargantana-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user"]
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - sargantana-network
 
 volumes:
-  valkey_data:
-    driver: local
   pg_data:
-    driver: local
 
 networks:
   sargantana-network:
-    driver: bridge
