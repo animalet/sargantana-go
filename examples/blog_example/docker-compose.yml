@@ -6,7 +6,7 @@ version: '3.8'
 # - postgres: PostgreSQL 16 database
 # - redis: Redis 7 for session storage
 # - vault: HashiCorp Vault for secrets management
-# - mockoidc: Mock OAuth2 server (Google OAuth for local testing)
+# - keycloak: Keycloak OAuth2/OIDC server for authentication
 # - blog: The blog application
 
 services:
@@ -58,8 +58,8 @@ services:
         condition: service_healthy
       vault:
         condition: service_healthy
-      mockoidc:
-        condition: service_started  # No health check available, but starts quickly
+      keycloak:
+        condition: service_healthy  # Wait for Keycloak to be ready
     restart: no
 
   vault:
@@ -89,40 +89,108 @@ services:
       retries: 5
       start_period: 15s
 
-  mockoidc:
-    image: ghcr.io/navikt/mock-oauth2-server:2.1.1
-    ports:
-      - "8082:8082"
-    environment:
-      SERVER_PORT: 8082
-      SERVER_HOSTNAME: localhost
-      JSON_CONFIG: >
-        {
-          "interactiveLogin": true,
-          "httpServer": "NettyWrapper",
-          "tokenCallbacks": [
-            {
-              "issuerId": "google",
-              "tokenExpiry": 3600,
-              "requestMappings": [
-                {
-                  "requestParam": "scope",
-                  "match": "*",
-                  "claims": {
-                    "sub": "test-user-123",
-                    "email": "testuser@example.com",
-                    "email_verified": true,
-                    "name": "Test User",
-                    "given_name": "Test",
-                    "family_name": "User",
-                    "picture": "https://via.placeholder.com/150"
-                  }
-                }
-              ]
-            }
-          ]
-        }
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: blog-keycloak
+    ports:
+      - "8081:8080"
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      # Admin credentials for managing Keycloak UI
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      # Hostname configuration for localhost development
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8081
+      KC_HTTP_ENABLED: true
+      KC_HOSTNAME_STRICT: false
+      KC_HEALTH_ENABLED: true
+      KC_METRICS_ENABLED: true
+    configs:
+      - source: keycloak_realm_config
+        target: /opt/keycloak/data/import/blog-realm.json
 volumes:
   postgres_data:
   redis_data:
+
+configs:
+  keycloak_realm_config:
+    content: |
+      {
+        "realm": "blog-realm",
+        "enabled": true,
+        "users": [
+          {
+            "username": "test-user",
+            "enabled": true,
+            "credentials": [
+              {
+                "type": "password",
+                "value": "password",
+                "temporary": false
+              }
+            ],
+            "groups": [
+              "sargantana-users"
+            ]
+          }
+        ],
+        "groups": [
+          {
+            "name": "sargantana-users"
+          }
+        ],
+        "clients": [
+          {
+            "clientId": "sargantana",
+            "secret": "mock-client-secret",
+            "enabled": true,
+            "standardFlowEnabled": true,
+            "directAccessGrantsEnabled": true,
+            "redirectUris": [
+              "http://localhost:8080/*"
+            ],
+            "protocolMappers": [
+              {
+                "name": "groups",
+                "protocol": "openid-connect",
+                "protocolMapper": "oidc-group-membership-mapper",
+                "config": {
+                  "claim.name": "groups",
+                  "full.path": "false",
+                  "access.token.claim": "true",
+                  "id.token.claim": "true",
+                  "userinfo.token.claim": "true"
+                }
+              },
+              {
+                "name": "acr",
+                "protocol": "openid-connect",
+                "protocolMapper": "oidc-hardcoded-claim-mapper",
+                "config": {
+                  "claim.name": "acr",
+                  "claim.value": "Level4",
+                  "access.token.claim": "true",
+                  "id.token.claim": "true",
+                  "userinfo.token.claim": "true"
+                }
+              },
+              {
+                "name": "sub - username",
+                "protocol": "openid-connect",
+                "protocolMapper": "oidc-user-attribute-mapper",
+                "config": {
+                  "user.attribute": "username",
+                  "claim.name": "sub",
+                  "access.token.claim": "true",
+                  "id.token.claim": "true",
+                  "userinfo.token.claim": "true"
+                }
+              }
+            ]
+          }
+        ]
+      }

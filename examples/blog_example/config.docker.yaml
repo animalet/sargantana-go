@@ -71,12 +71,11 @@ controllers:
       redirect_on_login: "/blog/feed"
       redirect_on_logout: "/blog/feed"
       providers:
-        # Mock OAuth for local development (no credentials needed)
-        # Uses mock-oauth2-server container - mimics OAuth without requiring real credentials
+        # Uses Keycloak container with blog-realm imported from keycloak-realm.json
         openid-connect:
           key: "${file:OPENID_CONNECT_KEY}"
           secret: "${vault:OPENID_CONNECT_SECRET}"
-          url: "http://mockoidc:8082/google/.well-known/openid-configuration"
+          url: "http://host.docker.internal:8081/realms/blog-realm/.well-known/openid-configuration"
           scopes:
             - "openid"
             - "profile"
