@@ -259,28 +259,16 @@ func (s *Server) bootstrap() error {
 }
 
 func (s *Server) createSessionStore(isReleaseMode bool) (*sessions.Store, error) {
-	var sessionStore sessions.Store
 	secret := s.config.ServerConfig.SessionSecret
 	if secret == "" {
 		return nil, fmt.Errorf("session secret is not set")
 	}
 	sessionSecret := []byte(secret)
-	switch s.config.ServerConfig.RedisSessionStore {
-	case nil:
-		log.Info().Msg("Using cookies for session storage")
-		sessionStore = session.NewCookieStore(isReleaseMode, sessionSecret)
-	default:
-		log.Info().Msg("Using Redis for session storage")
-		pool, err := s.config.ServerConfig.RedisSessionStore.CreateClient()
-		if err != nil {
-			return nil, fmt.Errorf("error creating Redis connection pool: %v", err)
-		}
-		s.addShutdownHook(func() error { return pool.Close() })
-		sessionStore, err = session.NewRedisSessionStore(isReleaseMode, sessionSecret, pool)
-		if err != nil {
-			return nil, fmt.Errorf("error creating Redis session store: %v", err)
-		}
-	}
+
+	// Default to cookie-based session storage
+	// For Redis or other session stores, use SetSessionStore() before calling Start()
+	log.Info().Msg("Using default cookie-based session storage")
+	sessionStore := session.NewCookieStore(isReleaseMode, sessionSecret)
 	return &sessionStore, nil
 }
 

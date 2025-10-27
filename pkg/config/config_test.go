@@ -404,3 +404,95 @@ server:
 		t.Fatal("Expected error when loading malformed YAML")
 	}
 }
+
+// PostgresTestConfig is a test config type for LoadConfig tests
+type PostgresTestConfig struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Database string `yaml:"database"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+}
+
+func (p PostgresTestConfig) Validate() error {
+	return nil
+}
+
+// NonExistentConfig is a test config type for LoadConfig tests
+type NonExistentConfig struct {
+	Value string `yaml:"value"`
+}
+
+func (n NonExistentConfig) Validate() error {
+	return nil
+}
+
+// TestLoadConfig tests the generic LoadConfig function
+func TestLoadConfig(t *testing.T) {
+	// Register env resolver for expansion
+	resolver.Register("env", resolver.NewEnvResolver())
+	defer resolver.Unregister("env")
+
+	// Set up test environment variables
+	_ = os.Setenv("TEST_HOST", "testhost")
+	_ = os.Setenv("TEST_PORT", "5432")
+	defer func() {
+		_ = os.Unsetenv("TEST_HOST")
+		_ = os.Unsetenv("TEST_PORT")
+	}()
+
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "test-config.yaml")
+
+	testConfig := `
+server:
+  address: ":8080"
+  session_name: "test-session"
+  session_secret: "my-test-secret-key"
+postgres:
+  host: "${TEST_HOST}"
+  port: 5432
+  database: "testdb"
+  user: "testuser"
+  password: "testpass"
+redis:
+  address: "localhost:6379"
+  max_idle: 10
+  idle_timeout: 240s
+`
+
+	err := os.WriteFile(configFile, []byte(testConfig), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	cfg, err := ReadConfig(configFile)
+	if err != nil {
+		t.Fatalf("ReadConfig failed: %v", err)
+	}
+
+	// Test loading postgres config
+	postgresConfig, err := LoadConfig[PostgresTestConfig]("postgres", cfg)
+	if err != nil {
+		t.Fatalf("LoadConfig for postgres failed: %v", err)
+	}
+
+	if postgresConfig.Host != "testhost" {
+		t.Errorf("Expected Host 'testhost', got '%s'", postgresConfig.Host)
+	}
+	if postgresConfig.Port != 5432 {
+		t.Errorf("Expected Port 5432, got %d", postgresConfig.Port)
+	}
+	if postgresConfig.Database != "testdb" {
+		t.Errorf("Expected Database 'testdb', got '%s'", postgresConfig.Database)
+	}
+
+	// Test loading non-existent config
+	_, err = LoadConfig[NonExistentConfig]("nonexistent", cfg)
+	if err == nil {
+		t.Fatal("Expected error when loading non-existent config")
+	}
+	if !strings.Contains(err.Error(), "no configuration found") {
+		t.Errorf("Expected 'no configuration found' error, got: %v", err)
+	}
+}

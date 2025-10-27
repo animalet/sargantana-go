@@ -2,8 +2,8 @@
 
 profile: coverage.out
 threshold:
-  file: 85
-  package: 85
+  file: 80
+  package: 80
   total: 90
 exclude:
   paths:

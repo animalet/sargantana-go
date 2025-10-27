@@ -383,3 +383,172 @@ func BenchmarkRedisPool_TestOnBorrow(b *testing.B) {
 		})
 	}
 }
+
+func TestRedisConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  RedisConfig
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid config",
+			config: RedisConfig{
+				Address:     "localhost:6379",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty address",
+			config: RedisConfig{
+				Address:     "",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+			},
+			wantErr: true,
+			errMsg:  "redis address must be set and non-empty",
+		},
+		{
+			name: "negative MaxIdle",
+			config: RedisConfig{
+				Address:     "localhost:6379",
+				MaxIdle:     -1,
+				IdleTimeout: 5 * time.Second,
+			},
+			wantErr: true,
+			errMsg:  "redis max_idle must be non-negative",
+		},
+		{
+			name: "negative IdleTimeout",
+			config: RedisConfig{
+				Address:     "localhost:6379",
+				MaxIdle:     10,
+				IdleTimeout: -5 * time.Second,
+			},
+			wantErr: true,
+			errMsg:  "redis idle_timeout must be non-negative",
+		},
+		{
+			name: "negative Database",
+			config: RedisConfig{
+				Address:     "localhost:6379",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+				Database:    -1,
+			},
+			wantErr: true,
+			errMsg:  "redis database must be non-negative",
+		},
+		{
+			name: "TLS with cert but no key",
+			config: RedisConfig{
+				Address:     "localhost:6380",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+				TLS: &TLSConfig{
+					CertFile: "cert.pem",
+					KeyFile:  "",
+				},
+			},
+			wantErr: true,
+			errMsg:  "both cert_file and key_file must be set together in TLS configuration",
+		},
+		{
+			name: "TLS with key but no cert",
+			config: RedisConfig{
+				Address:     "localhost:6380",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+				TLS: &TLSConfig{
+					CertFile: "",
+					KeyFile:  "key.pem",
+				},
+			},
+			wantErr: true,
+			errMsg:  "both cert_file and key_file must be set together in TLS configuration",
+		},
+		{
+			name: "valid TLS config with cert and key",
+			config: RedisConfig{
+				Address:     "localhost:6380",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+				TLS: &TLSConfig{
+					CertFile: "cert.pem",
+					KeyFile:  "key.pem",
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Validate() expected error but got nil")
+				} else if err.Error() != tt.errMsg {
+					t.Errorf("Validate() error = %v, want %v", err.Error(), tt.errMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Validate() unexpected error = %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestRedisConfig_CreateClient(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  RedisConfig
+		wantErr bool
+	}{
+		{
+			name: "valid config",
+			config: RedisConfig{
+				Address:     "localhost:6379",
+				Username:    "redisuser",
+				Password:    "redispass",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid config - empty address",
+			config: RedisConfig{
+				Address:     "",
+				MaxIdle:     10,
+				IdleTimeout: 5 * time.Second,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool, err := tt.config.CreateClient()
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("CreateClient() expected error but got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("CreateClient() unexpected error = %v", err)
+				}
+				if pool == nil {
+					t.Errorf("CreateClient() returned nil pool")
+				}
+				// Clean up
+				if pool != nil {
+					_ = pool.Close()
+				}
+			}
+		})
+	}
+}

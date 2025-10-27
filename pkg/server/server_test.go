@@ -14,6 +14,8 @@ import (
 
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/controller"
+	"github.com/animalet/sargantana-go/pkg/database"
+	"github.com/animalet/sargantana-go/pkg/session"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -93,12 +95,14 @@ server:
   session_name: "test_session"
   session_secret: "test-session-secret-key"
   secrets_dir: "` + secretsDir + `"
-  redis_session_store:
-    address: "localhost:6380"
-    max_idle: 10
-    idle_timeout: 240s
-    tls:
-      insecure_skip_verify: true
+redis:
+  address: "localhost:6380"
+  username: "redisuser"
+  password: "redispass"
+  max_idle: 10
+  idle_timeout: 240s
+  tls:
+    insecure_skip_verify: true
 controllers:
   - type: "mock"
     name: "test_controller"
@@ -107,7 +111,7 @@ controllers:
 
 	configFile := createTestConfigFile(t, configContent)
 
-	// Capture log output to verify debug mode and Redis configuration are attempted
+	// Capture log output to verify debug mode
 	var logBuffer bytes.Buffer
 	logWriter := &LogWriter{buffer: &logBuffer}
 	originalWriter := log.Logger
@@ -125,34 +129,41 @@ controllers:
 		t.Fatalf("Failed to create server: %v", err)
 	}
 
-	if server.config.ServerConfig.RedisSessionStore == nil {
-		t.Error("Expected Redis session store to be configured")
-	} else if server.config.ServerConfig.RedisSessionStore.Address != "localhost:6380" {
-		t.Errorf("Expected Redis address to be 'localhost:6380', got '%s'", server.config.ServerConfig.RedisSessionStore.Address)
-	}
-
 	if server.config.ServerConfig.SessionName != "test_session" {
 		t.Error("Expected session name to be 'test_session'")
 	}
 
-	// Note: Controllers are now configured during Start() (in bootstrap()), not in NewServer()
-	// This is because they need access to the session store via ControllerContext
+	// Manually create and set a Redis session store using SetSessionStore
+	// This demonstrates the new pattern where session stores are created externally
+	redisConfig, err := config.LoadConfig[database.RedisConfig]("redis", server.config)
+	if err != nil {
+		t.Fatalf("Failed to load Redis config: %v", err)
+	}
 
-	// Start server (this will attempt to create Redis session store and may fail)
+	pool, err := redisConfig.CreateClient()
+	if err != nil {
+		// Redis connection may fail in test environment, try with default cookie store
+		t.Logf("Redis connection failed (expected in test without Redis): %v", err)
+		// Don't set a custom store, let it use default cookie store
+	} else {
+		// Create Redis session store and set it
+		defer pool.Close()
+		redisStore, err := session.NewRedisSessionStore(false, []byte("test-session-secret-key"), pool)
+		if err != nil {
+			t.Fatalf("Failed to create Redis session store: %v", err)
+		}
+		server.SetSessionStore(&redisStore)
+	}
+
+	// Start server
 	err = server.Start()
 
-	// Check the logs for debug mode and Redis configuration attempts
+	// Check the logs for debug mode
 	logOutput := logBuffer.String()
 
 	// Verify debug mode messages are present
 	if !strings.Contains(logOutput, "Debug mode is enabled") {
 		t.Error("Expected debug mode message not found in logs")
-	}
-
-	// The server should attempt to use Redis for session storage
-	// Even if Redis connection fails, the configuration should be attempted
-	if !strings.Contains(logOutput, "Using Redis for session storage") {
-		t.Error("Expected Redis session storage message not found in logs")
 	}
 
 	// If server started successfully, verify the mock controller was bound
@@ -167,19 +178,13 @@ controllers:
 			t.Error("Expected controllers to be configured after successful start")
 		}
 
-		// Cleanup if server started successfully
+		// Cleanup
 		err := server.Shutdown()
 		if err != nil {
 			t.Errorf("Failed to shutdown server: %v", err)
 		}
 	} else {
-		// If server failed to start (likely due to Redis connection), that's expected in a test environment
-		// The important part is that we verified the configuration was loaded correctly
-		t.Logf("Server failed to start (expected in test environment without Redis): %v", err)
-
-		// Controllers are only configured if bootstrap() succeeds (which requires session store creation)
-		// So if Start() fails, controllers won't be configured - this is expected
-		t.Log("Controllers not configured because session store creation failed (expected behavior)")
+		t.Fatalf("Server failed to start: %v", err)
 	}
 }
 
@@ -337,7 +342,7 @@ controllers:
 		t.Error("Expected release mode message not found in logs")
 	}
 
-	if !strings.Contains(logOutput, "Using cookies for session storage") {
+	if !strings.Contains(logOutput, "Using default cookie-based session storage") {
 		t.Error("Expected cookie session storage message not found in logs")
 	}
 
@@ -882,5 +887,45 @@ func TestAddControllerType(t *testing.T) {
 
 	if _, exists := controllerRegistry["test-controller"]; !exists {
 		t.Error("Expected controller type 'test-controller' to still be registered after override")
+	}
+}
+
+func TestSetSessionStore(t *testing.T) {
+	// Create a temporary config file
+	configYAML := `
+server:
+  address: ":18084"
+  session_name: "test-session"
+  session_secret: "my-test-secret-key-that-is-long-enough"
+`
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "config.yaml")
+	err := os.WriteFile(configFile, []byte(configYAML), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	server, err := NewServerFromConfigFile(configFile)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+
+	// Test that initially the session store is nil (not yet bootstrapped)
+	if server.sessionStore != nil {
+		t.Error("Expected session store to be nil before bootstrap")
+	}
+
+	// Create a custom session store
+	customStore := session.NewCookieStore(false, []byte("test-secret-key-for-sessions-here"))
+
+	// Test SetSessionStore
+	server.SetSessionStore(&customStore)
+
+	// Verify the session store was set
+	if server.sessionStore == nil {
+		t.Error("Expected session store to be set")
+	}
+	if server.sessionStore != &customStore {
+		t.Error("Expected session store to match the one we set")
 	}
 }
