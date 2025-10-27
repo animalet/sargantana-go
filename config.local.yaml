@@ -7,18 +7,27 @@ server:
   session_secret: "${SESSION_SECRET}"  # Session secret (can use env var)
   session_name: "sargantana_session"    # Session cookie name
   secrets_dir: ".secrets"            # Directory containing secret files
-  redis_session_store:  # TLS-enabled Redis for session storage
-    address: "localhost:6380"  # TLS Redis server address
-    username: "redisuser"           # Redis password (if any)
-    password: "redispass"           # Redis password (if any)
-    database: 0                  # Redis database number
-    max_idle: 10          # Max idle connections
-    idle_timeout: "2m"     # Idle timeout in seconds
-    tls:                   # TLS configuration for secure connections
-      insecure_skip_verify: true   # Skip certificate verification for self-signed certs
-      cert_file: "./certs/redis.crt"  # Client certificate file
-      key_file: "./certs/redis.key"   # Client private key file
-      ca_file: "./certs/ca.crt"        # CA certificate file
+  # Note: Server now defaults to cookie-based sessions
+  # For Redis sessions, configure redis section below and use SetSessionStore() in your code
+
+# Redis configuration (optional - for Redis session store or general Redis usage)
+# To use Redis for sessions, create a Redis session store in your application code:
+#   redisConfig, _ := config.LoadConfig[database.RedisConfig]("redis", cfg)
+#   pool, _ := redisConfig.CreateClient()
+#   redisStore, _ := session.NewRedisSessionStore(isRelease, secret, pool)
+#   server.SetSessionStore(&redisStore)
+redis:
+  address: "localhost:6380"  # TLS Redis server address
+  username: "redisuser"      # Redis username (if using ACL)
+  password: "redispass"      # Redis password
+  database: 0                # Redis database number
+  max_idle: 10               # Max idle connections
+  idle_timeout: "2m"         # Idle timeout
+  tls:                       # TLS configuration for secure connections
+    insecure_skip_verify: true        # Skip certificate verification for self-signed certs
+    cert_file: "./certs/client.crt"   # Client certificate file
+    key_file: "./certs/client.key"    # Client private key file
+    ca_file: "./certs/ca.crt"         # CA certificate file
 
 vault:
   address: "http://localhost:8200"  # Vault server address
@@ -28,11 +37,16 @@ vault:
 
 # Controller configurations
 controllers:
-  # Static file controller
+  # Static file controller - serves files from /static/* and templates
   - type: "static"
     config:
-      statics_dir: "./static"
-      templates_dir: "./templates"
+      path: "/static"           # URL path to serve static files
+      dir: "./static"            # Directory containing static files
+
+  # Template controller - serves HTML templates
+  - type: "template"
+    config:
+      path: "./templates"        # Directory containing template files
 
   # Load balancer controller
   - type: "load_balancer"
@@ -69,18 +83,18 @@ controllers:
         openid-connect:
           key: "${file:OPENID_CONNECT_KEY}"                     # OpenID Connect client key
           secret: "${file:OPENID_CONNECT_SECRET}"
-          url: "http://localhost:8080/default/.well-known/openid-configuration"  # OpenID Connect discovery URL
+          url: "http://localhost:8081/default/.well-known/openid-configuration"  # OpenID Connect discovery URL
           scopes:
             - "openid"
             - "profile"
             - "email"
 
-        google:
-          key: "${vault:GOOGLE_KEY}"
-          secret: "${file:GOOGLE_SECRET}"
-          scopes:
-            - "openid"
-            - "profile"
-            - "email"
+        # google:
+        #   key: "${vault:GOOGLE_KEY}"      # Uncomment and configure Vault properly
+        #   secret: "${file:GOOGLE_SECRET}"
+        #   scopes:
+        #     - "openid"
+        #     - "profile"
+        #     - "email"
 
 
