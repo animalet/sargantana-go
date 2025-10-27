@@ -41,5 +41,8 @@ func NewRedisSessionStore(isReleaseMode bool, secret []byte, pool *redis.Pool) (
 	rediStore.Options.HttpOnly = true
 	rediStore.Options.SameSite = http.SameSiteLaxMode
 
+	// Set MaxLength to 0 to allow unlimited session data size (stored in Redis, not cookies)
+	rediStore.SetMaxLength(0)
+
 	return store, nil
 }
