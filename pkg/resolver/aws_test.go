@@ -344,7 +344,7 @@ func TestAWSPropertyResolution_Success(t *testing.T) {
 	defer Unregister("aws")
 
 	// Test resolving a property using aws: prefix
-	result, err := Global.Resolve("aws:GOOGLE_KEY")
+	result, err := Global().Resolve("aws:GOOGLE_KEY")
 	if err != nil {
 		t.Fatalf("Failed to resolve aws:GOOGLE_KEY: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestAWSPropertyResolution_Success(t *testing.T) {
 	}
 
 	// Test resolving another property
-	sessionSecret, err := Global.Resolve("aws:SESSION_SECRET")
+	sessionSecret, err := Global().Resolve("aws:SESSION_SECRET")
 	if err != nil {
 		t.Fatalf("Failed to resolve aws:SESSION_SECRET: %v", err)
 	}
@@ -386,7 +386,7 @@ func TestAWSPropertyResolution_PlainText(t *testing.T) {
 	defer Unregister("aws")
 
 	// For plain text secrets, any key returns the entire value
-	result, err := Global.Resolve("aws:ANY_KEY")
+	result, err := Global().Resolve("aws:ANY_KEY")
 	if err != nil {
 		t.Fatalf("Failed to resolve aws:ANY_KEY from plain text secret: %v", err)
 	}
@@ -416,7 +416,7 @@ func TestAWSPropertyResolution_NonexistentKey(t *testing.T) {
 	Register("aws", awsResolver)
 	defer Unregister("aws")
 
-	_, err = Global.Resolve("aws:NONEXISTENT_KEY")
+	_, err = Global().Resolve("aws:NONEXISTENT_KEY")
 	if err == nil {
 		t.Fatal("Expected error when resolving nonexistent AWS key")
 	}
@@ -434,7 +434,7 @@ func TestAWSPropertyResolution_NoResolverRegistered(t *testing.T) {
 	// Make sure aws resolver is not registered
 	Unregister("aws")
 
-	_, err := Global.Resolve("aws:SOME_KEY")
+	_, err := Global().Resolve("aws:SOME_KEY")
 	if err == nil {
 		t.Fatal("Expected error when aws resolver is not registered")
 	}

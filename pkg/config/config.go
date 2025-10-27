@@ -180,7 +180,7 @@ func UnmarshalTo[T Validatable](c ControllerConfig) (*T, error) {
 // If no known prefix is found, it returns the original string unchanged.
 func expand(s string) string {
 	// Use the global resolver registry to resolve the property
-	value, err := resolver.Global.Resolve(s)
+	value, err := resolver.Global().Resolve(s)
 	if err != nil {
 		panic(errors.Wrapf(err, "error resolving property %q", s))
 	}

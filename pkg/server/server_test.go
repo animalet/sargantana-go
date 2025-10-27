@@ -147,7 +147,7 @@ controllers:
 		// Don't set a custom store, let it use default cookie store
 	} else {
 		// Create Redis session store and set it
-		defer pool.Close()
+		defer func() { _ = pool.Close() }()
 		redisStore, err := session.NewRedisSessionStore(false, []byte("test-session-secret-key"), pool)
 		if err != nil {
 			t.Fatalf("Failed to create Redis session store: %v", err)

@@ -157,7 +157,7 @@ func TestParseProperty(t *testing.T) {
 
 // TestGlobalRegistry tests that the global registry is accessible
 func TestGlobalRegistry(t *testing.T) {
-	if Global == nil {
+	if Global() == nil {
 		t.Fatal("Global registry should not be nil")
 	}
 
@@ -166,7 +166,7 @@ func TestGlobalRegistry(t *testing.T) {
 	Register("testglobal", mock)
 	defer Unregister("testglobal")
 
-	result, err := Global.Resolve("testglobal:key")
+	result, err := Global().Resolve("testglobal:key")
 	if err != nil {
 		t.Fatalf("Global resolve failed: %v", err)
 	}

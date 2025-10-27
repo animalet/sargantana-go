@@ -40,8 +40,14 @@ type Registry struct {
 	mu        sync.RWMutex
 }
 
-// Global is the default global registry used by the config system
-var Global = NewRegistry()
+// global is the default global registry used by the config system
+var global = NewRegistry()
+
+// Global returns the global resolver registry.
+// This is the default registry used by the config system.
+func Global() *Registry {
+	return global
+}
 
 // NewRegistry creates a new empty resolver registry
 func NewRegistry() *Registry {
@@ -182,11 +188,11 @@ func ParseProperty(property string) (prefix string, key string) {
 //
 //	resolver.Register("vault", NewVaultResolver(config))
 func Register(prefix string, res PropertyResolver) {
-	Global.Register(prefix, res)
+	Global().Register(prefix, res)
 }
 
 // Unregister removes a resolver from the global registry.
 // Useful for testing.
 func Unregister(prefix string) {
-	Global.Unregister(prefix)
+	Global().Unregister(prefix)
 }

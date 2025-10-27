@@ -361,7 +361,7 @@ func TestExpandVariables_ComplexStructures(t *testing.T) {
 // TestExpand_FilePrefix_Error tests file prefix expansion error handling
 func TestExpand_FilePrefix_Error(t *testing.T) {
 	// Test with no secrets directory configured - unregister file resolver
-	originalResolver := resolver.Global.GetResolver("file")
+	originalResolver := resolver.Global().GetResolver("file")
 	resolver.Unregister("file")
 	defer func() {
 		if originalResolver != nil {

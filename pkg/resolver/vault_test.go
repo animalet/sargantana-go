@@ -356,7 +356,7 @@ func TestVaultPropertyResolution_Success(t *testing.T) {
 	defer Unregister("vault")
 
 	// Test resolving a property using vault: prefix
-	result, err := Global.Resolve("vault:GOOGLE_KEY")
+	result, err := Global().Resolve("vault:GOOGLE_KEY")
 	if err != nil {
 		t.Fatalf("Failed to resolve vault:GOOGLE_KEY: %v", err)
 	}
@@ -367,7 +367,7 @@ func TestVaultPropertyResolution_Success(t *testing.T) {
 	}
 
 	// Test resolving another property
-	sessionSecret, err := Global.Resolve("vault:SESSION_SECRET")
+	sessionSecret, err := Global().Resolve("vault:SESSION_SECRET")
 	if err != nil {
 		t.Fatalf("Failed to resolve vault:SESSION_SECRET: %v", err)
 	}
@@ -395,7 +395,7 @@ func TestVaultPropertyResolution_NonexistentKey(t *testing.T) {
 	Register("vault", vaultResolver)
 	defer Unregister("vault")
 
-	_, err = Global.Resolve("vault:NONEXISTENT_KEY")
+	_, err = Global().Resolve("vault:NONEXISTENT_KEY")
 	if err == nil {
 		t.Fatal("Expected error when resolving nonexistent Vault key")
 	}
@@ -422,7 +422,7 @@ func TestVaultPropertyResolution_InvalidToken(t *testing.T) {
 	Register("vault", vaultResolver)
 	defer Unregister("vault")
 
-	_, err = Global.Resolve("vault:GOOGLE_KEY")
+	_, err = Global().Resolve("vault:GOOGLE_KEY")
 	if err == nil {
 		t.Fatal("Expected error when using invalid token")
 	}
@@ -437,7 +437,7 @@ func TestVaultPropertyResolution_NoResolverRegistered(t *testing.T) {
 	// Make sure vault resolver is not registered
 	Unregister("vault")
 
-	_, err := Global.Resolve("vault:SOME_KEY")
+	_, err := Global().Resolve("vault:SOME_KEY")
 	if err == nil {
 		t.Fatal("Expected error when vault resolver is not registered")
 	}
@@ -466,7 +466,7 @@ func TestVaultPropertyResolution_KVv1(t *testing.T) {
 	defer Unregister("vault")
 
 	// Test resolving from KV v1
-	result, err := Global.Resolve("vault:GOOGLE_KEY")
+	result, err := Global().Resolve("vault:GOOGLE_KEY")
 	if err != nil {
 		t.Fatalf("Failed to resolve vault:GOOGLE_KEY from KV v1: %v", err)
 	}
@@ -477,7 +477,7 @@ func TestVaultPropertyResolution_KVv1(t *testing.T) {
 	}
 
 	// Test another property from KV v1
-	sessionSecret, err := Global.Resolve("vault:SESSION_SECRET")
+	sessionSecret, err := Global().Resolve("vault:SESSION_SECRET")
 	if err != nil {
 		t.Fatalf("Failed to resolve vault:SESSION_SECRET from KV v1: %v", err)
 	}
