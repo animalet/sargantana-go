@@ -182,7 +182,7 @@ func expand(s string) string {
 	// Use the global resolver registry to resolve the property
 	value, err := resolver.Global().Resolve(s)
 	if err != nil {
-		panic(errors.Wrapf(err, "error resolving property %q", s))
+		panic(errors.Wrap(err, "error resolving property"))
 	}
 	return value
 }
