@@ -63,7 +63,7 @@ controllers:
 
   - type: "auth"
     config:
-      callback_host: "http://blog:8080"
+      callback_host: "http://localhost:8080"
       login_path: "/auth/{provider}"
       logout_path: "/logout"
       callback_path: "/auth/{provider}/callback"
