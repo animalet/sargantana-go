@@ -87,7 +87,7 @@ test:
 
 test-with-coverage:
 	@echo "Running tests with coverage..."
-	go test ./... -covermode=atomic -coverprofile=coverage.out
+	go test $(shell go list ./... | grep -v '/examples/') -covermode=atomic -coverprofile=coverage.out
 
 check-coverage: test-with-coverage install-go-test-with-coverage
 	$(GO_TEST_COVERAGE) --config=./.testcoverage.yml

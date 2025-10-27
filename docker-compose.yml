@@ -7,22 +7,6 @@ secrets:
     file: .secrets/SESSION_SECRET
 
 services:
-  neo4j:
-    image: neo4j:5.15-community
-    environment:
-      NEO4J_AUTH: neo4j/testpassword
-      NEO4J_PLUGINS: '["apoc"]'
-    ports:
-      - "7687:7687"
-      - "7474:7474"
-    healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p testpassword 'RETURN 1'"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    networks:
-      - sargantana-network
-
   redis:
     image: redis:7.2-alpine
     hostname: redis
