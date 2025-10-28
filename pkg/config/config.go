@@ -122,7 +122,6 @@ func LoadConfig[T Validatable](key string, cfg *Config) (partial *T, err error) 
 
 // UnmarshalTo unmarshals raw YAML data into a new instance of type T.
 // This function creates a new instance and returns it, avoiding addressability issues.
-// It is used for both controller configurations and other partial configurations.
 func UnmarshalTo[T Validatable](data []byte) (*T, error) {
 	if data == nil {
 		return nil, nil
