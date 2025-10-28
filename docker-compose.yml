@@ -217,8 +217,125 @@ services:
     networks:
       - sargantana-network
 
+  memcached:
+    image: memcached:1.6-alpine
+    hostname: memcached
+    ports:
+      - "11211:11211"
+    command: memcached -m 64 -vv
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "11211"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sargantana-network
+
+  mongodb:
+    image: mongo:7.0
+    hostname: mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: adminpass
+      MONGO_INITDB_DATABASE: sessions_test
+    ports:
+      - "27017:27017"
+    command: ["mongod", "--bind_ip_all"]
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sargantana-network
+
+  mongodb-init:
+    image: mongo:7.0
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: adminpass
+    command: >
+      sh -c "
+        mongosh mongodb://admin:adminpass@mongodb:27017/admin --eval \"
+          var users = db.getUsers();
+          var userExists = false;
+          for (var i = 0; i < users.users.length; i++) {
+            if (users.users[i].user === 'testuser') {
+              userExists = true;
+              break;
+            }
+          }
+          if (!userExists) {
+            db.createUser({
+              user: 'testuser',
+              pwd: 'testpass',
+              roles: [{role: 'readWrite', db: 'sessions_test'}]
+            });
+            print('Test user created successfully');
+          } else {
+            print('Test user already exists');
+          }
+        \"
+      "
+    networks:
+      - sargantana-network
+
+  generate-mongodb-certs:
+    image: alpine:latest
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssl
+        cd /certs
+
+        # Only generate MongoDB certs if they don't exist
+        if [ ! -f mongodb.pem ]; then
+          echo "Generating MongoDB certificates..."
+
+          # Generate MongoDB server certificate
+          openssl genrsa -out mongodb.key 2048
+          openssl req -new -key mongodb.key -out mongodb.csr \
+            -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=mongodb'
+
+          cat > mongodb-san.cnf <<EOF
+        [req_ext]
+        subjectAltName = @alt_names
+        keyUsage = critical,digitalSignature,keyEncipherment
+        extendedKeyUsage = serverAuth,clientAuth
+
+        [alt_names]
+        DNS.1 = localhost
+        DNS.2 = mongodb
+        EOF
+
+          openssl x509 -req -in mongodb.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+            -out mongodb.crt -days 365 -extfile mongodb-san.cnf -extensions req_ext
+
+          # Combine cert and key for MongoDB
+          cat mongodb.crt mongodb.key > mongodb.pem
+          chmod 644 mongodb.pem
+
+          echo 'MongoDB TLS certificates generated successfully'
+        else
+          echo 'MongoDB certificates already exist'
+        fi
+    volumes:
+      - ./certs:/certs
+    depends_on:
+      generate-certs:
+        condition: service_completed_successfully
+    networks:
+      - sargantana-network
+
 volumes:
   pg_data:
+  mongodb_data:
 
 networks:
   sargantana-network:

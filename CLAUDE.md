@@ -40,12 +40,18 @@ Sargantana Go is a Go web framework built on top of Gin. It provides a modular, 
 5. **Database** (`database/`)
    - Redis connection pooling with TLS support
    - PostgreSQL connection pooling with comprehensive configuration
+   - MongoDB connection with TLS and authentication
+   - Memcached connection with multiple servers support
    - All use `ClientFactory[T]` pattern for type-safe client creation
 
 6. **Session Management** (`session/`)
-   - Cookie-based sessions
-   - Redis-backed sessions
-   - Integration with Gin sessions middleware
+   - Cookie-based sessions (default)
+   - Redis-backed sessions (distributed)
+   - PostgreSQL-backed sessions (persistent)
+   - MongoDB-backed sessions (NoSQL)
+   - Memcached-backed sessions (high-performance)
+   - All session stores integrate with Gin sessions middleware
+   - Configurable via `SetSessionStore()` method
 
 ## Configuration Structure
 
@@ -77,6 +83,25 @@ postgres:
   ssl_mode: "prefer"
   max_conns: 10
   min_conns: 2
+
+# Optional: MongoDB database
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "myapp"
+  username: "${MONGO_USER}"
+  password: "${MONGO_PASSWORD}"
+  auth_source: "admin"
+  max_pool_size: 100
+  min_pool_size: 10
+  tls:
+    enabled: false
+
+# Optional: Memcached
+memcached:
+  servers:
+    - "localhost:11211"
+  timeout: 100ms
+  max_idle_conns: 5
 
 controllers:
   - type: "auth"
@@ -226,6 +251,8 @@ type ClientFactory[T any] interface {
 - `VaultConfig` implements `ClientFactory[*api.Client]`
 - `RedisConfig` implements `ClientFactory[*redis.Pool]`
 - `PostgresConfig` implements `ClientFactory[*pgxpool.Pool]`
+- `MongoDBConfig` implements `ClientFactory[*mongo.Client]`
+- `MemcachedConfig` implements `ClientFactory[*memcache.Client]`
 
 **Usage:**
 ```go
@@ -238,12 +265,93 @@ defer pool.Close()
 redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
 redisPool, err := redisCfg.CreateClient()  // Returns *redis.Pool directly
 defer redisPool.Close()
+
+// Load and create MongoDB client
+mongoCfg, err := config.LoadConfig[database.MongoDBConfig]("mongodb", cfg)
+mongoClient, err := mongoCfg.CreateClient()  // Returns *mongo.Client directly
+defer mongoClient.Disconnect(context.Background())
+
+// Load and create Memcached client
+memcachedCfg, err := config.LoadConfig[database.MemcachedConfig]("memcached", cfg)
+memcachedClient, err := memcachedCfg.CreateClient()  // Returns *memcache.Client directly
 ```
 
 **Benefits:**
 - Type-safe: No type assertions needed
 - Consistent: All data sources use the same pattern
 - Validated: Configuration is validated before client creation
+
+## Session Store Configuration
+
+The framework supports multiple session storage backends. By default, cookie-based sessions are used. To use a different backend, create the appropriate client and session store in your application:
+
+### Redis Sessions
+
+```go
+redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
+if err == nil {
+    redisPool, err := redisCfg.CreateClient()
+    if err != nil {
+        log.Fatal().Err(err).Msg("Failed to create Redis client")
+    }
+    store, err := session.NewRedisSessionStore(*debugMode, []byte(cfg.ServerConfig.SessionSecret), redisPool)
+    if err != nil {
+        log.Fatal().Err(err).Msg("Failed to create Redis session store")
+    }
+    sargantana.SetSessionStore(&store)
+}
+```
+
+### PostgreSQL Sessions
+
+```go
+postgresCfg, err := config.LoadConfig[database.PostgresConfig]("postgres", cfg)
+if err == nil {
+    pool, err := postgresCfg.CreateClient()
+    if err != nil {
+        log.Fatal().Err(err).Msg("Failed to create PostgreSQL client")
+    }
+    store, err := session.NewPostgresSessionStore(*debugMode, []byte(cfg.ServerConfig.SessionSecret), pool, "sessions")
+    if err != nil {
+        log.Fatal().Err(err).Msg("Failed to create PostgreSQL session store")
+    }
+    sargantana.SetSessionStore(&store)
+}
+```
+
+### MongoDB Sessions
+
+```go
+mongoCfg, err := config.LoadConfig[database.MongoDBConfig]("mongodb", cfg)
+if err == nil {
+    client, err := mongoCfg.CreateClient()
+    if err != nil {
+        log.Fatal().Err(err).Msg("Failed to create MongoDB client")
+    }
+    store, err := session.NewMongoDBSessionStore(*debugMode, []byte(cfg.ServerConfig.SessionSecret), client, mongoCfg.Database, "sessions")
+    if err != nil {
+        log.Fatal().Err(err).Msg("Failed to create MongoDB session store")
+    }
+    sargantana.SetSessionStore(&store)
+}
+```
+
+### Memcached Sessions
+
+```go
+memcachedCfg, err := config.LoadConfig[database.MemcachedConfig]("memcached", cfg)
+if err == nil {
+    client, err := memcachedCfg.CreateClient()
+    if err != nil {
+        log.Fatal().Err(err).Msg("Failed to create Memcached client")
+    }
+    store, err := session.NewMemcachedSessionStore(*debugMode, []byte(cfg.ServerConfig.SessionSecret), client)
+    if err != nil {
+        log.Fatal().Err(err).Msg("Failed to create Memcached session store")
+    }
+    sargantana.SetSessionStore(&store)
+}
+```
 
 ## Adding a New Controller
 
