@@ -1,8 +1,18 @@
 package main
 
 import (
-	"github.com/animalet/sargantana-go/controller"
-	"github.com/animalet/sargantana-go/server"
+	"flag"
+	"fmt"
+	"os"
+
+	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/controller"
+	"github.com/animalet/sargantana-go/pkg/database"
+	"github.com/animalet/sargantana-go/pkg/secrets"
+	"github.com/animalet/sargantana-go/pkg/server"
+	"github.com/animalet/sargantana-go/pkg/session"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // Version information set during build
@@ -11,19 +21,104 @@ var (
 )
 
 func main() {
-	// Create a set of controllers that will be initialized from command line arguments (flags)
-	controllerInitializers := []server.ControllerFlagInitializer{
-		controller.NewStaticFromFlags,
-		controller.NewAuthFromFlags,
-		controller.NewLoadBalancerFromFlags,
+	showVersion := flag.Bool("version", false, "Show version information")
+	debugMode := flag.Bool("debug", false, "Enable debug mode")
+	configFile := flag.String("config", "", "Path to configuration file")
+
+	flag.Parse()
+
+	if *debugMode {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 
-	// Parse command line flags and create the server and controllers based on those flags
-	sargantana, controllers := server.NewServerFromFlagsWithVersion(version, controllerInitializers...)
+	if *showVersion {
+		fmt.Printf("%s %s\n", "sargantana-go", version)
+		os.Exit(0)
+	}
 
-	// Start the server with the controllers and wait for a termination signal
-	err := sargantana.StartAndWaitForSignal(controllers...)
+	if *configFile == "" {
+		n, err := fmt.Fprintln(os.Stderr, "Error: -config flag is required")
+		if err != nil || n <= 0 {
+			panic("Failed to print error message")
+		}
+		os.Exit(1)
+	}
+
+	log.Logger = log.Output(zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		NoColor:    false,
+		TimeFormat: "2006-01-02 15:04:05",
+	})
+	server.SetDebug(*debugMode)
+	server.AddControllerType("auth", controller.NewAuthController)
+	server.AddControllerType("load_balancer", controller.NewLoadBalancerController)
+	server.AddControllerType("static", controller.NewStaticController)
+	server.AddControllerType("template", controller.NewTemplateController)
+
+	cfg, err := config.ReadConfig(*configFile)
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("Unable to read configuration file")
+		os.Exit(1)
+	}
+
+	// Register secret providers
+	// Environment provider (default - always register first)
+	secrets.Register("env", secrets.NewEnvLoader())
+
+	// File provider (if file_resolver is configured)
+	fileResolverCfg, err := config.LoadConfig[secrets.FileSecretConfig]("file_resolver", cfg)
+	if err == nil {
+		fileResolver, err := fileResolverCfg.CreateClient()
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to create file secret provider")
+			os.Exit(1)
+		}
+		secrets.Register("file", fileResolver)
+		log.Info().Str("secrets_dir", fileResolverCfg.SecretsDir).Msg("File secret provider registered")
+	}
+
+	// Vault provider (if vault is configured)
+	vaultCfg, err := config.LoadConfig[secrets.VaultConfig]("vault", cfg)
+	if err == nil {
+		vaultClient, err := vaultCfg.CreateClient()
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to create Vault client")
+			os.Exit(1)
+		}
+		secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
+		log.Info().Msg("Vault secret provider registered")
+	}
+
+	sargantana, err := server.NewServer(cfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create server")
+		os.Exit(1)
+	}
+
+	redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Unable to load Redis configuration")
+		os.Exit(1)
+	}
+
+	if redisCfg != nil {
+		redisPool, err := redisCfg.CreateClient()
+		if err != nil {
+			log.Fatal().Err(err).Msg("Unable to create Redis connection pool")
+			os.Exit(1)
+		}
+		store, err := session.NewRedisSessionStore(*debugMode, []byte(cfg.ServerConfig.SessionSecret), redisPool)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Unable to create Redis session store")
+			os.Exit(1)
+		}
+		sargantana.SetSessionStore(&store)
+	}
+
+	err = sargantana.StartAndWaitForSignal()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Server error")
 	}
 }

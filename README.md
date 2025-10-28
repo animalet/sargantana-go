@@ -15,32 +15,45 @@
 
 ## What is this?
 
-Sargantana Go is a performant web application framework built on top of [Gin](https://github.com/gin-gonic/gin) that
-provides simple solutions for common web development scenarios. It includes built-in support for multi-provider
-authentication,
-session management, static file serving, load balancing, and database integration.
+Sargantana Go is a modular configuration-driven web framework built on [Gin](https://github.com/gin-gonic/gin) that provides:
 
-I started this as a side project to improve my Go skills and to have a solid base for building web applications quickly.
-It is designed to be easy to use and extend, allowing developers to focus on building their applications rather than
-dealing with boilerplate code.
+** Configuration System with Secret Management**
+- YAML-based configuration with environment variable expansion
+- Pluggable secret loaders implementing `SecretLoader` interface (env, file, Vault, AWS Secrets Manager)
+- Type-safe configuration loading with validation via `ClientFactory[T]` pattern
 
-## Disclaimer
+** Modular Web Server Architecture**
+- Controller-based system where each controller type can have multiple instances
+- Built-in controllers: OAuth authentication (via Goth), static file serving, template rendering, load balancing
+- Easy to extend with custom controllers
+- Graceful shutdown with cleanup hooks
 
-This project is currently in active development and may not be suitable for production use. While I have implemented
-basic functionality and tested it in development environments, there are no guarantees regarding its stability,
-security, or performance yet. Use at your own risk.
+** Data Source Integration**
+- **Databases**: PostgreSQL (pgxpool), Redis, MongoDB, Memcached
+- **Secret Management**: HashiCorp Vault, AWS Secrets Manager, file-based secrets, environment variables
+- All use the `ClientFactory[T]` pattern for type-safe, validated client creation
+
+** Flexible Session Management**
+- Five session storage backends: Cookie, Redis, PostgreSQL, MongoDB, Memcached
+- Inject custom session stores via `SetSessionStore()`
+- All integrate seamlessly with Gin sessions middleware
+
+**The key differentiator** is the tight integration between configuration, secret management, and the web framework - allowing you to build highly customized web applications where secrets are resolved at runtime from multiple sources, controllers are dynamically registered and configured, and database clients are created with validated, type-safe configs. It's a **"batteries-included but swappable"** framework - you get sensible defaults and common integrations out of the box, but every piece is designed to be replaceable or extended.
+
+### Personal Learning Project
+
+This is a personal side project I created for my own learning and practicing with both Go and vibe coding (AI-assisted development). While it's functional and includes comprehensive tests, it's primarily an educational endeavor to explore Go's ecosystem, web framework patterns, and modern development workflows. Feel free to use it, learn from it, or contribute to it!
 
 ## Features
 
 - **Web Server**: High-performance HTTP server using [Gin](https://github.com/gin-gonic/gin)
-- **Authentication**: Multi-provider authentication support via [Goth](https://github.com/markbates/goth) with 50+
-  providers
-- **Session Management**: Flexible session storage with Redis or cookie-based options
+- **Authentication**: Multi-provider authentication support via [Goth](https://github.com/markbates/goth) with 45+ providers (Google, GitHub, Keycloak, and more)
+- **Session Management**: Five flexible session storage backends (Cookie, Redis, PostgreSQL, MongoDB, Memcached). Any session store supported by [gin-contrib/sessions](https://github.com/gin-contrib/sessions) can be used
 - **Static File Serving**: Built-in static file and template serving capabilities
-- **Load Balancing**: Round-robin load balancer with optional authentication
-- **Database Support**: Redis and Neo4j integration
-- **Configuration**: Command-line flags and Docker secrets support
-- **Production Ready**: Docker Compose deployment with proper secrets management
+- **Load Balancing**: Round-robin load balancer with optional authentication and header filtering
+- **Database Support**: PostgreSQL, Redis, MongoDB, and Memcached integration with type-safe client factory pattern
+- **Configuration**: YAML-based configuration with pluggable secret management (environment variables, files, Vault, AWS Secrets Manager)
+- **Extensibility**: Custom controllers with dependency injection via Constructor pattern
 
 ## Quick Start
 
@@ -48,6 +61,7 @@ security, or performance yet. Use at your own risk.
 
 - Go 1.25 or later
 - Make (for development)
+- A configuration file (required for running the server)
 
 ### Binary Distribution
 
@@ -68,13 +82,14 @@ the [releases page](https://github.com/animalet/sargantana-go/releases/latest).
    ```bash
    chmod +x sargantana-go-*
    ```
-3. Run it:
+3. Create a configuration file (see Configuration section below)
+4. Run it:
    ```bash
    # Linux/macOS
-   ./sargantana-go-linux-amd64 -host localhost -port 8080 -frontend ./public -templates ./templates -debug
+   ./sargantana-go-linux-amd64 -config config.yaml -debug
    
    # Windows
-   sargantana-go-windows-amd64.exe -host localhost -port 8080 -frontend ./public -templates ./templates -debug
+   sargantana-go-windows-amd64.exe -config config.yaml -debug
    ```
 
 ### Installation from Source
@@ -85,7 +100,7 @@ go get github.com/animalet/sargantana-go
 
 ### Basic usage
 
-#### Create a simple web application configured via command line flags
+#### Create a simple web application with YAML configuration
 
 ```go
 package main
@@ -96,18 +111,18 @@ import (
 )
 
 func main() {
-    // Define controllers you want to use
-    controllerInitializers := []server.ControllerFlagInitializer{
-        controller.NewStaticFromFlags,       // Static file serving
-        controller.NewAuthFromFlags,         // Authentication
-        controller.NewLoadBalancerFromFlags, // Load balancing
+    // Register available controller types
+    server.AddControllerType("auth", controller.NewAuthController)
+    server.AddControllerType("mycontroller", mycontrollers.NewMyWebappController)
+
+    // Create server from YAML configuration
+    sargantana, err := server.NewServer("config.yaml")
+    if err != nil {
+        panic(err)
     }
 
-    // Create server and controllers from command line flags
-    sargantana, controllers := server.NewServerFromFlagsWithVersion("dev", controllerInitializers...)
-
     // Start server and wait for shutdown signal
-    err := sargantana.StartAndWaitForSignal(controllers...)
+    err = sargantana.StartAndWaitForSignal()
     if err != nil {
         panic(err)
     }
@@ -120,180 +135,191 @@ func main() {
 package main
 
 import (
-    "net/url"
+    "github.com/animalet/sargantana-go/config"
     "github.com/animalet/sargantana-go/controller"
     "github.com/animalet/sargantana-go/server"
 )
 
 func main() {
-    // Define static file controller
-    static := controller.NewStatic("./public", "./templates")
-
-    // Define auth controller with a callback URL (can be customised if you run behind a proxy) that will issue OAuth callbacks to path http://myapplication.com/auth/{provider}/callback
-    auth := controller.NewAuth("http://myapplication.com")
-
-    // Define load balancer with endpoints
-    endpoints := []url.URL{
-        {Scheme: "http", Host: "api1:8080"},
-        {Scheme: "http", Host: "api2:8080"},
-    }
-    lb := controller.NewLoadBalancer(endpoints, "api", true)
-
-    // Create server with controllers
-    sargantana := server.NewServer("localhost", 8080, "" /* No Redis means cookie sessions*/, "/run/secrets", true, "my-session-identifier")
-
-    // Start server and wait for shutdown signal
-    err := sargantana.StartAndWaitForSignal(static, auth, lb)
-    if err != nil {
-        panic(err)
-    }
-}
-```
-
-#### Create a simple web application with custom lifecycle control
-
-```go
-package main
-
-import (
-    "net/url"
-    "os"
-    "os/signal"
-    "syscall"
-    "github.com/animalet/sargantana-go/controller"
-    "github.com/animalet/sargantana-go/server"
-)
-
-func main() {
-    // Define controllers as before
-    static := controller.NewStatic("./public", "./templates")
-    auth := controller.NewAuth("http://myapplication.com")
-    endpoints := []url.URL{
-        {Scheme: "http", Host: "api1:8080"},
-        {Scheme: "http", Host: "api2:8080"},
-    }
-    lb := controller.NewLoadBalancer(endpoints, "api", true)
-    sargantana := server.NewServer("localhost", 8080, "", "/run/secrets", true, "my-session-identifier")
-    // Start server
-    err := sargantana.Start(static, auth, lb)
-    if err != nil {
-        panic(err)
+    // Define configuration programmatically
+    cfg := &config.Config{
+        ServerConfig: config.ServerConfig{
+            Address:       "localhost:8080",
+            SessionName:   "myapp",
+            SessionSecret: "your-secret-key",
+        },
+        ControllerBindings: []config.ControllerBinding{
+            {
+                TypeName: "static",
+                Name:     "static-files",
+                ConfigData: []byte(`
+                    statics_dir: "./public"
+                    templates_dir: "./templates"
+                `),
+            },
+            {
+                TypeName: "auth",
+                Name:     "authentication",
+                ConfigData: []byte(`
+                    providers:
+                      github:
+                        key: "your-github-key"
+                        secret: "your-github-secret"
+                `),
+            },
+        },
     }
 
-    // Wait for termination signal
-    sigs := make(chan os.Signal, 1)
-    signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-    <-sigs
-    // Shutdown server and controllers
-    err = sargantana.Shutdown()
-    if err != nil {
-        panic(err)
-    }
+    // Register controllers and create server
+    server.AddControllerType("auth", controller.NewAuthController)
+    server.AddControllerType("static", controller.NewStaticController)
+    
+    // Note: This approach would require extending the server package
+    // to accept programmatic configuration
 }
 ```
 
 ### Running the Application
 
 ```bash
-# Basic server on localhost:8080
-go run main/main.go
+# Basic server with configuration file
+./sargantana-go -config config.yaml
 
-# With custom configuration
-go run main/main.go \
-  -host 0.0.0.0 \
-  -port 3000 \
-  -frontend ./public \
-  -templates ./views \
-  -debug
+# With debug mode enabled
+./sargantana-go -config config.yaml -debug
 
-# With authentication providers
-export GOOGLE_KEY="your-google-client-id" # or use add them as secret in /run/secrets (see http://docs.docker.com/compose/how-tos/use-secrets/)
-export GOOGLE_SECRET="your-google-client-secret"
-go run main/main.go -debug
-
-# With Redis session storage
-go run main/main.go -redis localhost:6379
-
-# Full production-like setup
-go run main/main.go \
-  -host 0.0.0.0 \
-  -port 8080 \
-  -redis redis:6379 \
-  -secrets /run/secrets \
-  -frontend ./public \
-  -templates ./templates
+# Display version information
+./sargantana-go -version
 ```
 
 ## Configuration
 
-### Command Line Flags
+Sargantana Go uses YAML configuration files for setup. The configuration is divided into several sections:
 
-| Flag          | Description                    | Default         | Example                                     |
-|---------------|--------------------------------|-----------------|---------------------------------------------|
-| `-host`       | Host to listen on              | `localhost`     | `-host 0.0.0.0`                             |
-| `-port`       | Port to listen on              | `8080`          | `-port 3000`                                |
-| `-debug`      | Enable debug mode              | `false`         | `-debug`                                    |
-| `-secrets`    | Path to secrets directory      | `""`            | `-secrets ./secrets`                        |
-| `-redis`      | Redis address for sessions     | `""`            | `-redis localhost:6379`                     |
-| `-cookiename` | Session cookie name            | `sargantana-go` | `-cookiename myapp`                         |
-| `-frontend`   | Static files directory         | `./frontend`    | `-frontend ./public`                        |
-| `-templates`  | Templates directory            | `./templates`   | `-templates ./views`                        |
-| `-lbpath`     | Load balancer path             | `lb`            | `-lbpath api`                               |
-| `-lbauth`     | Require auth for load balancer | `false`         | `-lbauth`                                   |
-| `-lb`         | Load balancer endpoints        | `[]`            | `-lb http://api1:8080 -lb http://api2:8080` |
+### Basic Configuration Structure
+
+```yaml
+server:
+  address: "localhost:8080"
+  session_name: "myapp"
+  session_secret: "${SESSION_SECRET}"
+  secrets_dir: "/run/secrets"  # Optional
+  redis_session_store:         # Optional
+    address: "localhost:6379"
+    database: 0
+
+vault:  # Optional
+  address: "https://vault.example.com:8200"
+  token: "${VAULT_TOKEN}"
+  path: "secret/data/myapp"
+
+controllers:
+  - type: "static"
+    config:
+      statics_dir: "./public"
+      templates_dir: "./templates"
+  - type: "auth"
+    config:
+      providers:
+        github:
+          key: "${GITHUB_KEY}"
+          secret: "${GITHUB_SECRET}"
+```
+
+### Command Line Options
+
+| Flag       | Description                    | Default | Example                     |
+|------------|--------------------------------|---------|-----------------------------|
+| `-config`  | Path to configuration file     | None    | `-config config.yaml`      |
+| `-debug`   | Enable debug mode              | `false` | `-debug`                    |
+| `-version` | Show version information       | `false` | `-version`                  |
 
 ### Environment Variables
 
-Set these environment variables for authentication providers:
+Configuration values can reference environment variables using `${VAR_NAME}` syntax:
 
 ```bash
 # Session security
-SESSION_SECRET=your-session-secret-key
+export SESSION_SECRET="your-session-secret-key"
 
-# Authentication Providers (choose the ones you need)
-GOOGLE_KEY=your-google-client-id
-GOOGLE_SECRET=your-google-client-secret
+# Authentication Providers
+export GITHUB_KEY="your-github-client-id"
+export GITHUB_SECRET="your-github-client-secret"
+export GOOGLE_KEY="your-google-client-id"
+export GOOGLE_SECRET="your-google-client-secret"
 
-GITHUB_KEY=your-github-client-id
-GITHUB_SECRET=your-github-client-secret
-
-TWITTER_KEY=your-twitter-api-key
-TWITTER_SECRET=your-twitter-api-secret
-
-# See full list of supported providers below
+# Vault integration
+export VAULT_TOKEN="your-vault-token"
 ```
 
 ### Docker Secrets
 
-You can also use Docker secrets by placing secret files in a directory and using the `-secrets` flag:
+You can also use Docker secrets by placing secret files in a directory and configuring the `secrets_dir`:
+
+```yaml
+server:
+  secrets_dir: "/run/secrets"
+```
 
 ```bash
 # Directory structure
-secrets/
+/run/secrets/
 ├── SESSION_SECRET
-├── GOOGLE_KEY
-├── GOOGLE_SECRET
 ├── GITHUB_KEY
-└── GITHUB_SECRET
+├── GITHUB_SECRET
+└── GOOGLE_KEY
+```
 
-# Run with secrets
-go run main/main.go -secrets ./secrets
+### Vault Integration
+
+For advanced secret management, configure Vault integration:
+
+```yaml
+vault:
+  address: "https://vault.example.com:8200"
+  token: "${VAULT_TOKEN}"
+  path: "secret/data/myapp"
+  namespace: "my-namespace"  # Optional, for Enterprise
+
+# Use vault secrets in configuration
+server:
+  session_secret: "vault:session-secret"
+```
+
+See the [Vault Secrets Documentation](docs/vault-secrets.md) for detailed configuration options.
+
+### AWS Secrets Manager Integration
+
+For AWS-based secret management:
+
+```yaml
+aws:
+  region: "us-east-1"
+  access_key_id: "${AWS_ACCESS_KEY_ID}"      # Optional: uses IAM role if omitted
+  secret_access_key: "${AWS_SECRET_ACCESS_KEY}"  # Optional: uses IAM role if omitted
+  endpoint: ""                                # Optional: for LocalStack testing
+  secret_name: "myapp/secrets"
+
+# Use AWS secrets in configuration
+server:
+  session_secret: "aws:session-secret"
 ```
 
 ## Controllers
 
-Sargantana Go uses a controller-based architecture. Each controller handles a specific aspect of your application.
+Sargantana Go uses a controller-based architecture. Each controller handles a specific aspect of your application and is configured in the YAML file.
 
 ### Static Controller
 
 Serves static files and HTML templates:
 
-```go
-// Programmatic usage
-static := controller.NewStatic("./public", "./templates")
-
-// With flags
-go run main/main.go -frontend ./public -templates ./templates
+```yaml
+controllers:
+  - type: "static"
+    name: "static-files"
+    config:
+      statics_dir: "./public"
+      templates_dir: "./templates"
 ```
 
 Features:
@@ -307,23 +333,27 @@ Features:
 
 Provides authentication with 50+ providers:
 
-```go
-// Programmatic usage  
-auth := controller.NewAuth("http://localhost:8080")
-
-// With flags (authentication is automatic when providers are configured)
-go run main.go
+```yaml
+controllers:
+  - type: "auth"
+    name: "authentication"
+    config:
+      callback_host: "https://myapp.example.com"  # Optional
+      providers:
+        github:
+          key: "${GITHUB_KEY}"
+          secret: "${GITHUB_SECRET}"
+          scopes:
+            - "read:user"
+            - "user:email"
+        google:
+          key: "${GOOGLE_KEY}"
+          secret: "${GOOGLE_SECRET}"
 ```
 
 **Supported Authentication Providers:**
 
-- Google, GitHub, Facebook, Twitter/X
-- Microsoft, Apple, Amazon, Discord
-- LinkedIn, Instagram, Spotify, Twitch
-- Auth0, Okta, Azure AD
-- And 35+ more providers
-
-For the complete list of supported providers, configuration details, and provider IDs, see
+For the complete list of 50+ supported providers, configuration details, and provider IDs, see
 the [Authentication Providers Documentation](docs/authentication-providers.md).
 
 **Authentication Flow:**
@@ -339,9 +369,9 @@ the [Authentication Providers Documentation](docs/authentication-providers.md).
 ```go
 // Use the LoginFunc middleware for protected routes
 engine.GET("/protected", controller.LoginFunc, func(c *gin.Context) {
-session := sessions.Default(c)
-user := session.Get("user").(controller.UserObject)
-c.JSON(200, gin.H{"user": user.User.Name})
+    session := sessions.Default(c)
+    user := session.Get("user").(controller.UserObject)
+    c.JSON(200, gin.H{"user": user.User.Name})
 })
 ```
 
@@ -349,20 +379,17 @@ c.JSON(200, gin.H{"user": user.User.Name})
 
 Round-robin load balancer for backend services:
 
-```go
-// Programmatic usage
-endpoints := []url.URL{
-{Scheme: "http", Host: "api1:8080"},
-{Scheme: "http", Host: "api2:8080"},
-}
-lb := controller.NewLoadBalancer(endpoints, "api", true)
-
-// With flags
-go run main.go \
--lb http://api1:8080 \
--lb http://api2:8080 \
--lbpath api \
--lbauth
+```yaml
+controllers:
+  - type: "load_balancer"
+    name: "api-proxy"
+    config:
+      path: "/api"
+      require_auth: true
+      endpoints:
+        - "http://api1:8080"
+        - "http://api2:8080"
+        - "http://api3:8080"
 ```
 
 Features:
@@ -377,37 +404,78 @@ Features:
 
 ### Cookie-based Sessions (Default)
 
-```bash
-# Uses secure cookies for session storage
-go run main/main.go -cookiename myapp
+```yaml
+server:
+  session_name: "myapp"
+  session_secret: "${SESSION_SECRET}"
 ```
 
 ### Redis Sessions
 
-```bash
-# Use Redis for distributed session storage
-go run main/main.go -redis localhost:6379
+For distributed session storage:
+
+```yaml
+server:
+  session_name: "myapp"
+  session_secret: "${SESSION_SECRET}"
+
+redis:
+  address: "localhost:6379"
+  database: 0
+  max_idle: 10
+  idle_timeout: 240s
 ```
+
+```go
+// In your application startup
+redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
+pool, err := redisCfg.CreateClient()
+store, err := session.NewRedisSessionStore(debugMode, []byte(cfg.ServerConfig.SessionSecret), pool)
+sargantana.SetSessionStore(&store)
+```
+
+### PostgreSQL, MongoDB, or Memcached Sessions
+
+Similarly, you can configure other session backends:
+
+```go
+// PostgreSQL sessions
+pool, _ := postgresCfg.CreateClient()
+store, _ := session.NewPostgresSessionStore(debugMode, []byte(secret), pool, "sessions")
+sargantana.SetSessionStore(&store)
+
+// MongoDB sessions
+client, _ := mongoCfg.CreateClient()
+store, _ := session.NewMongoDBSessionStore(debugMode, []byte(secret), client, "myapp", "sessions")
+sargantana.SetSessionStore(&store)
+
+// Memcached sessions
+client, _ := memcachedCfg.CreateClient()
+store, _ := session.NewMemcachedSessionStore(debugMode, []byte(secret), client)
+sargantana.SetSessionStore(&store)
+```
+
+See [CLAUDE.md](CLAUDE.md) for detailed session store configuration examples.
 
 ### Session Usage in Handlers
 
 ```go
 func myHandler(c *gin.Context) {
-session := sessions.Default(c)
+    session := sessions.Default(c)
 
-// Set session value
-session.Set("key", "value")
-session.Save()
+    // Set session value
+    session.Set("key", "value")
+    session.Save()
 
-// Get session value
-value := session.Get("key")
+    // Get session value
+    value := session.Get("key")
 
-// Get authenticated user (if using auth controller)
-if user := session.Get("user"); user != nil {
-userObj := user.(controller.UserObject)
-name := userObj.User.Name
-email := userObj.User.Email
-}
+    // Get authenticated user (if using auth controller)
+    if user := session.Get("user"); user != nil {
+        userObj := user.(controller.UserObject)
+        name := userObj.User.Name
+        email := userObj.User.Email
+    }
 }
 ```
 
@@ -417,51 +485,77 @@ Create your own controllers by implementing the `IController` interface:
 
 ```go
 type MyController struct {
-// Your fields
+    // Your fields
 }
 
 func (m *MyController) Bind(engine *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
-// Register your routes
-engine.GET("/api/hello", m.hello)
-engine.GET("/api/protected", loginMiddleware, m.protected)
+    // Register your routes
+    engine.GET("/api/hello", m.hello)
+    engine.GET("/api/protected", loginMiddleware, m.protected)
 }
 
 func (m *MyController) Close() error {
-// Cleanup resources
-return nil
+    // Cleanup resources
+    return nil
 }
 
 func (m *MyController) hello(c *gin.Context) {
-c.JSON(200, gin.H{"message": "Hello, World!"})
+    c.JSON(200, gin.H{"message": "Hello, World!"})
 }
 
 func (m *MyController) protected(c *gin.Context) {
-session := sessions.Default(c)
-user := session.Get("user").(controller.UserObject)
-c.JSON(200, gin.H{"user": user.User.Name})
+    session := sessions.Default(c)
+    user := session.Get("user").(controller.UserObject)
+    c.JSON(200, gin.H{"user": user.User.Name})
 }
 
-// Flag-based constructor
-func NewMyControllerFromFlags(flagSet *flag.FlagSet) func () controller.IController {
-// Define your flags here
-return func () controller.IController { return &MyController{} }
+// Constructor function
+func NewMyController(configData config.ControllerConfig, serverConfig config.ServerConfig) (controller.IController, error) {
+    // Parse your configuration
+    // Return configured controller instance
+    return &MyController{}, nil
 }
+```
+
+Register your controller:
+
+```go
+server.AddControllerType("my_controller", NewMyController)
+```
+
+Use it in configuration:
+
+```yaml
+controllers:
+  - type: "my_controller"
+    name: "my-custom-controller"
+    config:
+      # Your controller-specific configuration
 ```
 
 ## Database Integration
 
+All database integrations use the `ClientFactory[T]` pattern for type-safe, validated client creation.
+
 ### Redis
 
-Redis support is very basic and is currently used for session storage. You can also use it directly in your controllers.
-
-There is currently no support for authentication or TLS, but you can extend the `NewRedisPool` function to add these
-features. Pull requests are welcome!
+Redis support includes TLS configuration and connection pooling.
 
 ```go
-import "github.com/animalet/sargantana-go/database"
+import "github.com/animalet/sargantana-go/pkg/database"
+import "github.com/animalet/sargantana-go/pkg/config"
 
-// Create Redis connection pool
-pool := database.NewRedisPool("localhost:6379")
+// Load Redis configuration from YAML
+redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Create connection pool using ClientFactory
+pool, err := redisCfg.CreateClient()
+if err != nil {
+    log.Fatal(err)
+}
 defer pool.Close()
 
 // Get connection
@@ -472,60 +566,197 @@ defer conn.Close()
 conn.Do("SET", "key", "value")
 ```
 
-### Neo4j
+Configuration example:
+```yaml
+redis:
+  address: "localhost:6379"
+  username: "redisuser"     # Optional
+  password: "${REDIS_PASS}" # Optional
+  database: 0
+  max_idle: 10
+  idle_timeout: 240s
+  tls:                      # Optional TLS configuration
+    insecure_skip_verify: false
+    cert_file: "/path/to/cert.pem"
+    key_file: "/path/to/key.pem"
+    ca_file: "/path/to/ca.pem"
+```
+
+### PostgreSQL
+
+PostgreSQL support with connection pooling using pgx/v5.
 
 ```go
-import "github.com/animalet/sargantana-go/database"
+import "github.com/animalet/sargantana-go/pkg/database"
+import "github.com/animalet/sargantana-go/pkg/config"
 
-// Option 1: Using environment variables (recommended)
-// Configure via environment variables:
-// NEO4J_URI=bolt://localhost:7687
-// NEO4J_USERNAME=neo4j  
-// NEO4J_PASSWORD=password
-// NEO4J_REALM=          (optional)
+// Load PostgreSQL configuration from YAML
+postgresCfg, err := config.LoadConfig[database.PostgresConfig]("postgres", cfg)
+if err != nil {
+    log.Fatal(err)
+}
 
-driver, cleanup := database.NewNeo4jDriverFromEnv()
-defer cleanup()
+// Create connection pool using ClientFactory
+pool, err := postgresCfg.CreateClient()
+if err != nil {
+    log.Fatal(err)
+}
+defer pool.Close()
 
-// Option 2: Using explicit configuration
-driver, cleanup := database.NewNeo4jDriver(&database.Neo4jOptions{
-Uri:      "bolt://localhost:7687",
-Username: "neo4j",
-Password: "password",
-Realm:    "", // optional
-})
-defer cleanup()
+// Use the connection pool
+var result string
+err = pool.QueryRow(context.Background(), "SELECT version()").Scan(&result)
+```
+
+Configuration example:
+```yaml
+postgres:
+  host: "localhost"
+  port: 5432
+  database: "myapp"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+  ssl_mode: "prefer"              # disable, allow, prefer, require, verify-ca, verify-full
+  max_conns: 10                   # Optional: maximum connections
+  min_conns: 2                    # Optional: minimum connections
+  max_conn_lifetime: 1h           # Optional: max connection lifetime
+  max_conn_idle_time: 30m         # Optional: max idle time
+  health_check_period: 1m         # Optional: health check interval
+```
+
+### MongoDB
+
+MongoDB support with connection pooling and TLS.
+
+```yaml
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "myapp"
+  username: "${MONGO_USER}"
+  password: "${MONGO_PASSWORD}"
+  auth_source: "admin"
+  max_pool_size: 100
+  min_pool_size: 10
+  tls:
+    enabled: true
+    ca_file: "/path/to/ca.pem"
+```
+
+### Memcached
+
+Memcached support for high-performance caching.
+
+```yaml
+memcached:
+  servers:
+    - "localhost:11211"
+    - "localhost:11212"
+  timeout: 100ms
+  max_idle_conns: 5
 ```
 
 ## Examples
 
 ### Simple Blog Application
 
+```yaml
+# config.yaml
+server:
+  address: "localhost:8080"
+  session_name: "blog"
+  session_secret: "${SESSION_SECRET}"
+
+controllers:
+  - type: "static"
+    config:
+      statics_dir: "./public"
+      templates_dir: "./templates"
+  
+  - type: "auth"
+    config:
+      providers:
+        github:
+          key: "${GITHUB_KEY}"
+          secret: "${GITHUB_SECRET}"
+```
+
 ```go
+// main.go
 package main
 
 import (
     "flag"
+    "fmt"
+    "os"
+
+    "github.com/animalet/sargantana-go/config"
     "github.com/animalet/sargantana-go/controller"
+    "github.com/animalet/sargantana-go/database"
     "github.com/animalet/sargantana-go/server"
     "github.com/gin-gonic/gin"
-    "github.com/animalet/sargantana-go/config"
+    "github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
-    controllers := []server.ControllerFlagInitializer{
-        controller.NewStaticFromFlags,
-        controller.NewAuthFromFlags,
-        NewBlogControllerFromFlags,
+    configFile := flag.String("config", "", "Path to configuration file")
+    flag.Parse()
+
+    if *configFile == "" {
+        fmt.Fprintln(os.Stderr, "Error: -config flag is required")
+        os.Exit(1)
     }
 
-    sargantana, controllerInstances := server.NewServerFromFlagsWithVersion("1.0.0", controllers...)
-    sargantana.StartAndWaitForSignal(controllerInstances...)
+    // Load configuration
+    cfg, err := config.LoadYAMLConfig(*configFile)
+    if err != nil {
+        panic(err)
+    }
+
+    // Setup database connection
+    postgresCfg, err := config.LoadConfig[database.PostgresConfig]("postgres", cfg)
+    if err != nil {
+        panic(err)
+    }
+
+    pool, err := postgresCfg.CreateClient()
+    if err != nil {
+        panic(err)
+    }
+    defer pool.Close()
+
+    // Register built-in controllers
+    server.AddControllerType("auth", controller.NewAuthController)
+    server.AddControllerType("static", controller.NewStaticController)
+
+    // Register custom controller with database dependency
+    server.AddControllerType("blog", NewBlogController(pool))
+
+    // Create and start server
+    sargantana, err := server.NewServer(*configFile)
+    if err != nil {
+        panic(err)
+    }
+
+    err = sargantana.StartAndWaitForSignal()
+    if err != nil {
+        panic(err)
+    }
 }
 
-type BlogController struct{}
+type BlogController struct {
+    config *BlogConfig
+    db     *pgxpool.Pool
+}
 
-func (b *BlogController) Bind(engine *gin.Engine, config config.Config, loginMiddleware gin.HandlerFunc) {
+type BlogConfig struct {
+    // Add blog-specific configuration fields here
+}
+
+func (c BlogConfig) Validate() error {
+    return nil
+}
+
+func (b *BlogController) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
     api := engine.Group("/api")
     {
         api.GET("/posts", b.getPosts)
@@ -534,41 +765,65 @@ func (b *BlogController) Bind(engine *gin.Engine, config config.Config, loginMid
     }
 }
 
-func (b *BlogController) Close() error { return nil }
+func (b *BlogController) Close() error {
+    return nil
+}
 
-func NewBlogControllerFromFlags(flagSet *flag.FlagSet) func() controller.IController {
-    return func() controller.IController { return &BlogController{} }
+// Constructor pattern - returns a function that creates controller instances
+func NewBlogController(db *pgxpool.Pool) server.Constructor {
+    return func(configData config.ControllerConfig, ctx controller.ControllerContext) (controller.IController, error) {
+        cfg, err := config.UnmarshalTo[BlogConfig](configData)
+        if err != nil {
+            return nil, err
+        }
+        return &BlogController{config: cfg, db: db}, nil
+    }
 }
 
 func (b *BlogController) getPosts(c *gin.Context) {
+    // Query database using b.db
     // Implementation here
 }
 
 func (b *BlogController) createPost(c *gin.Context) {
+    // Insert into database using b.db
     // Implementation here
 }
 
 func (b *BlogController) deletePost(c *gin.Context) {
+    // Delete from database using b.db
     // Implementation here
 }
 ```
 
+See `examples/blog_example/` for a complete working blog application with PostgreSQL integration and Keycloak authentication.
+
 ### API Gateway with Load Balancing
 
-```bash
-# Start multiple backend services
-go run backend.go -port 8081 &
-go run backend.go -port 8082 &
+```yaml
+# config.yaml
+server:
+  address: "0.0.0.0:8080"
+  session_name: "gateway"
+  session_secret: "${SESSION_SECRET}"
 
-# Start API gateway with load balancing
-go run main/main.go \
-  -port 8080 \
-  -lb http://localhost:8081 \
-  -lb http://localhost:8082 \
-  -lbpath api \
-  -lbauth
+controllers:
+  - type: "auth"
+    config:
+      providers:
+        github:
+          key: "${GITHUB_KEY}"
+          secret: "${GITHUB_SECRET}"
+
+  - type: "load_balancer"
+    config:
+      path: "/api"
+      require_auth: true
+      endpoints:
+        - "http://api1:8080"
+        - "http://api2:8080"
+        - "http://api3:8080"
 ```
-
 
 ## Production Deployment
 
@@ -585,15 +840,14 @@ services:
     environment:
       - GIN_MODE=release
     secrets:
-      - session_secret
-      - google_client_id
-      - google_client_secret
+      - SESSION_SECRET
+      - GITHUB_KEY
+      - GITHUB_SECRET
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
     command: [
       "/app/sargantana-go",
-      "-host", "0.0.0.0",
-      "-port", "8080",
-      "-redis", "redis:6379",
-      "-secrets", "/run/secrets"
+      "-config", "/app/config.yaml"
     ]
     depends_on:
       - redis
@@ -606,10 +860,10 @@ services:
 secrets:
   SESSION_SECRET:
     file: ./secrets/session_secret
-  GOOGLE_KEY:
-    file: ./secrets/google_client_id
-  GOOGLE_SECRET:
-    file: ./secrets/google_client_secret
+  GITHUB_KEY:
+    file: ./secrets/github_key
+  GITHUB_SECRET:
+    file: ./secrets/github_secret
 
 volumes:
   redis_data:
@@ -627,11 +881,11 @@ RUN go build -o sargantana-go main/main.go
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
-WORKDIR /root/
+WORKDIR /app
 COPY --from=builder /app/sargantana-go .
 COPY --from=builder /app/frontend ./frontend
 COPY --from=builder /app/templates ./templates
-CMD ["./sargantana-go"]
+CMD ["./sargantana-go", "-config", "config.yaml"]
 ```
 
 ## Development

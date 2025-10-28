@@ -16,9 +16,7 @@ Some tests require external services like databases and authentication providers
 
 The docker-compose setup includes:
 
-- **Neo4j** (port 7687): Graph database for database integration tests
-- **Valkey/Redis** (port 6379): In-memory database for session storage tests  
-- **Mock OAuth2 Server** (port 8080): Mock authentication provider for auth controller tests
+- **Redis** (port 6379): In-memory database for session storage tests
 
 ### Starting Test Services
 
@@ -45,7 +43,7 @@ docker-compose down
 make test
 
 # Run tests with coverage report
-make test-coverage
+make test-with-coverage
 
 # Run all CI checks locally (linting, formatting, tests)
 make ci
@@ -121,18 +119,6 @@ End-to-end tests verify complete user workflows from start to finish.
 
 ## Test Services Details
 
-### Neo4j Database
-
-- **Purpose**: Testing database integration features
-- **Connection**: `bolt://localhost:7687`
-- **Credentials**: `neo4j/testpassword`
-- **Health Check**: Automatically verified by docker-compose
-
-```bash
-# Connect manually to Neo4j for debugging
-docker-compose exec neo4j cypher-shell -u neo4j -p testpassword
-```
-
 ### Redis/Valkey
 
 - **Purpose**: Testing session management and caching
@@ -144,21 +130,13 @@ docker-compose exec neo4j cypher-shell -u neo4j -p testpassword
 docker-compose exec valkey redis-cli
 ```
 
-### Mock OAuth2 Server
-
-- **Purpose**: Testing authentication flows without real OAuth providers
-- **URL**: `http://localhost:8080`
-- **Configuration**: Pre-configured with test tokens and user data
-
-The mock server provides test endpoints for OAuth flows and returns predictable user data for testing.
-
 ## Running Tests Without Docker
 
 While the docker-compose setup is recommended for local development, some tests can run without it by using in-memory alternatives or by skipping integration tests.
 
 ### Test Categories That Require Docker
 
-- Database integration tests (Neo4j, Redis)
+- Database integration tests (Redis)
 - Authentication controller tests with real OAuth flows
 - Session management tests with Redis backend
 
@@ -211,11 +189,6 @@ Some tests may require specific environment variables:
 # For testing authentication providers
 export OAUTH_MOCK_SERVER_URL="http://localhost:8080"
 
-# For database tests
-export NEO4J_URI="bolt://localhost:7687"
-export NEO4J_USERNAME="neo4j"
-export NEO4J_PASSWORD="testpassword"
-
 # For Redis tests
 export REDIS_URL="localhost:6379"
 ```
@@ -243,12 +216,11 @@ Test data and fixtures are typically defined within test files or in dedicated t
 docker-compose ps
 
 # View service logs
-docker-compose logs neo4j
 docker-compose logs valkey
 docker-compose logs mock-oauth2-server
 
 # Restart specific service
-docker-compose restart neo4j
+docker-compose restart valkey
 
 # Clean up and restart all services
 docker-compose down && docker-compose up -d
@@ -356,8 +328,7 @@ hey -n 500 -c 5 http://localhost:8080/auth/user
 
 1. **Connection refused errors**: Services not started or not healthy
 2. **Authentication test failures**: Mock OAuth server not running
-3. **Database test failures**: Neo4j not initialized or connection issues
-4. **Session test failures**: Redis not available
+3. **Session test failures**: Redis not available
 
 ### Getting Help
 

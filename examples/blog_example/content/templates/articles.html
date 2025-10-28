@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Blog - Share your thoughts</title>
+    <meta name="description" content="A personal blog for sharing thoughts, stories and ideas">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" role="banner">
+        <div class="container">
+            <h1>My Blog</h1>
+            <p class="subtitle">Thoughts, stories and ideas</p>
+            {{if eq $.user ""}}
+            <div class="header-login">
+                <a href="/auth/openid-connect" class="header-btn" aria-label="Login with OpenID">
+                    🌐 Login with OpenID
+                </a>
+            </div>
+            {{end}}
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Navigation -->
+        <nav class="nav" role="navigation" aria-label="Main navigation">
+            <div class="nav-content">
+                <div class="nav-links">
+                    <a href="/" aria-current="page">🏠 Home</a>
+                    {{if ne $.user ""}}
+                        <a href="/admin">⚙️ Admin</a>
+                    {{end}}
+                </div>
+                <div class="nav-user">
+                    {{if ne $.user ""}}
+                        <span class="user-info" aria-label="Current user">Welcome, {{$.user}}!</span>
+                        <a href="/logout" class="btn btn-small btn-secondary">Logout</a>
+                    {{end}}
+                </div>
+            </div>
+        </nav>
+
+        {{if ne $.user ""}}
+        <!-- New Post Form -->
+        <section class="form-section" role="form" aria-labelledby="new-post-heading">
+            <h2 id="new-post-heading">Create New Post</h2>
+            <form method="post" action="/post" novalidate>
+                {{.CSRFToken}}
+                <div class="form-group">
+                    <label for="title">Title</label>
+                    <input type="text" id="title" name="title" placeholder="Enter an engaging title..." required
+                           aria-describedby="title-help" maxlength="200">
+                    <small id="title-help" class="sr-only">Enter a descriptive title for your blog post</small>
+                </div>
+                <div class="form-group">
+                    <label for="content">Content</label>
+                    <textarea id="content" name="content" placeholder="Share your thoughts and ideas..." required
+                              aria-describedby="content-help" minlength="10"></textarea>
+                    <small id="content-help" class="sr-only">Write the main content of your blog post</small>
+                </div>
+                <button type="submit" class="btn" aria-describedby="publish-help">
+                    📝 Publish Post
+                </button>
+                <small id="publish-help" class="sr-only">Click to publish your blog post</small>
+            </form>
+        </section>
+        {{end}}
+
+        <!-- Articles Section -->
+        <main class="articles-section" role="main" aria-labelledby="articles-heading">
+            <h1 id="articles-heading">Recent Articles</h1>
+            <ul class="articles-list" role="list">
+                {{range .feed}}
+                <li class="article-item" id="post-{{.Id}}" role="listitem">
+                    <article class="post-view">
+                        <h2 class="post-title">{{.Title}}</h2>
+                        <div class="post-content">{{.Content}}</div>
+                        <div class="post-meta" aria-label="Post metadata">
+                            Published on {{.PublicationDate.Format "2006-01-02 15:04:05"}} by {{.Owner}}
+                        </div>
+                        {{if eq $.user .Owner}}
+                        <div class="post-actions" role="group" aria-label="Post actions">
+                            <button class="btn btn-small edit-btn" data-postid="{{.Id}}"
+                                    aria-label="Edit post: {{.Title}}">
+                                ✏️ Edit
+                            </button>
+                            <button class="btn btn-small btn-danger delete-btn" data-postid="{{.Id}}"
+                                    aria-label="Delete post: {{.Title}}">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                        {{end}}
+                    </article>
+                    {{if eq $.user .Owner}}
+                    <form class="edit-form" style="display:none;" method="post" action="/post"
+                          aria-labelledby="edit-heading-{{.Id}}" novalidate>
+                        <h3 id="edit-heading-{{.Id}}" class="sr-only">Edit Post: {{.Title}}</h3>
+                        <input type="hidden" name="id" value="{{.Id}}">
+                        <div class="form-group">
+                            <label for="edit-title-{{.Id}}">Title</label>
+                            <input type="text" id="edit-title-{{.Id}}" name="title" value="{{.Title}}" required
+                                   maxlength="200">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-content-{{.Id}}">Content</label>
+                            <textarea id="edit-content-{{.Id}}" name="content" required
+                                      minlength="10">{{.Content}}</textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-small">
+                                💾 Save Changes
+                            </button>
+                            <button type="button" class="btn btn-small btn-secondary cancel-btn">
+                                ❌ Cancel
+                            </button>
+                        </div>
+                    </form>
+                    {{end}}
+                </li>
+                {{else}}
+                <li class="article-item" role="listitem">
+                    <div class="post-view empty-state">
+                        <p>No articles yet. Be the first to write one!</p>
+                    </div>
+                </li>
+                {{end}}
+            </ul>
+        </main>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Enhanced edit functionality with loading states
+        document.querySelectorAll('.edit-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var postId = btn.getAttribute('data-postid');
+                var li = document.getElementById('post-' + postId);
+                var postView = li.querySelector('.post-view');
+                var editForm = li.querySelector('.edit-form');
+
+                // Smooth transition
+                postView.style.opacity = '0';
+                setTimeout(function() {
+                    postView.style.display = 'none';
+                    editForm.style.display = 'block';
+                    editForm.style.opacity = '0';
+                    setTimeout(function() {
+                        editForm.style.opacity = '1';
+                        // Focus on title input for accessibility
+                        editForm.querySelector('input[name="title"]').focus();
+                    }, 50);
+                }, 200);
+            });
+        });
+
+        // Enhanced cancel functionality
+        document.querySelectorAll('.cancel-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var li = btn.closest('li');
+                var postView = li.querySelector('.post-view');
+                var editForm = li.querySelector('.edit-form');
+
+                // Smooth transition
+                editForm.style.opacity = '0';
+                setTimeout(function() {
+                    editForm.style.display = 'none';
+                    postView.style.display = 'block';
+                    setTimeout(function() {
+                        postView.style.opacity = '1';
+                    }, 50);
+                }, 200);
+            });
+        });
+
+        // Enhanced delete functionality with better UX
+        document.querySelectorAll('.delete-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var postTitle = btn.getAttribute('aria-label').replace('Delete post: ', '');
+
+                if (!confirm('Are you sure you want to delete "' + postTitle + '"?\n\nThis action cannot be undone.')) {
+                    return;
+                }
+
+                var postId = btn.getAttribute('data-postid');
+                var originalText = btn.innerHTML;
+
+                // Enhanced loading state
+                btn.disabled = true;
+                btn.classList.add('loading');
+                btn.innerHTML = '⏳ Deleting...';
+
+                fetch('/post/' + postId, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                }).then(function(response) {
+                    if (response.ok) {
+                        // Smooth removal animation
+                        var li = btn.closest('li');
+                        li.style.opacity = '0';
+                        li.style.transform = 'translateY(-20px)';
+                        setTimeout(function() {
+                            window.location.href = '/';
+                        }, 300);
+                    } else {
+                        throw new Error('Delete failed');
+                    }
+                }).catch(function() {
+                    // Reset button on error
+                    btn.disabled = false;
+                    btn.classList.remove('loading');
+                    btn.innerHTML = originalText;
+
+                    // User-friendly error message
+                    alert('Sorry, we couldn\'t delete your post right now. Please try again.');
+                });
+            });
+        });
+
+        // Form validation feedback
+        document.querySelectorAll('form').forEach(function(form) {
+            form.addEventListener('submit', function(e) {
+                var submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('loading');
+                    var originalText = submitBtn.innerHTML;
+                    submitBtn.innerHTML = '⏳ Publishing...';
+
+                    // Re-enable if form validation fails
+                    setTimeout(function() {
+                        if (!form.checkValidity()) {
+                            submitBtn.disabled = false;
+                            submitBtn.classList.remove('loading');
+                            submitBtn.innerHTML = originalText;
+                        }
+                    }, 100);
+                }
+            });
+        });
+
+        // Enhanced accessibility - keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                // Close any open edit forms
+                document.querySelectorAll('.cancel-btn').forEach(function(btn) {
+                    if (btn.closest('.edit-form').style.display === 'block') {
+                        btn.click();
+                    }
+                });
+            }
+        });
+    });
+    </script>
+</body>
+</html>
