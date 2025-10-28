@@ -7,7 +7,6 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/animalet/sargantana-go/pkg/secrets"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
@@ -16,9 +15,9 @@ import (
 // It encapsulates all necessary configuration parameters including network settings,
 // session storage options, security settings, and debugging preferences.
 type Config struct {
-	ServerConfig       ServerConfig        `yaml:"server"`
-	ControllerBindings []ControllerBinding `yaml:"controllers"`
-	Other              map[string]any      `yaml:",inline"`
+	ServerConfig       ServerConfig       `yaml:"server"`
+	ControllerBindings ControllerBindings `yaml:"controllers"`
+	Other              map[string]any     `yaml:",inline"`
 }
 
 // Validatable interface defines types that can be validated.
@@ -44,6 +43,17 @@ type ClientFactory[T any] interface {
 	// CreateClient creates and configures a client from the config details.
 	// Returns the strongly-typed client T and an error if creation fails.
 	CreateClient() (T, error)
+}
+
+// Validate checks the Config struct for required fields and valid values.
+// It validates the ServerConfig and each ControllerBinding.
+// Returns an error if any validation fails.
+func (c *Config) Validate() error {
+	if err := c.ServerConfig.Validate(); err != nil {
+		return errors.Wrap(err, "server configuration is invalid")
+	}
+
+	return c.ControllerBindings.Validate()
 }
 
 // ReadConfig reads the YAML configuration file and unmarshalls its content into the provided struct.
@@ -105,7 +115,7 @@ func LoadConfig[T Validatable](key string, cfg *Config) (partial *T, err error) 
 
 	expandVariables(reflect.ValueOf(partial).Elem())
 	if err = (*partial).Validate(); err != nil {
-		return nil, errors.Wrap(err, "partial configuration is invalid")
+		return nil, errors.Wrap(err, "configuration is invalid")
 	}
 	return partial, nil
 }
@@ -133,59 +143,4 @@ func UnmarshalTo[T Validatable](data []byte) (*T, error) {
 	expandVariables(v)
 
 	return &result, nil
-}
-
-// expand checks for specific prefixes in the string and expands them accordingly.
-// Supported prefixes are:
-//   - "env:": Expands to the value of the specified environment variable
-//   - "vault:": Placeholder for retrieving secrets from Vault
-//   - "file:": Reads the content of the specified file in secrets dir (if configured) and returns it as a string
-//
-// If no known prefix is found, the original string is returned unchanged.
-// expand is a custom expansion function that uses the secrets resolution system
-// It retrieves the corresponding value based on the prefix and returns it.
-// If no known prefix is found, it returns the original string unchanged.
-func expand(s string) string {
-	// Use the secrets resolution system to resolve the property
-	value, err := secrets.Resolve(s)
-	if err != nil {
-		panic(errors.Wrap(err, "error resolving property"))
-	}
-	return value
-}
-
-// expandVariables recursively traverses the fields of a struct and expands environment variables in string fields.
-// It handles nested structs, pointers to structs, slices, and maps.
-func expandVariables(val reflect.Value) {
-	switch val.Kind() {
-	case reflect.String:
-		if val.CanSet() {
-			val.SetString(os.Expand(val.String(), expand))
-		}
-	case reflect.Struct:
-		for i := 0; i < val.NumField(); i++ {
-			expandVariables(val.Field(i))
-		}
-	case reflect.Ptr:
-		if !val.IsNil() {
-			expandVariables(val.Elem())
-		}
-	case reflect.Slice:
-		for j := 0; j < val.Len(); j++ {
-			expandVariables(val.Index(j))
-		}
-	case reflect.Map:
-		for _, key := range val.MapKeys() {
-			mapVal := val.MapIndex(key)
-			// Create a new addressable value of the same type
-			newVal := reflect.New(mapVal.Type()).Elem()
-			newVal.Set(mapVal)
-			// Expand variables in the new value
-			expandVariables(newVal)
-			// Set the expanded value back into the map
-			val.SetMapIndex(key, newVal)
-		}
-	default:
-		return
-	}
 }

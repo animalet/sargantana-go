@@ -12,10 +12,28 @@ type ControllerBinding struct {
 	ConfigData ControllerConfig `yaml:"config"`
 }
 
+type ControllerBindings []ControllerBinding
+
+func (c ControllerBindings) Validate() error {
+	var validationErrors []error
+	for i, binding := range c {
+		if err := binding.Validate(); err != nil {
+			validationErrors = append(validationErrors, errors.Wrapf(err, "controller binding at index %d is invalid", i))
+		}
+	}
+
+	if len(validationErrors) > 0 {
+		return errors.Errorf("configuration validation failed: %v", validationErrors)
+	}
+
+	return nil
+}
+
 // ControllerConfig is a raw YAML byte slice that can be unmarshaled into specific controller configurations.
 type ControllerConfig []byte
 
 // Validate checks if the ControllerBinding has all required fields set.
+// Note: Name is optional and will be auto-generated if not provided.
 func (c ControllerBinding) Validate() error {
 	if c.TypeName == "" {
 		return errors.New("controller type must be set and non-empty")
