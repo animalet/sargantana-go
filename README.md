@@ -29,13 +29,14 @@ Sargantana Go is a modular configuration-driven web framework built on [Gin](htt
 - Graceful shutdown with cleanup hooks
 
 ** Data Source Integration**
-- **Databases**: PostgreSQL (pgxpool), Redis
-- **Secret Management**: HashiCorp Vault, AWS Secrets Manager, file-based secrets
+- **Databases**: PostgreSQL (pgxpool), Redis, MongoDB, Memcached
+- **Secret Management**: HashiCorp Vault, AWS Secrets Manager, file-based secrets, environment variables
 - All use the `ClientFactory[T]` pattern for type-safe, validated client creation
 
 ** Flexible Session Management**
-- Cookie-based or Redis-backed sessions
+- Five session storage backends: Cookie, Redis, PostgreSQL, MongoDB, Memcached
 - Inject custom session stores via `SetSessionStore()`
+- All integrate seamlessly with Gin sessions middleware
 
 **The key differentiator** is the tight integration between configuration, secret management, and the web framework - allowing you to build highly customized web applications where secrets are resolved at runtime from multiple sources, controllers are dynamically registered and configured, and database clients are created with validated, type-safe configs. It's a **"batteries-included but swappable"** framework - you get sensible defaults and common integrations out of the box, but every piece is designed to be replaceable or extended.
 
@@ -46,13 +47,13 @@ This is a personal side project I created for my own learning and practicing wit
 ## Features
 
 - **Web Server**: High-performance HTTP server using [Gin](https://github.com/gin-gonic/gin)
-- **Authentication**: Multi-provider authentication support via [Goth](https://github.com/markbates/goth) with 50+
-  providers
-- **Session Management**: Flexible session storage with Redis or cookie-based options. Any session store can be used, it only needs to be supported by github.com/gin-contrib/sessions
+- **Authentication**: Multi-provider authentication support via [Goth](https://github.com/markbates/goth) with 45+ providers (Google, GitHub, Keycloak, and more)
+- **Session Management**: Five flexible session storage backends (Cookie, Redis, PostgreSQL, MongoDB, Memcached). Any session store supported by [gin-contrib/sessions](https://github.com/gin-contrib/sessions) can be used
 - **Static File Serving**: Built-in static file and template serving capabilities
-- **Load Balancing**: Round-robin load balancer with optional authentication
-- **Database Support**: Redis and PostgreSQL integration with type-safe client factory pattern
-- **Configuration**: YAML-based configuration with environment variable, Vault and file secrets support
+- **Load Balancing**: Round-robin load balancer with optional authentication and header filtering
+- **Database Support**: PostgreSQL, Redis, MongoDB, and Memcached integration with type-safe client factory pattern
+- **Configuration**: YAML-based configuration with pluggable secret management (environment variables, files, Vault, AWS Secrets Manager)
+- **Extensibility**: Custom controllers with dependency injection via Constructor pattern
 
 ## Quick Start
 
@@ -287,6 +288,23 @@ server:
 
 See the [Vault Secrets Documentation](docs/vault-secrets.md) for detailed configuration options.
 
+### AWS Secrets Manager Integration
+
+For AWS-based secret management:
+
+```yaml
+aws:
+  region: "us-east-1"
+  access_key_id: "${AWS_ACCESS_KEY_ID}"      # Optional: uses IAM role if omitted
+  secret_access_key: "${AWS_SECRET_ACCESS_KEY}"  # Optional: uses IAM role if omitted
+  endpoint: ""                                # Optional: for LocalStack testing
+  secret_name: "myapp/secrets"
+
+# Use AWS secrets in configuration
+server:
+  session_secret: "aws:session-secret"
+```
+
 ## Controllers
 
 Sargantana Go uses a controller-based architecture. Each controller handles a specific aspect of your application and is configured in the YAML file.
@@ -394,14 +412,50 @@ server:
 
 ### Redis Sessions
 
+For distributed session storage:
+
 ```yaml
 server:
   session_name: "myapp"
   session_secret: "${SESSION_SECRET}"
-  redis_session_store:
-    address: "localhost:6379"
-    database: 0
+
+redis:
+  address: "localhost:6379"
+  database: 0
+  max_idle: 10
+  idle_timeout: 240s
 ```
+
+```go
+// In your application startup
+redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
+pool, err := redisCfg.CreateClient()
+store, err := session.NewRedisSessionStore(debugMode, []byte(cfg.ServerConfig.SessionSecret), pool)
+sargantana.SetSessionStore(&store)
+```
+
+### PostgreSQL, MongoDB, or Memcached Sessions
+
+Similarly, you can configure other session backends:
+
+```go
+// PostgreSQL sessions
+pool, _ := postgresCfg.CreateClient()
+store, _ := session.NewPostgresSessionStore(debugMode, []byte(secret), pool, "sessions")
+sargantana.SetSessionStore(&store)
+
+// MongoDB sessions
+client, _ := mongoCfg.CreateClient()
+store, _ := session.NewMongoDBSessionStore(debugMode, []byte(secret), client, "myapp", "sessions")
+sargantana.SetSessionStore(&store)
+
+// Memcached sessions
+client, _ := memcachedCfg.CreateClient()
+store, _ := session.NewMemcachedSessionStore(debugMode, []byte(secret), client)
+sargantana.SetSessionStore(&store)
+```
+
+See [CLAUDE.md](CLAUDE.md) for detailed session store configuration examples.
 
 ### Session Usage in Handlers
 
@@ -481,9 +535,11 @@ controllers:
 
 ## Database Integration
 
+All database integrations use the `ClientFactory[T]` pattern for type-safe, validated client creation.
+
 ### Redis
 
-Redis support includes TLS configuration and uses the `ClientFactory` pattern for type-safe client creation.
+Redis support includes TLS configuration and connection pooling.
 
 ```go
 import "github.com/animalet/sargantana-go/pkg/database"
@@ -568,6 +624,37 @@ postgres:
   health_check_period: 1m         # Optional: health check interval
 ```
 
+### MongoDB
+
+MongoDB support with connection pooling and TLS.
+
+```yaml
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "myapp"
+  username: "${MONGO_USER}"
+  password: "${MONGO_PASSWORD}"
+  auth_source: "admin"
+  max_pool_size: 100
+  min_pool_size: 10
+  tls:
+    enabled: true
+    ca_file: "/path/to/ca.pem"
+```
+
+### Memcached
+
+Memcached support for high-performance caching.
+
+```yaml
+memcached:
+  servers:
+    - "localhost:11211"
+    - "localhost:11212"
+  timeout: 100ms
+  max_idle_conns: 5
+```
+
 ## Examples
 
 ### Simple Blog Application
@@ -604,38 +691,50 @@ import (
 
     "github.com/animalet/sargantana-go/config"
     "github.com/animalet/sargantana-go/controller"
+    "github.com/animalet/sargantana-go/database"
     "github.com/animalet/sargantana-go/server"
     "github.com/gin-gonic/gin"
-    "github.com/rs/zerolog/log"
+    "github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
     configFile := flag.String("config", "", "Path to configuration file")
-
     flag.Parse()
 
     if *configFile == "" {
-        n, err := fmt.Fprintln(os.Stderr, "Error: -config flag is required")
-        if err != nil || n <= 0 {
-            panic("Failed to print error message")
-        }
+        fmt.Fprintln(os.Stderr, "Error: -config flag is required")
         os.Exit(1)
     }
+
+    // Load configuration
+    cfg, err := config.LoadYAMLConfig(*configFile)
+    if err != nil {
+        panic(err)
+    }
+
+    // Setup database connection
+    postgresCfg, err := config.LoadConfig[database.PostgresConfig]("postgres", cfg)
+    if err != nil {
+        panic(err)
+    }
+
+    pool, err := postgresCfg.CreateClient()
+    if err != nil {
+        panic(err)
+    }
+    defer pool.Close()
+
+    // Register built-in controllers
     server.AddControllerType("auth", controller.NewAuthController)
     server.AddControllerType("static", controller.NewStaticController)
 
-    var database any
-    // Adding your controller injecting a database instance (connection pool, etc.). 
-    // You can replace `any` with the actual database type you are using
-    // e.g., *sql.DB, *gorm.DB, etc.
-    // Make sure to initialize the database connection before passing it here.
-    // The server will search for a controller configurations of type "blog" and use this constructor
-    // to set as many instances as defined in the config file.
-    server.AddControllerType("blog", NewBlogController(database))
+    // Register custom controller with database dependency
+    server.AddControllerType("blog", NewBlogController(pool))
 
+    // Create and start server
     sargantana, err := server.NewServer(*configFile)
     if err != nil {
-        panic("Failed to create server")
+        panic(err)
     }
 
     err = sargantana.StartAndWaitForSignal()
@@ -644,15 +743,17 @@ func main() {
     }
 }
 
-
 type BlogController struct {
-    controller.IController
-    config   *BlogConfig
-    database interface{} // Replace with actual database type
+    config *BlogConfig
+    db     *pgxpool.Pool
 }
 
 type BlogConfig struct {
     // Add blog-specific configuration fields here
+}
+
+func (c BlogConfig) Validate() error {
+    return nil
 }
 
 func (b *BlogController) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
@@ -664,30 +765,38 @@ func (b *BlogController) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFun
     }
 }
 
-func (b *BlogController) Close() error { return nil }
+func (b *BlogController) Close() error {
+    return nil
+}
 
-func NewBlogController(db any) func(configData config.ControllerConfig, _ config.ServerConfig) (controller.IController, error) {
-    return func(configData config.ControllerConfig, _ config.ServerConfig) (controller.IController, error){
+// Constructor pattern - returns a function that creates controller instances
+func NewBlogController(db *pgxpool.Pool) server.Constructor {
+    return func(configData config.ControllerConfig, ctx controller.ControllerContext) (controller.IController, error) {
         cfg, err := config.UnmarshalTo[BlogConfig](configData)
         if err != nil {
             return nil, err
         }
-        return &BlogController{config: cfg, database: db}, nil
+        return &BlogController{config: cfg, db: db}, nil
     }
 }
 
 func (b *BlogController) getPosts(c *gin.Context) {
+    // Query database using b.db
     // Implementation here
 }
 
 func (b *BlogController) createPost(c *gin.Context) {
+    // Insert into database using b.db
     // Implementation here
 }
 
 func (b *BlogController) deletePost(c *gin.Context) {
+    // Delete from database using b.db
     // Implementation here
 }
 ```
+
+See `examples/blog_example/` for a complete working blog application with PostgreSQL integration and Keycloak authentication.
 
 ### API Gateway with Load Balancing
 

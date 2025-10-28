@@ -18,10 +18,12 @@ Sargantana Go is a Go web framework built on top of Gin. It provides a modular, 
 2. **Controllers** (`controller/`)
    - Modular controller system with `IController` interface
    - Built-in controllers:
-     - `auth`: OAuth authentication via Goth (Google, GitHub, etc.)
+     - `auth`: OAuth authentication via Goth (45+ providers: Google, GitHub, Keycloak, etc.)
      - `static`: Static file and directory serving
      - `template`: HTML template rendering
+     - `load_balancer`: Round-robin load balancing with optional authentication
    - Controllers are registered via configuration
+   - Support for custom controllers with dependency injection (see `ControllerContext`)
 
 3. **Configuration** (`config/`)
    - YAML-based configuration
@@ -30,12 +32,14 @@ Sargantana Go is a Go web framework built on top of Gin. It provides a modular, 
    - Generic unmarshaling with validation
 
 4. **Secrets** (`secrets/`)
-   - Pluggable secrets resolution system
+   - Automatic secrets resolution based on prefix in configuration values
    - Built-in secret providers:
-     - Environment variables (`env:VAR_NAME`)
+     - Environment variables (`env:VAR_NAME` or no prefix)
      - Files (`file:filename`)
      - HashiCorp Vault (`vault:secret/path`)
-   - Custom secret provider support
+     - AWS Secrets Manager (`aws:secret-name`)
+   - Secrets are resolved at configuration load time
+   - Configure secret sources (Vault, AWS) in the YAML config file
 
 5. **Database** (`database/`)
    - Redis connection pooling with TLS support
@@ -103,6 +107,14 @@ memcached:
   timeout: 100ms
   max_idle_conns: 5
 
+# Optional: AWS Secrets Manager
+aws:
+  region: "us-east-1"
+  access_key_id: "${AWS_ACCESS_KEY_ID}"      # Optional: uses IAM role if omitted
+  secret_access_key: "${AWS_SECRET_ACCESS_KEY}"  # Optional: uses IAM role if omitted
+  endpoint: ""                                # Optional: for LocalStack testing
+  secret_name: "myapp/secrets"
+
 controllers:
   - type: "auth"
     name: "oauth"
@@ -130,6 +142,15 @@ controllers:
   - type: "template"
     config:
       path: "./templates"
+
+  - type: "load_balancer"
+    name: "api-lb"
+    config:
+      path: "/api"
+      require_auth: true
+      endpoints:
+        - "http://backend1:8080"
+        - "http://backend2:8080"
 ```
 
 ### Multiple Controller Instances
@@ -253,6 +274,7 @@ type ClientFactory[T any] interface {
 - `PostgresConfig` implements `ClientFactory[*pgxpool.Pool]`
 - `MongoDBConfig` implements `ClientFactory[*mongo.Client]`
 - `MemcachedConfig` implements `ClientFactory[*memcache.Client]`
+- `AWSConfig` implements `ClientFactory[*secretsmanager.Client]`
 
 **Usage:**
 ```go
@@ -274,6 +296,10 @@ defer mongoClient.Disconnect(context.Background())
 // Load and create Memcached client
 memcachedCfg, err := config.LoadConfig[database.MemcachedConfig]("memcached", cfg)
 memcachedClient, err := memcachedCfg.CreateClient()  // Returns *memcache.Client directly
+
+// Load and create AWS Secrets Manager client
+awsCfg, err := config.LoadConfig[secrets.AWSConfig]("aws", cfg)
+awsClient, err := awsCfg.CreateClient()  // Returns *secretsmanager.Client directly
 ```
 
 **Benefits:**
@@ -355,6 +381,8 @@ if err == nil {
 
 ## Adding a New Controller
 
+### Basic Controller (No Dependencies)
+
 1. Create a new controller type in `controller/`:
 
 ```go
@@ -372,11 +400,12 @@ func (c MyControllerConfig) Validate() error {
     return nil
 }
 
-func NewMyController(configData config.ControllerConfig, serverCfg config.ServerConfig) (IController, error) {
+func NewMyController(configData config.ControllerConfig, ctx controller.ControllerContext) (IController, error) {
     cfg, err := config.UnmarshalTo[MyControllerConfig](configData)
     if err != nil {
         return nil, err
     }
+    // Access runtime dependencies from ctx (ServerConfig, SessionStore, etc.)
     return &myController{/* ... */}, nil
 }
 
@@ -390,11 +419,11 @@ func (m *myController) Close() error {
 }
 ```
 
-2. Register the controller type in `server/server.go`:
+2. Register the controller type in `main/main.go`:
 
 ```go
 func init() {
-    AddControllerType("mycontroller", controller.NewMyController)
+    server.AddControllerType("mycontroller", controller.NewMyController)
 }
 ```
 
@@ -406,6 +435,41 @@ controllers:
     config:
       # controller-specific config
 ```
+
+### Controller with Dependencies (Constructor Pattern)
+
+For controllers that need external dependencies (e.g., database connections):
+
+```go
+// Controller with database dependency
+func NewBlogController(db *pgxpool.Pool) server.Constructor {
+    return func(configData config.ControllerConfig, ctx controller.ControllerContext) (controller.IController, error) {
+        cfg, err := config.UnmarshalTo[BlogConfig](configData)
+        if err != nil {
+            return nil, err
+        }
+        return &blogController{
+            config: cfg,
+            db:     db,
+        }, nil
+    }
+}
+```
+
+Register with dependency:
+
+```go
+// Create database connection
+pool, err := postgresCfg.CreateClient()
+if err != nil {
+    log.Fatal(err)
+}
+
+// Register controller with database
+server.AddControllerType("blog", NewBlogController(pool))
+```
+
+See `examples/blog_example/` for a complete working example.
 
 ## Testing Guidelines
 
@@ -485,10 +549,13 @@ Common environment variables:
 Key dependencies:
 - **gin-gonic/gin**: Web framework
 - **gin-contrib/sessions**: Session management
-- **markbates/goth**: OAuth authentication
+- **markbates/goth**: OAuth authentication (45+ providers)
 - **gomodule/redigo**: Redis client
 - **hashicorp/vault/api**: Vault client
+- **aws/aws-sdk-go-v2/service/secretsmanager**: AWS Secrets Manager client
 - **jackc/pgx/v5**: PostgreSQL driver with connection pooling
+- **mongodb/mongo-go-driver**: MongoDB driver
+- **bradfitz/gomemcache**: Memcached client
 - **rs/zerolog**: Structured logging
 
 ## Development Workflow
@@ -501,15 +568,36 @@ Key dependencies:
 6. Commit changes
 7. CI runs automatically
 
+## Key Architectural Patterns
+
+1. **ClientFactory[T] Pattern** - All database and secrets configurations use this generic interface for type-safe, validated client creation
+2. **Constructor Pattern** - Controllers with custom initialization logic and dependency injection
+3. **ControllerContext Pattern** - Separation of YAML config from runtime dependencies
+4. **Controller Registry Pattern** - Dynamic controller type registration via `AddControllerType()`
+5. **Secret Resolution Pattern** - Automatic secret resolution based on prefixes in configuration values (`env:`, `file:`, `vault:`, `aws:`)
+
+## Examples
+
+- **Blog Application**: See `examples/blog_example/` for a complete working example with:
+  - Custom controller with PostgreSQL integration
+  - Keycloak authentication setup
+  - Docker Compose configuration with all services
+  - Session management and database integration
+
 ## Notes for Claude
 
 - Go version: 1.25.0
 - Always check test files for context on how components are used
-- Configuration uses YAML with validation
-- Controllers are dynamically registered and configured
-- Session management can be either cookie-based or Redis-based
-- Secret providers are in `pkg/secrets/` package (decoupled from config)
-- Vault configuration and client creation are in `secrets` package, not `config`
+- Configuration uses YAML with validation via `Validatable` interface
+- Controllers are dynamically registered and configured via `AddControllerType()`
+- Controller registration happens in `main/main.go`, not in `server/server.go`
+- Session management supports 5 backends: Cookie, Redis, PostgreSQL, MongoDB, Memcached
+- Secret resolution is automatic based on prefixes in configuration values
+- Secret providers: Environment (`env:` or no prefix), File (`file:`), Vault (`vault:`), AWS Secrets Manager (`aws:`)
+- Configure Vault/AWS in the YAML config; secrets are resolved at load time
 - All database configs use `ClientFactory[T]` pattern for type-safe client creation
 - Configuration structs implement `Validate()` with **value receivers** (not pointer receivers)
-- Use `config.LoadConfig[T]` to load partial configuration sections with validation
+- Use `config.LoadConfig[T]` to load partial configuration sections with validation from the `Other` map
+- Controllers use `ControllerContext` for runtime dependencies (ServerConfig, SessionStore)
+- The `Constructor` type allows parameterized controller creation (e.g., with database connections)
+- Load balancer controller provides round-robin distribution with header filtering for security

@@ -240,7 +240,31 @@ services:
       MONGO_INITDB_DATABASE: sessions_test
     ports:
       - "27017:27017"
-    command: ["mongod", "--bind_ip_all"]
+    command: >
+      sh -c "
+        cat > /docker-entrypoint-initdb.d/01-init-users.js <<'EOF'
+        db = db.getSiblingDB('admin');
+        var users = db.getUsers();
+        var userExists = false;
+        for (var i = 0; i < users.users.length; i++) {
+          if (users.users[i].user === 'testuser') {
+            userExists = true;
+            break;
+          }
+        }
+        if (!userExists) {
+          db.createUser({
+            user: 'testuser',
+            pwd: 'testpass',
+            roles: [{ role: 'readWrite', db: 'sessions_test' }]
+          });
+          print('Test user created successfully');
+        } else {
+          print('Test user already exists');
+        }
+      EOF
+        exec docker-entrypoint.sh mongod --bind_ip_all
+      "
     volumes:
       - mongodb_data:/data/db
     healthcheck:
@@ -248,40 +272,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    networks:
-      - sargantana-network
-
-  mongodb-init:
-    image: mongo:7.0
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: adminpass
-    command: >
-      sh -c "
-        mongosh mongodb://admin:adminpass@mongodb:27017/admin --eval \"
-          var users = db.getUsers();
-          var userExists = false;
-          for (var i = 0; i < users.users.length; i++) {
-            if (users.users[i].user === 'testuser') {
-              userExists = true;
-              break;
-            }
-          }
-          if (!userExists) {
-            db.createUser({
-              user: 'testuser',
-              pwd: 'testpass',
-              roles: [{role: 'readWrite', db: 'sessions_test'}]
-            });
-            print('Test user created successfully');
-          } else {
-            print('Test user already exists');
-          }
-        \"
-      "
     networks:
       - sargantana-network
 
