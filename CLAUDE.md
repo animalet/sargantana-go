@@ -33,11 +33,11 @@ Sargantana Go is a Go web framework built on top of Gin. It provides a modular, 
 
 4. **Secrets** (`secrets/`)
    - Automatic secrets resolution based on prefix in configuration values
-   - Built-in secret providers:
-     - Environment variables (`env:VAR_NAME` or no prefix)
-     - Files (`file:filename`)
-     - HashiCorp Vault (`vault:secret/path`)
-     - AWS Secrets Manager (`aws:secret-name`)
+   - Built-in secret loaders (implement `SecretLoader` interface):
+     - `EnvLoader`: Environment variables (`env:VAR_NAME` or no prefix)
+     - `FileSecretLoader`: Files (`file:filename`)
+     - `VaultSecretLoader`: HashiCorp Vault (`vault:secret/path`)
+     - `AWSSecretLoader`: AWS Secrets Manager (`aws:secret-name`)
    - Secrets are resolved at configuration load time
    - Configure secret sources (Vault, AWS) in the YAML config file
 
@@ -574,7 +574,7 @@ Key dependencies:
 2. **Constructor Pattern** - Controllers with custom initialization logic and dependency injection
 3. **ControllerContext Pattern** - Separation of YAML config from runtime dependencies
 4. **Controller Registry Pattern** - Dynamic controller type registration via `AddControllerType()`
-5. **Secret Resolution Pattern** - Automatic secret resolution based on prefixes in configuration values (`env:`, `file:`, `vault:`, `aws:`)
+5. **Secret Loader Pattern** - Automatic secret resolution using pluggable `SecretLoader` implementations for different secret sources (`env:`, `file:`, `vault:`, `aws:`)
 
 ## Examples
 

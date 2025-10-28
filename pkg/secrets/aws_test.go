@@ -47,7 +47,7 @@ func TestAWSResolver_Success(t *testing.T) {
 		t.Fatalf("Failed to create AWS client: %v", err)
 	}
 
-	resolver := NewAWSResolver(client, "sargantana/test")
+	resolver := NewAWSSecretLoader(client, "sargantana/test")
 
 	// Test retrieving GOOGLE_KEY
 	googleKey, err := resolver.Resolve("GOOGLE_KEY")
@@ -81,7 +81,7 @@ func TestAWSResolver_PlainText(t *testing.T) {
 		t.Fatalf("Failed to create AWS client: %v", err)
 	}
 
-	resolver := NewAWSResolver(client, "sargantana/plain-secret")
+	resolver := NewAWSSecretLoader(client, "sargantana/plain-secret")
 
 	// For plain text secrets, the key parameter is ignored and the entire value is returned
 	plainValue, err := resolver.Resolve("ANY_KEY")
@@ -106,7 +106,7 @@ func TestAWSResolver_NonexistentSecret(t *testing.T) {
 		t.Fatalf("Failed to create AWS client: %v", err)
 	}
 
-	resolver := NewAWSResolver(client, "nonexistent/secret")
+	resolver := NewAWSSecretLoader(client, "nonexistent/secret")
 
 	_, err = resolver.Resolve("SOME_KEY")
 	if err == nil {
@@ -130,7 +130,7 @@ func TestAWSResolver_NonexistentKey(t *testing.T) {
 		t.Fatalf("Failed to create AWS client: %v", err)
 	}
 
-	resolver := NewAWSResolver(client, "sargantana/test")
+	resolver := NewAWSSecretLoader(client, "sargantana/test")
 
 	_, err = resolver.Resolve("NONEXISTENT_KEY")
 	if err == nil {
@@ -157,7 +157,7 @@ func TestAWSResolver_Name(t *testing.T) {
 		t.Fatalf("Failed to create AWS client: %v", err)
 	}
 
-	resolver := NewAWSResolver(client, "test/secret")
+	resolver := NewAWSSecretLoader(client, "test/secret")
 	if resolver.Name() != "AWS Secrets Manager" {
 		t.Errorf("Expected name 'AWS Secrets Manager', got '%s'", resolver.Name())
 	}
@@ -337,7 +337,7 @@ func TestAWSPropertyResolution_Success(t *testing.T) {
 		t.Fatalf("Failed to create AWS client: %v", err)
 	}
 
-	awsResolver := NewAWSResolver(client, awsCfg.SecretName)
+	awsResolver := NewAWSSecretLoader(client, awsCfg.SecretName)
 
 	// Register the resolver
 	Register("aws", awsResolver)
@@ -381,7 +381,7 @@ func TestAWSPropertyResolution_PlainText(t *testing.T) {
 		t.Fatalf("Failed to create AWS client: %v", err)
 	}
 
-	awsResolver := NewAWSResolver(client, awsCfg.SecretName)
+	awsResolver := NewAWSSecretLoader(client, awsCfg.SecretName)
 	Register("aws", awsResolver)
 	defer Unregister("aws")
 
@@ -412,7 +412,7 @@ func TestAWSPropertyResolution_NonexistentKey(t *testing.T) {
 		t.Fatalf("Failed to create AWS client: %v", err)
 	}
 
-	awsResolver := NewAWSResolver(client, awsCfg.SecretName)
+	awsResolver := NewAWSSecretLoader(client, awsCfg.SecretName)
 	Register("aws", awsResolver)
 	defer Unregister("aws")
 

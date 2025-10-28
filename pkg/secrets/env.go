@@ -6,22 +6,22 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// EnvResolver resolves properties from environment variables.
+// EnvLoader resolves properties from environment variables.
 // This is the default resolver when no prefix is specified.
 //
 // Example usage in config:
 //
 //	address: ${PORT}           # Resolves from env (implicit)
 //	address: ${env:PORT}       # Resolves from env (explicit)
-type EnvResolver struct{}
+type EnvLoader struct{}
 
-// NewEnvResolver creates a new environment variable resolver
-func NewEnvResolver() *EnvResolver {
-	return &EnvResolver{}
+// NewEnvLoader creates a new environment variable resolver
+func NewEnvLoader() *EnvLoader {
+	return &EnvLoader{}
 }
 
 // Resolve retrieves an environment variable value
-func (e *EnvResolver) Resolve(key string) (string, error) {
+func (e *EnvLoader) Resolve(key string) (string, error) {
 	value := os.Getenv(key)
 
 	// Warn about missing environment variables to prevent silent failures
@@ -40,6 +40,6 @@ func (e *EnvResolver) Resolve(key string) (string, error) {
 }
 
 // Name returns the resolver name
-func (e *EnvResolver) Name() string {
+func (e *EnvLoader) Name() string {
 	return "Environment"
 }

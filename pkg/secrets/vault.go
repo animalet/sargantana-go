@@ -55,7 +55,7 @@ func (v VaultConfig) CreateClient() (*api.Client, error) {
 	return client, nil
 }
 
-// VaultResolver retrieves secrets from HashiCorp Vault.
+// VaultSecretLoader retrieves secrets from HashiCorp Vault.
 // Supports both KV v1 and KV v2 secret engines.
 //
 // Example usage in config:
@@ -63,25 +63,25 @@ func (v VaultConfig) CreateClient() (*api.Client, error) {
 //	password: ${vault:DATABASE_PASSWORD}  # Reads from configured Vault path
 //
 // The Vault path is configured when creating the resolver.
-type VaultResolver struct {
+type VaultSecretLoader struct {
 	logical *api.Logical
 	path    string
 }
 
-// NewVaultResolver creates a new Vault-based resolver
+// NewVaultSecretLoader creates a new Vault-based resolver
 //
 // Parameters:
 //   - client: Configured Vault API client
 //   - path: The Vault path to read secrets from (e.g., "secret/data/myapp")
-func NewVaultResolver(client *api.Client, path string) *VaultResolver {
-	return &VaultResolver{
+func NewVaultSecretLoader(client *api.Client, path string) *VaultSecretLoader {
+	return &VaultSecretLoader{
 		logical: client.Logical(),
 		path:    path,
 	}
 }
 
 // Resolve retrieves a secret from Vault
-func (v *VaultResolver) Resolve(key string) (string, error) {
+func (v *VaultSecretLoader) Resolve(key string) (string, error) {
 	secret, err := v.logical.Read(v.path)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to read secret from Vault path %q", v.path)
@@ -118,6 +118,6 @@ func (v *VaultResolver) Resolve(key string) (string, error) {
 }
 
 // Name returns the resolver name
-func (v *VaultResolver) Name() string {
+func (v *VaultSecretLoader) Name() string {
 	return "Vault"
 }

@@ -58,7 +58,7 @@ func TestLoadYaml_FileNotFound(t *testing.T) {
 // TestLoad_MissingSessionSecret tests that missing session secret causes error
 func TestLoad_MissingSessionSecret(t *testing.T) {
 	// Register env resolver for expansion
-	secrets.Register("env", secrets.NewEnvResolver())
+	secrets.Register("env", secrets.NewEnvLoader())
 	defer secrets.Unregister("env")
 
 	tempDir := t.TempDir()
@@ -139,7 +139,7 @@ type TestConfig struct {
 // TestUnmarshalTo tests the generic unmarshaling function
 func TestUnmarshalTo(t *testing.T) {
 	// Register env resolver for expansion
-	secrets.Register("env", secrets.NewEnvResolver())
+	secrets.Register("env", secrets.NewEnvLoader())
 	defer secrets.Unregister("env")
 
 	// Set up environment variable for testing
@@ -188,7 +188,7 @@ func TestUnmarshalTo_NilConfig(t *testing.T) {
 // TestExpandVariables tests environment variable expansion
 func TestExpandVariables(t *testing.T) {
 	// Register env resolver for expansion
-	secrets.Register("env", secrets.NewEnvResolver())
+	secrets.Register("env", secrets.NewEnvLoader())
 	defer secrets.Unregister("env")
 
 	// Set up test environment variables
@@ -287,7 +287,7 @@ func TestUnmarshalTo_Error(t *testing.T) {
 // TestExpandVariables_ComplexStructures tests expandVariables with different data types
 func TestExpandVariables_ComplexStructures(t *testing.T) {
 	// Register env resolver for expansion
-	secrets.Register("env", secrets.NewEnvResolver())
+	secrets.Register("env", secrets.NewEnvLoader())
 	defer secrets.Unregister("env")
 
 	_ = os.Setenv("TEST_EXPAND", "expanded_value")
@@ -500,7 +500,7 @@ func TestControllerBinding_Validate(t *testing.T) {
 // TestConfig_Load_ValidatesControllerBindings tests that Load validates all controller bindings
 func TestConfig_Load_ValidatesControllerBindings(t *testing.T) {
 	// Register env resolver for expansion
-	secrets.Register("env", secrets.NewEnvResolver())
+	secrets.Register("env", secrets.NewEnvLoader())
 	defer secrets.Unregister("env")
 
 	tempDir := t.TempDir()
@@ -547,7 +547,7 @@ controllers:
 // TestLoadConfig tests the generic LoadConfig function
 func TestLoadConfig(t *testing.T) {
 	// Register env resolver for expansion
-	secrets.Register("env", secrets.NewEnvResolver())
+	secrets.Register("env", secrets.NewEnvLoader())
 	defer secrets.Unregister("env")
 
 	// Set up test environment variables

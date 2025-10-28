@@ -19,7 +19,7 @@ Sargantana Go is a modular configuration-driven web framework built on [Gin](htt
 
 ** Configuration System with Secret Management**
 - YAML-based configuration with environment variable expansion
-- Pluggable secret providers (env, file, Vault, AWS Secrets Manager)
+- Pluggable secret loaders implementing `SecretLoader` interface (env, file, Vault, AWS Secrets Manager)
 - Type-safe configuration loading with validation via `ClientFactory[T]` pattern
 
 ** Modular Web Server Architecture**

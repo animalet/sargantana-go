@@ -13,10 +13,10 @@ func TestEnvResolver_Success(t *testing.T) {
 	_ = os.Setenv(testKey, testValue)
 	defer func() { _ = os.Unsetenv(testKey) }()
 
-	resolver := NewEnvResolver()
+	resolver := NewEnvLoader()
 	result, err := resolver.Resolve(testKey)
 	if err != nil {
-		t.Fatalf("EnvResolver.Resolve failed: %v", err)
+		t.Fatalf("EnvLoader.Resolve failed: %v", err)
 	}
 
 	if result != testValue {
@@ -30,10 +30,10 @@ func TestEnvResolver_EmptyValue(t *testing.T) {
 	_ = os.Setenv(testKey, "")
 	defer func() { _ = os.Unsetenv(testKey) }()
 
-	resolver := NewEnvResolver()
+	resolver := NewEnvLoader()
 	result, err := resolver.Resolve(testKey)
 	if err != nil {
-		t.Fatalf("EnvResolver.Resolve failed: %v", err)
+		t.Fatalf("EnvLoader.Resolve failed: %v", err)
 	}
 
 	if result != "" {
@@ -43,7 +43,7 @@ func TestEnvResolver_EmptyValue(t *testing.T) {
 
 // TestEnvResolver_NonexistentVariable tests resolution of nonexistent variable
 func TestEnvResolver_NonexistentVariable(t *testing.T) {
-	resolver := NewEnvResolver()
+	resolver := NewEnvLoader()
 
 	// Make sure the variable doesn't exist
 	testKey := "TEST_ENV_RESOLVER_NONEXISTENT_12345"
@@ -51,10 +51,10 @@ func TestEnvResolver_NonexistentVariable(t *testing.T) {
 
 	result, err := resolver.Resolve(testKey)
 	if err != nil {
-		t.Fatalf("EnvResolver.Resolve should not error for missing vars: %v", err)
+		t.Fatalf("EnvLoader.Resolve should not error for missing vars: %v", err)
 	}
 
-	// EnvResolver returns empty string for missing vars (Go's os.Getenv behavior)
+	// EnvLoader returns empty string for missing vars (Go's os.Getenv behavior)
 	if result != "" {
 		t.Errorf("Expected empty string for nonexistent var, got '%s'", result)
 	}
@@ -62,7 +62,7 @@ func TestEnvResolver_NonexistentVariable(t *testing.T) {
 
 // TestEnvResolver_Name tests the Name method
 func TestEnvResolver_Name(t *testing.T) {
-	resolver := NewEnvResolver()
+	resolver := NewEnvLoader()
 	if resolver.Name() != "Environment" {
 		t.Errorf("Expected name 'Environment', got '%s'", resolver.Name())
 	}

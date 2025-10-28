@@ -20,10 +20,10 @@ func TestFileResolver_Success(t *testing.T) {
 	}
 
 	// Create file resolver and test
-	fileResolver := NewFileResolver(tempDir)
+	fileResolver := NewFileSecretLoader(tempDir)
 	result, err := fileResolver.Resolve("test-secret")
 	if err != nil {
-		t.Fatalf("FileResolver.Resolve failed: %v", err)
+		t.Fatalf("FileSecretLoader.Resolve failed: %v", err)
 	}
 
 	expected := "my-secret-value"
@@ -35,7 +35,7 @@ func TestFileResolver_Success(t *testing.T) {
 // TestFileResolver_NoSecretsDir tests file secret reading without configured secrets directory
 func TestFileResolver_NoSecretsDir(t *testing.T) {
 	// Create file resolver with empty directory
-	fileResolver := NewFileResolver("")
+	fileResolver := NewFileSecretLoader("")
 
 	_, err := fileResolver.Resolve("test-secret")
 	if err == nil {
@@ -51,7 +51,7 @@ func TestFileResolver_EmptyFilename(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create file resolver and test with empty filename
-	fileResolver := NewFileResolver(tempDir)
+	fileResolver := NewFileSecretLoader(tempDir)
 	_, err := fileResolver.Resolve("")
 	if err == nil {
 		t.Fatal("Expected error when filename is empty")
@@ -66,7 +66,7 @@ func TestFileResolver_NonexistentFile(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create file resolver and test with nonexistent file
-	fileResolver := NewFileResolver(tempDir)
+	fileResolver := NewFileSecretLoader(tempDir)
 	_, err := fileResolver.Resolve("nonexistent-file")
 	if err == nil {
 		t.Fatal("Expected error when file doesn't exist")
@@ -88,10 +88,10 @@ func TestFileResolver_WhitespaceTrimming(t *testing.T) {
 		t.Fatalf("Failed to create test secret file: %v", err)
 	}
 
-	fileResolver := NewFileResolver(tempDir)
+	fileResolver := NewFileSecretLoader(tempDir)
 	result, err := fileResolver.Resolve("test-secret")
 	if err != nil {
-		t.Fatalf("FileResolver.Resolve failed: %v", err)
+		t.Fatalf("FileSecretLoader.Resolve failed: %v", err)
 	}
 
 	expected := "my-secret-value"
@@ -102,7 +102,7 @@ func TestFileResolver_WhitespaceTrimming(t *testing.T) {
 
 // TestFileResolver_Name tests the Name method
 func TestFileResolver_Name(t *testing.T) {
-	resolver := NewFileResolver("/tmp")
+	resolver := NewFileSecretLoader("/tmp")
 	if resolver.Name() != "File" {
 		t.Errorf("Expected name 'File', got '%s'", resolver.Name())
 	}
@@ -122,20 +122,20 @@ func TestFileResolverConfig_Validate(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		config    FileResolverConfig
+		config    FileSecretConfig
 		wantError bool
 		errorMsg  string
 	}{
 		{
 			name: "valid config",
-			config: FileResolverConfig{
+			config: FileSecretConfig{
 				SecretsDir: tempDir,
 			},
 			wantError: false,
 		},
 		{
 			name: "empty secrets dir",
-			config: FileResolverConfig{
+			config: FileSecretConfig{
 				SecretsDir: "",
 			},
 			wantError: true,
@@ -143,7 +143,7 @@ func TestFileResolverConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "non-existent directory",
-			config: FileResolverConfig{
+			config: FileSecretConfig{
 				SecretsDir: "/path/to/nonexistent/directory",
 			},
 			wantError: true,
@@ -151,7 +151,7 @@ func TestFileResolverConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "path is a file not a directory",
-			config: FileResolverConfig{
+			config: FileSecretConfig{
 				SecretsDir: tempFile,
 			},
 			wantError: true,
@@ -184,26 +184,26 @@ func TestFileResolverConfig_CreateClient(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		config    FileResolverConfig
+		config    FileSecretConfig
 		wantError bool
 	}{
 		{
 			name: "valid config",
-			config: FileResolverConfig{
+			config: FileSecretConfig{
 				SecretsDir: tempDir,
 			},
 			wantError: false,
 		},
 		{
 			name: "invalid config - empty secrets dir",
-			config: FileResolverConfig{
+			config: FileSecretConfig{
 				SecretsDir: "",
 			},
 			wantError: true,
 		},
 		{
 			name: "invalid config - non-existent directory",
-			config: FileResolverConfig{
+			config: FileSecretConfig{
 				SecretsDir: "/nonexistent/path/to/secrets",
 			},
 			wantError: true,

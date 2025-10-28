@@ -9,13 +9,13 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// FileResolverConfig holds configuration for the file-based resolver
-type FileResolverConfig struct {
+// FileSecretConfig holds configuration for the file-based resolver
+type FileSecretConfig struct {
 	SecretsDir string `yaml:"secrets_dir"`
 }
 
-// Validate checks if the FileResolverConfig has all required fields set
-func (f FileResolverConfig) Validate() error {
+// Validate checks if the FileSecretConfig has all required fields set
+func (f FileSecretConfig) Validate() error {
 	if f.SecretsDir == "" {
 		return errors.New("secrets_dir is required for file resolver")
 	}
@@ -34,17 +34,17 @@ func (f FileResolverConfig) Validate() error {
 	return nil
 }
 
-// CreateClient creates a FileResolver from this config.
+// CreateClient creates a FileSecretLoader from this config.
 // Implements a factory pattern similar to other configs.
-// Returns *FileResolver on success, or an error if creation fails.
-func (f FileResolverConfig) CreateClient() (*FileResolver, error) {
+// Returns *FileSecretLoader on success, or an error if creation fails.
+func (f FileSecretConfig) CreateClient() (*FileSecretLoader, error) {
 	if err := f.Validate(); err != nil {
 		return nil, err
 	}
-	return NewFileResolver(f.SecretsDir), nil
+	return NewFileSecretLoader(f.SecretsDir), nil
 }
 
-// FileResolver reads secrets from files in a configured directory.
+// FileSecretLoader reads secrets from files in a configured directory.
 // Useful for Docker secrets, Kubernetes secrets, or local development.
 //
 // Example usage in config:
@@ -52,22 +52,22 @@ func (f FileResolverConfig) CreateClient() (*FileResolver, error) {
 //	password: ${file:db_password}  # Reads from <secretsDir>/db_password
 //
 // The file contents are trimmed of whitespace.
-type FileResolver struct {
+type FileSecretLoader struct {
 	secretsDir string
 }
 
-// NewFileResolver creates a new file-based resolver
+// NewFileSecretLoader creates a new file-based resolver
 //
 // Parameters:
 //   - secretsDir: The directory containing secret files
-func NewFileResolver(secretsDir string) *FileResolver {
-	return &FileResolver{
+func NewFileSecretLoader(secretsDir string) *FileSecretLoader {
+	return &FileSecretLoader{
 		secretsDir: secretsDir,
 	}
 }
 
 // Resolve reads a secret from a file
-func (f *FileResolver) Resolve(key string) (string, error) {
+func (f *FileSecretLoader) Resolve(key string) (string, error) {
 	if f.secretsDir == "" {
 		return "", errors.New("no secrets directory configured")
 	}
@@ -89,6 +89,6 @@ func (f *FileResolver) Resolve(key string) (string, error) {
 }
 
 // Name returns the resolver name
-func (f *FileResolver) Name() string {
+func (f *FileSecretLoader) Name() string {
 	return "File"
 }

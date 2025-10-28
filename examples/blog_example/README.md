@@ -127,7 +127,7 @@ The example demonstrates modular controller setup:
 
 ```go
 // Register resolvers
-resolver.Register("env", resolver.NewEnvResolver())
+resolver.Register("env", resolver.NewEnvLoader())
 resolver.Register("file", fileResolver)
 resolver.Register("vault", vaultResolver)
 

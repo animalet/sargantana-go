@@ -7,15 +7,15 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// PropertyResolver defines the interface that all secret providers must implement.
+// SecretLoader defines the interface that all secret providers must implement.
 // A provider is responsible for retrieving a secret value based on a key.
 //
 // Example implementations:
-//   - EnvResolver: Resolves environment variables
-//   - FileResolver: Reads secrets from files
-//   - VaultResolver: Retrieves secrets from HashiCorp Vault
+//   - EnvLoader: Resolves environment variables
+//   - FileSecretLoader: Reads secrets from files
+//   - VaultSecretLoader: Retrieves secrets from HashiCorp Vault
 //   - Custom: Database lookups, remote APIs, encrypted stores, etc.
-type PropertyResolver interface {
+type SecretLoader interface {
 	// Resolve retrieves the secret value for the given key.
 	// Returns the resolved value or an error if resolution fails.
 	//
@@ -33,11 +33,11 @@ type PropertyResolver interface {
 
 // providers manages the registration and lookup of secret providers.
 // It provides a thread-safe registry for associating prefixes with their providers.
-var providers = make(map[string]PropertyResolver)
+var providers = make(map[string]SecretLoader)
 
 func init() {
 	// Register default provider in the global registry
-	Register("env", NewEnvResolver())
+	Register("env", NewEnvLoader())
 }
 
 // Register registers a secret provider for a specific prefix.
@@ -48,11 +48,11 @@ func init() {
 //
 // Example:
 //
-//	secrets.Register("vault", NewVaultResolver(vaultConfig))
+//	secrets.Register("vault", NewVaultSecretLoader(vaultClient, vaultPath))
 //	secrets.Register("custom", NewCustomProvider(customConfig))
 //
 // Thread-safe: This method can be called concurrently.
-func Register(prefix string, provider PropertyResolver) {
+func Register(prefix string, provider SecretLoader) {
 	if _, exists := providers[prefix]; exists {
 		// Log warning about override (but don't fail)
 		log.Warn().Msgf("Overriding existing secret provider for prefix %q", prefix)
@@ -104,7 +104,7 @@ func Resolve(property string) (string, error) {
 
 // GetResolver returns the provider registered for a specific prefix.
 // Returns nil if no provider is registered for the prefix.
-func GetResolver(prefix string) PropertyResolver {
+func GetResolver(prefix string) SecretLoader {
 	return providers[prefix]
 }
 

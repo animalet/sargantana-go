@@ -65,10 +65,10 @@ func main() {
 
 	// Register secret providers
 	// Environment provider (default - always register first)
-	secrets.Register("env", secrets.NewEnvResolver())
+	secrets.Register("env", secrets.NewEnvLoader())
 
 	// File provider (if file_resolver is configured)
-	fileResolverCfg, err := config.LoadConfig[secrets.FileResolverConfig]("file_resolver", cfg)
+	fileResolverCfg, err := config.LoadConfig[secrets.FileSecretConfig]("file_resolver", cfg)
 	if err == nil {
 		fileResolver, err := fileResolverCfg.CreateClient()
 		if err != nil {
@@ -87,7 +87,7 @@ func main() {
 			log.Fatal().Err(err).Msg("Failed to create Vault client")
 			os.Exit(1)
 		}
-		secrets.Register("vault", secrets.NewVaultResolver(vaultClient, vaultCfg.Path))
+		secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
 		log.Info().Msg("Vault secret provider registered")
 	}
 

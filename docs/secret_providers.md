@@ -1,6 +1,6 @@
-# Secret Providers
+# Secret Loaders
 
-Secret Providers offer an extensible mechanism for retrieving configuration values and secrets from various sources. This document explains how to use the built-in providers and how to create custom ones.
+Secret Loaders offer an extensible mechanism for retrieving configuration values and secrets from various sources. This document explains how to use the built-in loaders and how to create custom ones.
 
 ## Overview
 
@@ -15,11 +15,11 @@ server:
   host: ${DATABASE_HOST}                     # Defaults to env: prefix
 ```
 
-**Important:** The secrets package is decoupled from config and provides both the infrastructure (interfaces and registry) and built-in secret provider implementations. Your application must explicitly register the providers it needs before loading configuration.
+**Important:** The secrets package is decoupled from config and provides both the infrastructure (interfaces and registry) and built-in secret loader implementations. Your application must explicitly register the loaders it needs before loading configuration.
 
-## Registering Secret Providers
+## Registering Secret Loaders
 
-Secret providers must be registered **before** calling `cfg.Load()`. Here's a typical setup in your main function:
+Secret loaders must be registered **before** calling `cfg.Load()`. Here's a typical setup in your main function:
 
 ```go
 func main() {
@@ -29,41 +29,41 @@ func main() {
         log.Fatal(err)
     }
 
-    // Register secret providers BEFORE calling Load()
-    // Environment provider (default - always register first)
-    secrets.Register("env", secrets.NewEnvResolver())
+    // Register secret loaders BEFORE calling Load()
+    // Environment loader (default - always register first)
+    secrets.Register("env", secrets.NewEnvLoader())
 
-    // File provider (if file_resolver is configured)
-    fileResolverCfg, err := config.LoadConfig[secrets.FileResolverConfig]("file_resolver", cfg)
+    // File loader (if file_resolver is configured)
+    fileResolverCfg, err := config.LoadConfig[secrets.FileSecretConfig]("file_resolver", cfg)
     if err == nil {
-        fileResolver, err := fileResolverCfg.CreateClient()
+        fileLoader, err := fileResolverCfg.CreateClient()
         if err != nil {
-            log.Fatal().Err(err).Msg("Failed to create file secret provider")
+            log.Fatal().Err(err).Msg("Failed to create file secret loader")
         }
-        secrets.Register("file", fileResolver)
-        log.Info().Str("secrets_dir", fileResolverCfg.SecretsDir).Msg("File secret provider registered")
+        secrets.Register("file", fileLoader)
+        log.Info().Str("secrets_dir", fileResolverCfg.SecretsDir).Msg("File secret loader registered")
     }
 
-    // Vault provider (if vault is configured)
+    // Vault loader (if vault is configured)
     vaultCfg, err := config.LoadConfig[secrets.VaultConfig]("vault", cfg)
     if err == nil {
         vaultClient, err := vaultCfg.CreateClient()
         if err != nil {
             log.Fatal().Err(err).Msg("Failed to create Vault client")
         }
-        secrets.Register("vault", secrets.NewVaultResolver(vaultClient, vaultCfg.Path))
-        log.Info().Msg("Vault secret provider registered")
+        secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
+        log.Info().Msg("Vault secret loader registered")
     }
 
-    // AWS Secrets Manager provider (if aws is configured)
+    // AWS Secrets Manager loader (if aws is configured)
     awsCfg, err := config.LoadConfig[secrets.AWSConfig]("aws", cfg)
     if err == nil {
         awsClient, err := awsCfg.CreateClient()
         if err != nil {
             log.Fatal().Err(err).Msg("Failed to create AWS client")
         }
-        secrets.Register("aws", secrets.NewAWSResolver(awsClient, awsCfg.SecretName))
-        log.Info().Msg("AWS secret provider registered")
+        secrets.Register("aws", secrets.NewAWSSecretLoader(awsClient, awsCfg.SecretName))
+        log.Info().Msg("AWS secret loader registered")
     }
 
     // Now load and expand the configuration
@@ -76,11 +76,13 @@ func main() {
 }
 ```
 
-## Built-in Secret Providers
+## Built-in Secret Loaders
 
-### Environment Variable Provider (env:)
+### Environment Variable Loader (env:)
 
-Retrieves values from environment variables. This is the default provider when no prefix is specified.
+Retrieves values from environment variables. This is the default loader when no prefix is specified.
+
+**Type:** `EnvLoader`
 
 **Usage:**
 ```yaml
@@ -93,12 +95,12 @@ database_host: ${DATABASE_HOST}
 
 **Registration:**
 ```go
-secrets.Register("env", secrets.NewEnvResolver())
+secrets.Register("env", secrets.NewEnvLoader())
 ```
 
 **Configuration:** No additional configuration needed.
 
-### File Provider (file:)
+### File Loader (file:)
 
 Reads secrets from files in a configured directory. Useful for Docker secrets, Kubernetes secrets, or local development.
 
@@ -114,13 +116,13 @@ server:
 
 **Registration:**
 ```go
-fileResolverCfg, err := config.LoadConfig[secrets.FileResolverConfig]("file_resolver", cfg)
+fileSecretCfg, err := config.LoadConfig[secrets.FileSecretConfig]("file_resolver", cfg)
 if err == nil {
-    fileResolver, err := fileResolverCfg.CreateClient()
+    fileLoader, err := fileSecretCfg.CreateClient()
     if err != nil {
-        log.Fatal().Err(err).Msg("Failed to create file secret provider")
+        log.Fatal().Err(err).Msg("Failed to create file secret loader")
     }
-    secrets.Register("file", fileResolver)
+    secrets.Register("file", fileLoader)
 }
 ```
 
@@ -134,7 +136,7 @@ if err == nil {
 
 **File Format:** Files should contain the secret value as plain text. Whitespace is automatically trimmed.
 
-### Vault Provider (vault:)
+### Vault Loader (vault:)
 
 Retrieves secrets from HashiCorp Vault. Supports both KV v1 and KV v2 secret engines.
 
@@ -159,7 +161,7 @@ if err == nil {
     if err != nil {
         log.Fatal().Err(err).Msg("Failed to create Vault client")
     }
-    secrets.Register("vault", secrets.NewVaultResolver(vaultClient, vaultCfg.Path))
+    secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
 }
 ```
 
@@ -169,7 +171,7 @@ if err == nil {
 - `path`: Path to read secrets from (e.g., "secret/data/myapp" for KV v2)
 - `namespace`: Optional Vault namespace
 
-### AWS Secrets Manager Provider (aws:)
+### AWS Secrets Manager Loader (aws:)
 
 Retrieves secrets from AWS Secrets Manager. Supports both JSON-formatted secrets (with multiple key-value pairs) and plain text secrets.
 
@@ -195,7 +197,7 @@ if err == nil {
     if err != nil {
         log.Fatal().Err(err).Msg("Failed to create AWS client")
     }
-    secrets.Register("aws", secrets.NewAWSResolver(awsClient, awsCfg.SecretName))
+    secrets.Register("aws", secrets.NewAWSSecretLoader(awsClient, awsCfg.SecretName))
 }
 ```
 
@@ -229,7 +231,7 @@ if err == nil {
 
 You can create custom secret providers to retrieve configuration from any source: databases, remote APIs, encrypted stores, etc.
 
-### Step 1: Implement the PropertyResolver Interface
+### Step 1: Implement the SecretLoader Interface
 
 ```go
 package mypackage
@@ -246,7 +248,7 @@ type CustomSecretProvider struct {
 }
 
 // NewCustomSecretProvider creates a new instance
-func NewCustomSecretProvider(endpoint, apiKey string) secrets.PropertyResolver {
+func NewCustomSecretProvider(endpoint, apiKey string) secrets.SecretLoader {
     return &CustomSecretProvider{
         apiEndpoint: endpoint,
         apiKey:      apiKey,
@@ -326,7 +328,7 @@ type DatabaseSecretProvider struct {
     tableName string
 }
 
-func NewDatabaseSecretProvider(db *sql.DB, tableName string) secrets.PropertyResolver {
+func NewDatabaseSecretProvider(db *sql.DB, tableName string) secrets.SecretLoader {
     return &DatabaseSecretProvider{db: db, tableName: tableName}
 }
 
@@ -416,7 +418,7 @@ aws:
 5. **Validation**: Configs are validated before client creation
 
 **Example configuration types:**
-- `secrets.FileResolverConfig` - File-based secrets
+- `secrets.FileSecretConfig` - File-based secrets
 - `secrets.VaultConfig` - HashiCorp Vault
 - `secrets.AWSConfig` - AWS Secrets Manager
 
@@ -425,7 +427,7 @@ This pattern ensures the core `ServerConfig` remains minimal and focused only on
 ## Architecture Notes
 
 The secrets resolution system is located in the `pkg/secrets/` package and uses:
-- **PropertyResolver interface**: Contract for all secret providers (`secrets` package)
+- **SecretLoader interface**: Contract for all secret providers (`secrets` package)
 - **Registry**: Thread-safe registry mapping prefixes to providers (`secrets` package)
 - **Global functions**: `Register()`, `Resolve()` functions used by the config system
 - **Parser**: Splits "prefix:key" syntax (defaults to "env:" if no prefix)

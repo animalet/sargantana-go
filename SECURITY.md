@@ -287,7 +287,7 @@ panic: error resolving property: no resolver registered for prefix "vault"
 
 ### Missing Environment Variables
 
-The EnvResolver logs warnings for missing or empty environment variables to prevent silent failures:
+The EnvLoader logs warnings for missing or empty environment variables to prevent silent failures:
 
 **Production (Info level):**
 ```

@@ -175,5 +175,5 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 }
 
 func purgeResolvers() {
-	providers = make(map[string]PropertyResolver)
+	providers = make(map[string]SecretLoader)
 }

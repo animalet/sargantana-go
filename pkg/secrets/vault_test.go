@@ -41,7 +41,7 @@ func TestVaultResolver_Success(t *testing.T) {
 		t.Fatalf("Failed to create Vault client: %v", err)
 	}
 
-	resolver := NewVaultResolver(client, "secret/data/sargantana")
+	resolver := NewVaultSecretLoader(client, "secret/data/sargantana")
 
 	// Test retrieving GOOGLE_KEY
 	googleKey, err := resolver.Resolve("GOOGLE_KEY")
@@ -70,7 +70,7 @@ func TestVaultResolver_KVv1(t *testing.T) {
 	}
 
 	// KV v1 uses a different path structure (no /data/ in the path)
-	resolver := NewVaultResolver(client, "secret-v1/sargantana")
+	resolver := NewVaultSecretLoader(client, "secret-v1/sargantana")
 
 	// Test retrieving GOOGLE_KEY from KV v1
 	googleKey, err := resolver.Resolve("GOOGLE_KEY")
@@ -98,7 +98,7 @@ func TestVaultResolver_NonexistentPath(t *testing.T) {
 		t.Fatalf("Failed to create Vault client: %v", err)
 	}
 
-	resolver := NewVaultResolver(client, "secret/data/nonexistent")
+	resolver := NewVaultSecretLoader(client, "secret/data/nonexistent")
 
 	_, err = resolver.Resolve("SOME_KEY")
 	if err == nil {
@@ -116,7 +116,7 @@ func TestVaultResolver_NonexistentKey(t *testing.T) {
 		t.Fatalf("Failed to create Vault client: %v", err)
 	}
 
-	resolver := NewVaultResolver(client, "secret/data/sargantana")
+	resolver := NewVaultSecretLoader(client, "secret/data/sargantana")
 
 	_, err = resolver.Resolve("NONEXISTENT_KEY")
 	if err == nil {
@@ -134,7 +134,7 @@ func TestVaultResolver_InvalidToken(t *testing.T) {
 		t.Fatalf("Failed to create Vault client: %v", err)
 	}
 
-	resolver := NewVaultResolver(client, "secret/data/sargantana")
+	resolver := NewVaultSecretLoader(client, "secret/data/sargantana")
 
 	_, err = resolver.Resolve("GOOGLE_KEY")
 	if err == nil {
@@ -152,7 +152,7 @@ func TestVaultResolver_Name(t *testing.T) {
 		t.Fatalf("Failed to create Vault client: %v", err)
 	}
 
-	resolver := NewVaultResolver(client, "secret/data/test")
+	resolver := NewVaultSecretLoader(client, "secret/data/test")
 	if resolver.Name() != "Vault" {
 		t.Errorf("Expected name 'Vault', got '%s'", resolver.Name())
 	}
@@ -349,7 +349,7 @@ func TestVaultPropertyResolution_Success(t *testing.T) {
 		t.Fatalf("Failed to create Vault client: %v", err)
 	}
 
-	vaultResolver := NewVaultResolver(client, vaultCfg.Path)
+	vaultResolver := NewVaultSecretLoader(client, vaultCfg.Path)
 
 	// Register the resolver
 	Register("vault", vaultResolver)
@@ -391,7 +391,7 @@ func TestVaultPropertyResolution_NonexistentKey(t *testing.T) {
 		t.Fatalf("Failed to create Vault client: %v", err)
 	}
 
-	vaultResolver := NewVaultResolver(client, vaultCfg.Path)
+	vaultResolver := NewVaultSecretLoader(client, vaultCfg.Path)
 	Register("vault", vaultResolver)
 	defer Unregister("vault")
 
@@ -418,7 +418,7 @@ func TestVaultPropertyResolution_InvalidToken(t *testing.T) {
 		t.Fatalf("Failed to create Vault client: %v", err)
 	}
 
-	vaultResolver := NewVaultResolver(client, vaultCfg.Path)
+	vaultResolver := NewVaultSecretLoader(client, vaultCfg.Path)
 	Register("vault", vaultResolver)
 	defer Unregister("vault")
 
@@ -461,7 +461,7 @@ func TestVaultPropertyResolution_KVv1(t *testing.T) {
 		t.Fatalf("Failed to create Vault client: %v", err)
 	}
 
-	vaultResolver := NewVaultResolver(client, vaultCfg.Path)
+	vaultResolver := NewVaultSecretLoader(client, vaultCfg.Path)
 	Register("vault", vaultResolver)
 	defer Unregister("vault")
 

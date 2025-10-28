@@ -27,7 +27,7 @@ func main() {
 	server.AddControllerType("template", controller.NewTemplateController)
 
 	// Register secret providers (must be done before loading config)
-	secrets.Register("env", secrets.NewEnvResolver())
+	secrets.Register("env", secrets.NewEnvLoader())
 
 	cfg, err := config.ReadConfig("./config.yaml")
 	if err != nil {
@@ -35,7 +35,7 @@ func main() {
 	}
 
 	// Register file provider if configured
-	fileResolverCfg, err := config.LoadConfig[secrets.FileResolverConfig]("file_resolver", cfg)
+	fileResolverCfg, err := config.LoadConfig[secrets.FileSecretConfig]("file_resolver", cfg)
 	if err == nil {
 		fileResolver, err := fileResolverCfg.CreateClient()
 		if err != nil {
@@ -51,7 +51,7 @@ func main() {
 		if err != nil {
 			panic(errors.Wrap(err, "failed to create Vault client"))
 		}
-		secrets.Register("vault", secrets.NewVaultResolver(vaultClient, vaultCfg.Path))
+		secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
 	}
 
 	postgresCfg, err := config.LoadConfig[database.PostgresConfig]("database", cfg)

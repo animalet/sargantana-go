@@ -49,7 +49,7 @@ func (a *AWSConfig) CreateClient() (*secretsmanager.Client, error) {
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
-//	resolver.Register("aws", resolver.NewAWSResolver(client, cfg.AWS.SecretName))
+//	secrets.Register("aws", secrets.NewAWSSecretLoader(client, cfg.AWS.SecretName))
 func createAWSClient(awsCfg *AWSConfig) (*secretsmanager.Client, error) {
 	if awsCfg == nil {
 		return nil, errors.New("AWS configuration is nil")
@@ -95,7 +95,7 @@ func createAWSClient(awsCfg *AWSConfig) (*secretsmanager.Client, error) {
 	return client, nil
 }
 
-// AWSResolver retrieves secrets from AWS Secrets Manager.
+// AWSSecretLoader retrieves secrets from AWS Secrets Manager.
 // The secret value can be either a string or a JSON object with multiple key-value pairs.
 //
 // Example usage in config:
@@ -103,25 +103,25 @@ func createAWSClient(awsCfg *AWSConfig) (*secretsmanager.Client, error) {
 //	password: ${aws:DATABASE_PASSWORD}  # Reads from configured AWS secret
 //
 // The AWS secret name is configured when creating the resolver.
-type AWSResolver struct {
+type AWSSecretLoader struct {
 	client     *secretsmanager.Client
 	secretName string
 }
 
-// NewAWSResolver creates a new AWS Secrets Manager-based resolver
+// NewAWSSecretLoader creates a new AWS Secrets Manager-based resolver
 //
 // Parameters:
 //   - client: Configured AWS Secrets Manager client
 //   - secretName: The name of the secret in AWS Secrets Manager
-func NewAWSResolver(client *secretsmanager.Client, secretName string) *AWSResolver {
-	return &AWSResolver{
+func NewAWSSecretLoader(client *secretsmanager.Client, secretName string) *AWSSecretLoader {
+	return &AWSSecretLoader{
 		client:     client,
 		secretName: secretName,
 	}
 }
 
 // Resolve retrieves a secret from AWS Secrets Manager
-func (a *AWSResolver) Resolve(key string) (string, error) {
+func (a *AWSSecretLoader) Resolve(key string) (string, error) {
 	ctx := context.Background()
 
 	input := &secretsmanager.GetSecretValueInput{
@@ -162,6 +162,6 @@ func (a *AWSResolver) Resolve(key string) (string, error) {
 }
 
 // Name returns the resolver name
-func (a *AWSResolver) Name() string {
+func (a *AWSSecretLoader) Name() string {
 	return "AWS Secrets Manager"
 }
