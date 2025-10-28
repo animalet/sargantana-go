@@ -29,9 +29,9 @@
         <nav class="nav" role="navigation" aria-label="Main navigation">
             <div class="nav-content">
                 <div class="nav-links">
-                    <a href="/blog/feed" aria-current="page">🏠 Home</a>
+                    <a href="/" aria-current="page">🏠 Home</a>
                     {{if ne $.user ""}}
-                        <a href="/blog/admin">⚙️ Admin</a>
+                        <a href="/admin">⚙️ Admin</a>
                     {{end}}
                 </div>
                 <div class="nav-user">
@@ -47,7 +47,7 @@
         <!-- New Post Form -->
         <section class="form-section" role="form" aria-labelledby="new-post-heading">
             <h2 id="new-post-heading">Create New Post</h2>
-            <form method="post" action="/blog/post" novalidate>
+            <form method="post" action="/post" novalidate>
                 {{.CSRFToken}}
                 <div class="form-group">
                     <label for="title">Title</label>
@@ -95,7 +95,7 @@
                         {{end}}
                     </article>
                     {{if eq $.user .Owner}}
-                    <form class="edit-form" style="display:none;" method="post" action="/blog/post"
+                    <form class="edit-form" style="display:none;" method="post" action="/post"
                           aria-labelledby="edit-heading-{{.Id}}" novalidate>
                         <h3 id="edit-heading-{{.Id}}" class="sr-only">Edit Post: {{.Title}}</h3>
                         <input type="hidden" name="id" value="{{.Id}}">
@@ -192,7 +192,7 @@
                 btn.classList.add('loading');
                 btn.innerHTML = '⏳ Deleting...';
 
-                fetch('/blog/post/' + postId, {
+                fetch('/post/' + postId, {
                     method: 'DELETE',
                     credentials: 'same-origin'
                 }).then(function(response) {
@@ -202,7 +202,7 @@
                         li.style.opacity = '0';
                         li.style.transform = 'translateY(-20px)';
                         setTimeout(function() {
-                            window.location.href = '/blog/feed';
+                            window.location.href = '/';
                         }, 300);
                     } else {
                         throw new Error('Delete failed');

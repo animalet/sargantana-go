@@ -142,6 +142,7 @@ func UnmarshalTo[T Validatable](c ControllerConfig) (*T, error) {
 	if c == nil {
 		return nil, nil
 	}
+
 	var result T
 	err := yaml.Unmarshal(c, &result)
 	if err != nil {
