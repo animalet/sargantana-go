@@ -584,6 +584,59 @@ controllers:
 	// So we need to start the server to test controller configuration
 }
 
+func TestNewServer_InvalidControllerBinding(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name        string
+		config      string
+		expectedErr string
+	}{
+		{
+			name: "missing controller type",
+			config: `server:
+  address: "localhost:8080"
+  session_name: "test-session"
+  session_secret: "test-secret"
+controllers:
+  - type: ""
+    config:
+      key: value`,
+			expectedErr: "controller type must be set and non-empty",
+		},
+		{
+			name: "missing controller config",
+			config: `server:
+  address: "localhost:8080"
+  session_name: "test-session"
+  session_secret: "test-secret"
+controllers:
+  - type: "static"`,
+			expectedErr: "controller config must be provided",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			configFile := filepath.Join(tempDir, "config.yaml")
+
+			err := os.WriteFile(configFile, []byte(tt.config), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write config file: %v", err)
+			}
+
+			_, err = NewServerFromConfigFile(configFile)
+			if err == nil {
+				t.Fatal("Expected error but got none")
+			}
+			if !strings.Contains(err.Error(), tt.expectedErr) {
+				t.Errorf("Expected error containing '%s', got: %v", tt.expectedErr, err)
+			}
+		})
+	}
+}
+
 func TestServer_Start(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

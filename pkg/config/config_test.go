@@ -389,7 +389,7 @@ func TestExpand_FilePrefix_Error(t *testing.T) {
 	expand("file:test-file")
 }
 
-// TestLoadYaml_InvalidYAML tests ReadConfig with malformed YAML
+// TestLoadYaml_InvalidYAML tests ReadServerConfig with malformed YAML
 func TestLoadYaml_InvalidYAML(t *testing.T) {
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "invalid-config.yaml")
@@ -432,6 +432,116 @@ type NonExistentConfig struct {
 
 func (n NonExistentConfig) Validate() error {
 	return nil
+}
+
+// TestControllerBinding_Validate tests controller binding validation
+func TestControllerBinding_Validate(t *testing.T) {
+	tests := []struct {
+		name        string
+		binding     ControllerBinding
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "valid binding",
+			binding: ControllerBinding{
+				TypeName:   "auth",
+				Name:       "oauth",
+				ConfigData: []byte("key: value"),
+			},
+			expectError: false,
+		},
+		{
+			name: "missing type",
+			binding: ControllerBinding{
+				Name:       "oauth",
+				ConfigData: []byte("key: value"),
+			},
+			expectError: true,
+			errorMsg:    "controller type must be set and non-empty",
+		},
+		{
+			name: "missing config",
+			binding: ControllerBinding{
+				TypeName: "auth",
+				Name:     "oauth",
+			},
+			expectError: true,
+			errorMsg:    "controller config must be provided",
+		},
+		{
+			name: "valid binding without name",
+			binding: ControllerBinding{
+				TypeName:   "static",
+				ConfigData: []byte("path: /public"),
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.binding.Validate()
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				} else if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error containing '%s', got '%s'", tt.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// TestConfig_Load_ValidatesControllerBindings tests that Load validates all controller bindings
+func TestConfig_Load_ValidatesControllerBindings(t *testing.T) {
+	// Register env resolver for expansion
+	secrets.Register("env", secrets.NewEnvResolver())
+	defer secrets.Unregister("env")
+
+	tempDir := t.TempDir()
+	configFile := filepath.Join(tempDir, "test-config.yaml")
+
+	testConfig := `
+server:
+  address: ":8080"
+  session_name: "test-session"
+  session_secret: "my-test-secret-key"
+controllers:
+  - type: "auth"
+    name: "oauth"
+    config:
+      key: "value"
+  - type: ""
+    name: "invalid"
+    config:
+      key: "value"
+`
+
+	err := os.WriteFile(configFile, []byte(testConfig), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	cfg, err := ReadConfig(configFile)
+	if err != nil {
+		t.Fatalf("ReadConfig failed: %v", err)
+	}
+
+	err = cfg.Load()
+	if err == nil {
+		t.Fatal("Expected error when loading config with invalid controller binding")
+	}
+	if !strings.Contains(err.Error(), "controller binding at index 1 is invalid") {
+		t.Errorf("Expected error about invalid controller binding at index 1, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "controller type must be set and non-empty") {
+		t.Errorf("Expected error about missing controller type, got: %v", err)
+	}
 }
 
 // TestLoadConfig tests the generic LoadConfig function

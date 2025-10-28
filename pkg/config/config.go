@@ -12,33 +12,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type (
-	// Config holds the configuration settings for the Sargantana Go server.
-	// It encapsulates all necessary configuration parameters including network settings,
-	// session storage options, security settings, and debugging preferences.
-	Config struct {
-		ServerConfig       ServerConfig        `yaml:"server"`
-		ControllerBindings []ControllerBinding `yaml:"controllers"`
-		Other              map[string]any      `yaml:",inline"`
-	}
+// Config holds the configuration settings for the Sargantana Go server.
+// It encapsulates all necessary configuration parameters including network settings,
+// session storage options, security settings, and debugging preferences.
+type Config struct {
+	ServerConfig       ServerConfig        `yaml:"server"`
+	ControllerBindings []ControllerBinding `yaml:"controllers"`
+	Other              map[string]any      `yaml:",inline"`
+}
 
-	// ServerConfig holds the core server configuration parameters.
-	ServerConfig struct {
-		Address       string `yaml:"address"`
-		SessionName   string `yaml:"session_name"`
-		SessionSecret string `yaml:"session_secret"`
-	}
-
-	// ControllerBinding represents the configuration for a single controller.
-	ControllerBinding struct {
-		TypeName   string           `yaml:"type"`
-		Name       string           `yaml:"name,omitempty"`
-		ConfigData ControllerConfig `yaml:"config"`
-	}
-
-	ControllerConfig []byte
-)
-
+// Validatable interface defines types that can be validated.
 type Validatable interface {
 	Validate() error
 }
@@ -63,23 +46,6 @@ type ClientFactory[T any] interface {
 	CreateClient() (T, error)
 }
 
-// Validate checks if the ServerConfig has all required fields set.
-func (c ServerConfig) Validate() error {
-	if c.SessionSecret == "" {
-		return errors.New("session_secret must be set and non-empty")
-	}
-	return nil
-}
-
-func (cfg *Config) Load() (err error) {
-	expandVariables(reflect.ValueOf(&cfg.ServerConfig).Elem())
-	if err = cfg.ServerConfig.Validate(); err != nil {
-		return errors.Wrap(err, "server configuration is invalid")
-	}
-
-	return nil
-}
-
 // ReadConfig reads the YAML configuration file and unmarshalls its content into the provided struct.
 //
 // Parameters:
@@ -102,6 +68,25 @@ func ReadConfig(file string) (*Config, error) {
 	return out, nil
 }
 
+// Load validates and processes the configuration.
+func (cfg *Config) Load() (err error) {
+	expandVariables(reflect.ValueOf(&cfg.ServerConfig).Elem())
+	if err = cfg.ServerConfig.Validate(); err != nil {
+		return errors.Wrap(err, "server configuration is invalid")
+	}
+
+	// Validate all controller bindings
+	for i, binding := range cfg.ControllerBindings {
+		if err = binding.Validate(); err != nil {
+			return errors.Wrapf(err, "controller binding at index %d is invalid", i)
+		}
+	}
+
+	return nil
+}
+
+// LoadConfig loads a partial configuration from the Config.Other map by key.
+// It unmarshals, validates, and expands variables for the configuration.
 func LoadConfig[T Validatable](key string, cfg *Config) (partial *T, err error) {
 	c, exist := cfg.Other[key]
 	if !exist {
@@ -125,32 +110,22 @@ func LoadConfig[T Validatable](key string, cfg *Config) (partial *T, err error) 
 	return partial, nil
 }
 
-// UnmarshalYAML implements the yaml.Unmarshaler interface.
-// It marshals the provided yaml.Node back into a YAML byte slice.
-func (c *ControllerConfig) UnmarshalYAML(value *yaml.Node) error {
-	out, err := yaml.Marshal(value)
-	if err != nil {
-		return err
-	}
-	*c = out
-	return nil
-}
-
-// UnmarshalTo unmarshal the raw YAML data from ControllerConfig into a new instance of type T.
-// This method creates a new instance and returns it, avoiding addressability issues.
-func UnmarshalTo[T Validatable](c ControllerConfig) (*T, error) {
-	if c == nil {
+// UnmarshalTo unmarshals raw YAML data into a new instance of type T.
+// This function creates a new instance and returns it, avoiding addressability issues.
+// It is used for both controller configurations and other partial configurations.
+func UnmarshalTo[T Validatable](data []byte) (*T, error) {
+	if data == nil {
 		return nil, nil
 	}
 
 	var result T
-	err := yaml.Unmarshal(c, &result)
+	err := yaml.Unmarshal(data, &result)
 	if err != nil {
 		return nil, err
 	}
 
 	if err = result.Validate(); err != nil {
-		return nil, errors.Wrap(err, "controller config is invalid")
+		return nil, errors.Wrap(err, "configuration is invalid")
 	}
 
 	// Always try to expand environment variables for structs
