@@ -1,4 +1,4 @@
-package resolver
+package secrets
 
 import (
 	"os"
@@ -41,7 +41,7 @@ func (f FileResolverConfig) CreateClient() (*FileResolver, error) {
 	if err := f.Validate(); err != nil {
 		return nil, err
 	}
-	return newFileResolver(f.SecretsDir), nil
+	return NewFileResolver(f.SecretsDir), nil
 }
 
 // FileResolver reads secrets from files in a configured directory.
@@ -56,11 +56,11 @@ type FileResolver struct {
 	secretsDir string
 }
 
-// newFileResolver creates a new file-based resolver
+// NewFileResolver creates a new file-based resolver
 //
 // Parameters:
 //   - secretsDir: The directory containing secret files
-func newFileResolver(secretsDir string) *FileResolver {
+func NewFileResolver(secretsDir string) *FileResolver {
 	return &FileResolver{
 		secretsDir: secretsDir,
 	}

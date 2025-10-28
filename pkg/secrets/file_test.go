@@ -1,4 +1,4 @@
-package resolver
+package secrets
 
 import (
 	"os"
@@ -20,7 +20,7 @@ func TestFileResolver_Success(t *testing.T) {
 	}
 
 	// Create file resolver and test
-	fileResolver := newFileResolver(tempDir)
+	fileResolver := NewFileResolver(tempDir)
 	result, err := fileResolver.Resolve("test-secret")
 	if err != nil {
 		t.Fatalf("FileResolver.Resolve failed: %v", err)
@@ -35,7 +35,7 @@ func TestFileResolver_Success(t *testing.T) {
 // TestFileResolver_NoSecretsDir tests file secret reading without configured secrets directory
 func TestFileResolver_NoSecretsDir(t *testing.T) {
 	// Create file resolver with empty directory
-	fileResolver := newFileResolver("")
+	fileResolver := NewFileResolver("")
 
 	_, err := fileResolver.Resolve("test-secret")
 	if err == nil {
@@ -51,7 +51,7 @@ func TestFileResolver_EmptyFilename(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create file resolver and test with empty filename
-	fileResolver := newFileResolver(tempDir)
+	fileResolver := NewFileResolver(tempDir)
 	_, err := fileResolver.Resolve("")
 	if err == nil {
 		t.Fatal("Expected error when filename is empty")
@@ -66,7 +66,7 @@ func TestFileResolver_NonexistentFile(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create file resolver and test with nonexistent file
-	fileResolver := newFileResolver(tempDir)
+	fileResolver := NewFileResolver(tempDir)
 	_, err := fileResolver.Resolve("nonexistent-file")
 	if err == nil {
 		t.Fatal("Expected error when file doesn't exist")
@@ -88,7 +88,7 @@ func TestFileResolver_WhitespaceTrimming(t *testing.T) {
 		t.Fatalf("Failed to create test secret file: %v", err)
 	}
 
-	fileResolver := newFileResolver(tempDir)
+	fileResolver := NewFileResolver(tempDir)
 	result, err := fileResolver.Resolve("test-secret")
 	if err != nil {
 		t.Fatalf("FileResolver.Resolve failed: %v", err)
@@ -102,7 +102,7 @@ func TestFileResolver_WhitespaceTrimming(t *testing.T) {
 
 // TestFileResolver_Name tests the Name method
 func TestFileResolver_Name(t *testing.T) {
-	resolver := newFileResolver("/tmp")
+	resolver := NewFileResolver("/tmp")
 	if resolver.Name() != "File" {
 		t.Errorf("Expected name 'File', got '%s'", resolver.Name())
 	}

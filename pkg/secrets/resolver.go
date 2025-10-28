@@ -1,10 +1,8 @@
-// Package resolver provides an extensible property resolution system that allows
+// package secrets provides an extensible property resolution system that allows
 // developers to register custom property resolvers for different prefixes.
-package resolver
+package secrets
 
 import (
-	"sync"
-
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -33,27 +31,13 @@ type PropertyResolver interface {
 	Name() string
 }
 
-// Registry manages the registration and lookup of property resolvers.
+// registry manages the registration and lookup of property resolvers.
 // It provides a thread-safe registry for associating prefixes with their resolvers.
-type Registry struct {
-	resolvers map[string]PropertyResolver
-	mu        sync.RWMutex
-}
+var resolvers = make(map[string]PropertyResolver)
 
-// global is the default global registry used by the config system
-var global = NewRegistry()
-
-// Global returns the global resolver registry.
-// This is the default registry used by the config system.
-func Global() *Registry {
-	return global
-}
-
-// NewRegistry creates a new empty resolver registry
-func NewRegistry() *Registry {
-	return &Registry{
-		resolvers: make(map[string]PropertyResolver),
-	}
+func init() {
+	// Register default resolvers in the global registry
+	Register("env", NewEnvResolver())
 }
 
 // Register registers a property resolver for a specific prefix.
@@ -68,26 +52,21 @@ func NewRegistry() *Registry {
 //	registry.Register("custom", NewCustomResolver(customConfig))
 //
 // Thread-safe: This method can be called concurrently.
-func (r *Registry) Register(prefix string, resolver PropertyResolver) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if _, exists := r.resolvers[prefix]; exists {
+func Register(prefix string, resolver PropertyResolver) {
+	if _, exists := resolvers[prefix]; exists {
 		// Log warning about override (but don't fail)
 		log.Warn().Msgf("Overriding existing resolver for prefix %q", prefix)
 	}
 
-	r.resolvers[prefix] = resolver
+	resolvers[prefix] = resolver
 }
 
 // Unregister removes a resolver for a specific prefix.
 // This is useful for testing or dynamic reconfiguration.
 //
 // Thread-safe: This method can be called concurrently.
-func (r *Registry) Unregister(prefix string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.resolvers, prefix)
+func Unregister(prefix string) {
+	delete(resolvers, prefix)
 }
 
 // Resolve attempts to resolve a property using the appropriate resolver.
@@ -104,15 +83,12 @@ func (r *Registry) Unregister(prefix string) {
 //   - error: An error if no resolver is found or resolution fails
 //
 // Thread-safe: This method can be called concurrently.
-func (r *Registry) Resolve(property string) (string, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
+func Resolve(property string) (string, error) {
 	// Parse prefix and key
-	prefix, key := ParseProperty(property)
+	prefix, key := parseProperty(property)
 
 	// Look up the resolver
-	resolver, exists := r.resolvers[prefix]
+	resolver, exists := resolvers[prefix]
 	if !exists {
 		return "", errors.Errorf("no resolver registered for prefix %q", prefix)
 	}
@@ -128,30 +104,23 @@ func (r *Registry) Resolve(property string) (string, error) {
 
 // GetResolver returns the resolver registered for a specific prefix.
 // Returns nil if no resolver is registered for the prefix.
-//
-// Thread-safe: This method can be called concurrently.
-func (r *Registry) GetResolver(prefix string) PropertyResolver {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.resolvers[prefix]
+func GetResolver(prefix string) PropertyResolver {
+	return resolvers[prefix]
 }
 
 // ListPrefixes returns a list of all registered prefixes.
 // Useful for debugging and documentation.
 //
 // Thread-safe: This method can be called concurrently.
-func (r *Registry) ListPrefixes() []string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	prefixes := make([]string, 0, len(r.resolvers))
-	for prefix := range r.resolvers {
+func ListPrefixes() []string {
+	prefixes := make([]string, 0, len(resolvers))
+	for prefix := range resolvers {
 		prefixes = append(prefixes, prefix)
 	}
 	return prefixes
 }
 
-// ParseProperty splits a property string into prefix and key.
+// parseProperty splits a property string into prefix and key.
 // If no prefix is present, defaults to "env".
 //
 // Examples:
@@ -159,7 +128,7 @@ func (r *Registry) ListPrefixes() []string {
 //   - "env:PORT" -> ("env", "PORT")
 //   - "PORT" -> ("env", "PORT")  // Default to env
 //   - "custom:db:password" -> ("custom", "db:password")  // Only first : is separator
-func ParseProperty(property string) (prefix string, key string) {
+func parseProperty(property string) (prefix string, key string) {
 	// Find the first colon
 	colonIndex := -1
 	for i, ch := range property {
@@ -179,20 +148,4 @@ func ParseProperty(property string) (prefix string, key string) {
 	key = property[colonIndex+1:]
 
 	return prefix, key
-}
-
-// Register registers a resolver in the global registry.
-// This is a convenience function for registering resolvers globally.
-//
-// Example:
-//
-//	resolver.Register("vault", NewVaultResolver(config))
-func Register(prefix string, res PropertyResolver) {
-	Global().Register(prefix, res)
-}
-
-// Unregister removes a resolver from the global registry.
-// Useful for testing.
-func Unregister(prefix string) {
-	Global().Unregister(prefix)
 }

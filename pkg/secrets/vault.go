@@ -1,4 +1,4 @@
-package resolver
+package secrets
 
 import (
 	"fmt"
@@ -33,42 +33,23 @@ func (v VaultConfig) Validate() error {
 // CreateClient creates and configures a Vault client from this config.
 // Implements the config.ClientFactory[*api.Client] interface.
 // Returns *api.Client on success, or an error if client creation fails.
-func (v *VaultConfig) CreateClient() (*api.Client, error) {
-	return createVaultClient(v)
-}
-
-// createVaultClient is a helper function to create and configure a Vault client
-// from a VaultConfig. This is typically called by applications during startup
-// to set up the Vault resolver.
-//
-// Example:
-//
-//	client, err := resolver.CreateVaultClient(cfg.Vault)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	resolver.Register("vault", resolver.NewVaultResolver(client, cfg.Vault.Path))
-func createVaultClient(vaultCfg *VaultConfig) (*api.Client, error) {
-	if vaultCfg == nil {
-		return nil, errors.New("vault configuration is nil")
-	}
-
-	if err := vaultCfg.Validate(); err != nil {
+func (v VaultConfig) CreateClient() (*api.Client, error) {
+	if err := v.Validate(); err != nil {
 		return nil, errors.Wrap(err, "invalid Vault configuration")
 	}
 
 	config := api.DefaultConfig()
-	config.Address = vaultCfg.Address
+	config.Address = v.Address
 
 	client, err := api.NewClient(config)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create Vault client")
 	}
 
-	client.SetToken(vaultCfg.Token)
+	client.SetToken(v.Token)
 
-	if vaultCfg.Namespace != "" {
-		client.SetNamespace(vaultCfg.Namespace)
+	if v.Namespace != "" {
+		client.SetNamespace(v.Namespace)
 	}
 
 	return client, nil

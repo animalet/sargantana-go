@@ -1,4 +1,4 @@
-package resolver
+package secrets
 
 import (
 	"strings"
@@ -21,12 +21,12 @@ func (m *mockResolver) Name() string {
 
 // TestRegistry_RegisterAndResolve tests basic registration and resolution
 func TestRegistry_RegisterAndResolve(t *testing.T) {
-	registry := NewRegistry()
+	defer purgeResolvers()
 
 	mock := &mockResolver{name: "Mock", value: "mock-value"}
-	registry.Register("mock", mock)
+	Register("mock", mock)
 
-	result, err := registry.Resolve("mock:test-key")
+	result, err := Resolve("mock:test-key")
 	if err != nil {
 		t.Fatalf("Resolve failed: %v", err)
 	}
@@ -39,9 +39,7 @@ func TestRegistry_RegisterAndResolve(t *testing.T) {
 
 // TestRegistry_UnknownPrefix tests resolution with unknown prefix
 func TestRegistry_UnknownPrefix(t *testing.T) {
-	registry := NewRegistry()
-
-	_, err := registry.Resolve("unknown:value")
+	_, err := Resolve("unknown:value")
 	if err == nil {
 		t.Fatal("Expected error for unknown prefix")
 	}
@@ -53,22 +51,22 @@ func TestRegistry_UnknownPrefix(t *testing.T) {
 
 // TestRegistry_Unregister tests unregistering a resolver
 func TestRegistry_Unregister(t *testing.T) {
-	registry := NewRegistry()
+	defer purgeResolvers()
 
 	mock := &mockResolver{name: "Mock", value: "value"}
-	registry.Register("test", mock)
+	Register("test", mock)
 
 	// Should work before unregister
-	_, err := registry.Resolve("test:key")
+	_, err := Resolve("test:key")
 	if err != nil {
 		t.Fatalf("Resolve failed before unregister: %v", err)
 	}
 
 	// Unregister
-	registry.Unregister("test")
+	Unregister("test")
 
 	// Should fail after unregister
-	_, err = registry.Resolve("test:key")
+	_, err = Resolve("test:key")
 	if err == nil {
 		t.Fatal("Expected error after unregistering resolver")
 	}
@@ -76,12 +74,12 @@ func TestRegistry_Unregister(t *testing.T) {
 
 // TestRegistry_GetResolver tests getting a registered resolver
 func TestRegistry_GetResolver(t *testing.T) {
-	registry := NewRegistry()
+	defer purgeResolvers()
 
 	mock := &mockResolver{name: "Mock", value: "value"}
-	registry.Register("test", mock)
+	Register("test", mock)
 
-	resolver := registry.GetResolver("test")
+	resolver := GetResolver("test")
 	if resolver == nil {
 		t.Fatal("Expected to get registered resolver")
 	}
@@ -93,9 +91,7 @@ func TestRegistry_GetResolver(t *testing.T) {
 
 // TestRegistry_GetResolver_NonExistent tests getting a non-existent resolver
 func TestRegistry_GetResolver_NonExistent(t *testing.T) {
-	registry := NewRegistry()
-
-	resolver := registry.GetResolver("nonexistent")
+	resolver := GetResolver("nonexistent")
 	if resolver != nil {
 		t.Error("Expected nil for non-existent resolver")
 	}
@@ -103,13 +99,13 @@ func TestRegistry_GetResolver_NonExistent(t *testing.T) {
 
 // TestRegistry_ListPrefixes tests listing registered prefixes
 func TestRegistry_ListPrefixes(t *testing.T) {
-	registry := NewRegistry()
+	defer purgeResolvers()
 
-	registry.Register("env", &mockResolver{name: "Env"})
-	registry.Register("file", &mockResolver{name: "File"})
-	registry.Register("vault", &mockResolver{name: "Vault"})
+	Register("env", &mockResolver{name: "Env"})
+	Register("file", &mockResolver{name: "File"})
+	Register("vault", &mockResolver{name: "Vault"})
 
-	prefixes := registry.ListPrefixes()
+	prefixes := ListPrefixes()
 	if len(prefixes) != 3 {
 		t.Errorf("Expected 3 prefixes, got %d", len(prefixes))
 	}
@@ -144,7 +140,7 @@ func TestParseProperty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			prefix, key := ParseProperty(tt.input)
+			prefix, key := parseProperty(tt.input)
 			if prefix != tt.expectedPrefix {
 				t.Errorf("Expected prefix '%s', got '%s'", tt.expectedPrefix, prefix)
 			}
@@ -155,40 +151,19 @@ func TestParseProperty(t *testing.T) {
 	}
 }
 
-// TestGlobalRegistry tests that the global registry is accessible
-func TestGlobalRegistry(t *testing.T) {
-	if Global() == nil {
-		t.Fatal("Global registry should not be nil")
-	}
-
-	// Test using the convenience functions
-	mock := &mockResolver{name: "Test", value: "test"}
-	Register("testglobal", mock)
-	defer Unregister("testglobal")
-
-	result, err := Global().Resolve("testglobal:key")
-	if err != nil {
-		t.Fatalf("Global resolve failed: %v", err)
-	}
-
-	if !strings.Contains(result, "test") {
-		t.Errorf("Expected result to contain 'test', got '%s'", result)
-	}
-}
-
 // TestRegistry_ConcurrentAccess tests thread-safety (basic smoke test)
 func TestRegistry_ConcurrentAccess(t *testing.T) {
-	registry := NewRegistry()
+	defer purgeResolvers()
 	mock := &mockResolver{name: "Concurrent", value: "value"}
-	registry.Register("test", mock)
+	Register("test", mock)
 
 	// Run multiple goroutines accessing the registry
 	done := make(chan bool, 10)
 	for i := 0; i < 10; i++ {
 		go func() {
-			_, _ = registry.Resolve("test:key")
-			_ = registry.GetResolver("test")
-			_ = registry.ListPrefixes()
+			_, _ = Resolve("test:key")
+			_ = GetResolver("test")
+			_ = ListPrefixes()
 			done <- true
 		}()
 	}
@@ -197,4 +172,8 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		<-done
 	}
+}
+
+func purgeResolvers() {
+	resolvers = make(map[string]PropertyResolver)
 }

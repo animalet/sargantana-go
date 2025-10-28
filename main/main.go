@@ -8,7 +8,7 @@ import (
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/database"
-	"github.com/animalet/sargantana-go/pkg/resolver"
+	resolver "github.com/animalet/sargantana-go/pkg/secrets"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/animalet/sargantana-go/pkg/session"
 	"github.com/rs/zerolog"
