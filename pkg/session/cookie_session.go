@@ -23,13 +23,13 @@ import (
 //   - Secure: true in release mode, false in debug mode
 //   - HttpOnly: true (prevents JavaScript access to cookies)
 //   - SameSite: Lax mode (balanced security and functionality)
-func NewCookieStore(isReleaseMode bool, secret []byte) sessions.Store {
+func NewCookieStore(secure bool, secret []byte) sessions.Store {
 	store := cookie.NewStore(secret)
 
 	store.Options(sessions.Options{
 		Path:     "/",
 		MaxAge:   86400, // 24 hours
-		Secure:   isReleaseMode,
+		Secure:   secure,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})

@@ -24,7 +24,7 @@ import (
 //   - SameSite: Lax mode (balanced security and functionality)
 //
 // Returns an error if Redis store creation or configuration fails.
-func NewRedisSessionStore(isReleaseMode bool, secret []byte, pool *redis.Pool) (sessions.Store, error) {
+func NewRedisSessionStore(secure bool, secret []byte, pool *redis.Pool) (sessions.Store, error) {
 	store, err := redissessions.NewStoreWithPool(pool, secret)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func NewRedisSessionStore(isReleaseMode bool, secret []byte, pool *redis.Pool) (
 
 	rediStore.Options.Path = "/"
 	rediStore.Options.MaxAge = 86400 // 24 hours
-	rediStore.Options.Secure = isReleaseMode
+	rediStore.Options.Secure = secure
 	rediStore.Options.HttpOnly = true
 	rediStore.Options.SameSite = http.SameSiteLaxMode
 
