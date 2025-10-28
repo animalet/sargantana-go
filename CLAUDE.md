@@ -29,13 +29,13 @@ Sargantana Go is a Go web framework built on top of Gin. It provides a modular, 
    - Generic `ClientFactory[T]` interface for type-safe client creation
    - Generic unmarshaling with validation
 
-4. **Resolver** (`resolver/`)
-   - Pluggable property resolver system
-   - Built-in resolvers:
+4. **Secrets** (`secrets/`)
+   - Pluggable secrets resolution system
+   - Built-in secret providers:
      - Environment variables (`env:VAR_NAME`)
      - Files (`file:filename`)
      - HashiCorp Vault (`vault:secret/path`)
-   - Custom resolver support
+   - Custom secret provider support
 
 5. **Database** (`database/`)
    - Redis connection pooling with TLS support
@@ -306,6 +306,7 @@ controllers:
 - Reset global state between tests (e.g., `vaultManagerInstance`)
 - Use `gin.SetMode(gin.TestMode)` for Gin-based tests
 - Test both success and error paths
+- **IMPORTANT**: Some tests (AWS Secrets Manager, Vault) require Docker Compose services to be running. Run `docker-compose up -d` in the project root before running the full test suite
 
 ## Common Issues and Solutions
 
@@ -399,8 +400,8 @@ Key dependencies:
 - Configuration uses YAML with validation
 - Controllers are dynamically registered and configured
 - Session management can be either cookie-based or Redis-based
-- Property resolvers are in `pkg/resolver/` package (decoupled from config)
-- Vault configuration and client creation are in `resolver` package, not `config`
+- Secret providers are in `pkg/secrets/` package (decoupled from config)
+- Vault configuration and client creation are in `secrets` package, not `config`
 - All database configs use `ClientFactory[T]` pattern for type-safe client creation
 - Configuration structs implement `Validate()` with **value receivers** (not pointer receivers)
 - Use `config.LoadConfig[T]` to load partial configuration sections with validation

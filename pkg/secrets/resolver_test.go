@@ -44,8 +44,8 @@ func TestRegistry_UnknownPrefix(t *testing.T) {
 		t.Fatal("Expected error for unknown prefix")
 	}
 
-	if !strings.Contains(err.Error(), "no resolver registered for prefix") {
-		t.Errorf("Expected 'no resolver registered' error, got: %v", err)
+	if !strings.Contains(err.Error(), "no secret provider registered for prefix") {
+		t.Errorf("Expected 'no secret provider registered' error, got: %v", err)
 	}
 }
 
@@ -175,5 +175,5 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 }
 
 func purgeResolvers() {
-	resolvers = make(map[string]PropertyResolver)
+	providers = make(map[string]PropertyResolver)
 }

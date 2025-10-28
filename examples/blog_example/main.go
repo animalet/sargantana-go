@@ -7,7 +7,7 @@ import (
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/database"
-	resolver "github.com/animalet/sargantana-go/pkg/secrets"
+	"github.com/animalet/sargantana-go/pkg/secrets"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/animalet/sargantana-go/pkg/session"
 	"github.com/pkg/errors"
@@ -26,32 +26,32 @@ func main() {
 	server.AddControllerType("static", controller.NewStaticController)
 	server.AddControllerType("template", controller.NewTemplateController)
 
-	// Register property resolvers (must be done before loading config)
-	resolver.Register("env", resolver.NewEnvResolver())
+	// Register secret providers (must be done before loading config)
+	secrets.Register("env", secrets.NewEnvResolver())
 
 	cfg, err := config.ReadConfig("./config.yaml")
 	if err != nil {
 		panic(err)
 	}
 
-	// Register file resolver if configured
-	fileResolverCfg, err := config.LoadConfig[resolver.FileResolverConfig]("file_resolver", cfg)
+	// Register file provider if configured
+	fileResolverCfg, err := config.LoadConfig[secrets.FileResolverConfig]("file_resolver", cfg)
 	if err == nil {
 		fileResolver, err := fileResolverCfg.CreateClient()
 		if err != nil {
-			panic(errors.Wrap(err, "failed to create file resolver"))
+			panic(errors.Wrap(err, "failed to create file secret provider"))
 		}
-		resolver.Register("file", fileResolver)
+		secrets.Register("file", fileResolver)
 	}
 
-	// Register Vault resolver if configured
-	vaultCfg, err := config.LoadConfig[resolver.VaultConfig]("vault", cfg)
+	// Register Vault provider if configured
+	vaultCfg, err := config.LoadConfig[secrets.VaultConfig]("vault", cfg)
 	if err == nil {
 		vaultClient, err := vaultCfg.CreateClient()
 		if err != nil {
 			panic(errors.Wrap(err, "failed to create Vault client"))
 		}
-		resolver.Register("vault", resolver.NewVaultResolver(vaultClient, vaultCfg.Path))
+		secrets.Register("vault", secrets.NewVaultResolver(vaultClient, vaultCfg.Path))
 	}
 
 	postgresCfg, err := config.LoadConfig[database.PostgresConfig]("database", cfg)

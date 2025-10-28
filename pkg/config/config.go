@@ -7,7 +7,7 @@ import (
 	"os"
 	"reflect"
 
-	resolver "github.com/animalet/sargantana-go/pkg/secrets"
+	"github.com/animalet/sargantana-go/pkg/secrets"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
@@ -166,12 +166,12 @@ func UnmarshalTo[T Validatable](c ControllerConfig) (*T, error) {
 //   - "file:": Reads the content of the specified file in secrets dir (if configured) and returns it as a string
 //
 // If no known prefix is found, the original string is returned unchanged.
-// expand is a custom expansion function that uses the PropertyResolver registry
+// expand is a custom expansion function that uses the secrets resolution system
 // It retrieves the corresponding value based on the prefix and returns it.
 // If no known prefix is found, it returns the original string unchanged.
 func expand(s string) string {
-	// Use the global resolver registry to resolve the property
-	value, err := resolver.Resolve(s)
+	// Use the secrets resolution system to resolve the property
+	value, err := secrets.Resolve(s)
 	if err != nil {
 		panic(errors.Wrap(err, "error resolving property"))
 	}

@@ -8,7 +8,7 @@ import (
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/database"
-	resolver "github.com/animalet/sargantana-go/pkg/secrets"
+	"github.com/animalet/sargantana-go/pkg/secrets"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/animalet/sargantana-go/pkg/session"
 	"github.com/rs/zerolog"
@@ -63,32 +63,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Register property resolvers
-	// Environment resolver (default - always register first)
-	resolver.Register("env", resolver.NewEnvResolver())
+	// Register secret providers
+	// Environment provider (default - always register first)
+	secrets.Register("env", secrets.NewEnvResolver())
 
-	// File resolver (if file resolver is configured)
-	fileResolverCfg, err := config.LoadConfig[resolver.FileResolverConfig]("file_resolver", cfg)
+	// File provider (if file_resolver is configured)
+	fileResolverCfg, err := config.LoadConfig[secrets.FileResolverConfig]("file_resolver", cfg)
 	if err == nil {
 		fileResolver, err := fileResolverCfg.CreateClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create file resolver")
+			log.Fatal().Err(err).Msg("Failed to create file secret provider")
 			os.Exit(1)
 		}
-		resolver.Register("file", fileResolver)
-		log.Info().Str("secrets_dir", fileResolverCfg.SecretsDir).Msg("File resolver registered")
+		secrets.Register("file", fileResolver)
+		log.Info().Str("secrets_dir", fileResolverCfg.SecretsDir).Msg("File secret provider registered")
 	}
 
-	// Vault resolver (if Vault is configured)
-	vaultCfg, err := config.LoadConfig[resolver.VaultConfig]("vault", cfg)
+	// Vault provider (if vault is configured)
+	vaultCfg, err := config.LoadConfig[secrets.VaultConfig]("vault", cfg)
 	if err == nil {
 		vaultClient, err := vaultCfg.CreateClient()
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to create Vault client")
 			os.Exit(1)
 		}
-		resolver.Register("vault", resolver.NewVaultResolver(vaultClient, vaultCfg.Path))
-		log.Info().Msg("Vault resolver registered")
+		secrets.Register("vault", secrets.NewVaultResolver(vaultClient, vaultCfg.Path))
+		log.Info().Msg("Vault secret provider registered")
 	}
 
 	sargantana, err := server.NewServer(cfg)

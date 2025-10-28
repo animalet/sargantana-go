@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	resolver "github.com/animalet/sargantana-go/pkg/secrets"
+	"github.com/animalet/sargantana-go/pkg/secrets"
 	"gopkg.in/yaml.v3"
 )
 
@@ -58,8 +58,8 @@ func TestLoadYaml_FileNotFound(t *testing.T) {
 // TestLoad_MissingSessionSecret tests that missing session secret causes error
 func TestLoad_MissingSessionSecret(t *testing.T) {
 	// Register env resolver for expansion
-	resolver.Register("env", resolver.NewEnvResolver())
-	defer resolver.Unregister("env")
+	secrets.Register("env", secrets.NewEnvResolver())
+	defer secrets.Unregister("env")
 
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "test-config.yaml")
@@ -139,8 +139,8 @@ type TestConfig struct {
 // TestUnmarshalTo tests the generic unmarshaling function
 func TestUnmarshalTo(t *testing.T) {
 	// Register env resolver for expansion
-	resolver.Register("env", resolver.NewEnvResolver())
-	defer resolver.Unregister("env")
+	secrets.Register("env", secrets.NewEnvResolver())
+	defer secrets.Unregister("env")
 
 	// Set up environment variable for testing
 	_ = os.Setenv("TEST_ENV_VAR", "test-value")
@@ -188,8 +188,8 @@ func TestUnmarshalTo_NilConfig(t *testing.T) {
 // TestExpandVariables tests environment variable expansion
 func TestExpandVariables(t *testing.T) {
 	// Register env resolver for expansion
-	resolver.Register("env", resolver.NewEnvResolver())
-	defer resolver.Unregister("env")
+	secrets.Register("env", secrets.NewEnvResolver())
+	defer secrets.Unregister("env")
 
 	// Set up test environment variables
 	_ = os.Setenv("TEST_VAR", "test-value")
@@ -287,8 +287,8 @@ func TestUnmarshalTo_Error(t *testing.T) {
 // TestExpandVariables_ComplexStructures tests expandVariables with different data types
 func TestExpandVariables_ComplexStructures(t *testing.T) {
 	// Register env resolver for expansion
-	resolver.Register("env", resolver.NewEnvResolver())
-	defer resolver.Unregister("env")
+	secrets.Register("env", secrets.NewEnvResolver())
+	defer secrets.Unregister("env")
 
 	_ = os.Setenv("TEST_EXPAND", "expanded_value")
 	defer func() { _ = os.Unsetenv("TEST_EXPAND") }()
@@ -367,18 +367,18 @@ func TestExpandVariables_ComplexStructures(t *testing.T) {
 
 // TestExpand_FilePrefix_Error tests file prefix expansion error handling
 func TestExpand_FilePrefix_Error(t *testing.T) {
-	// Test with no secrets directory configured - unregister file resolver
-	originalResolver := resolver.GetResolver("file")
-	resolver.Unregister("file")
+	// Test with no secrets directory configured - unregister file provider
+	originalResolver := secrets.GetResolver("file")
+	secrets.Unregister("file")
 	defer func() {
 		if originalResolver != nil {
-			resolver.Register("file", originalResolver)
+			secrets.Register("file", originalResolver)
 		}
 	}()
 
 	defer func() {
 		if r := recover(); r != nil {
-			if !strings.Contains(r.(error).Error(), "no resolver registered") {
+			if !strings.Contains(r.(error).Error(), "no secret provider registered") {
 				t.Errorf("Expected 'error retrieving secret from file' panic, got: %v", r)
 			}
 		} else {
@@ -437,8 +437,8 @@ func (n NonExistentConfig) Validate() error {
 // TestLoadConfig tests the generic LoadConfig function
 func TestLoadConfig(t *testing.T) {
 	// Register env resolver for expansion
-	resolver.Register("env", resolver.NewEnvResolver())
-	defer resolver.Unregister("env")
+	secrets.Register("env", secrets.NewEnvResolver())
+	defer secrets.Unregister("env")
 
 	// Set up test environment variables
 	_ = os.Setenv("TEST_HOST", "testhost")

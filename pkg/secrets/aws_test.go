@@ -439,7 +439,7 @@ func TestAWSPropertyResolution_NoResolverRegistered(t *testing.T) {
 		t.Fatal("Expected error when aws resolver is not registered")
 	}
 
-	if !strings.Contains(err.Error(), "no resolver registered") {
-		t.Errorf("Expected 'no resolver registered' error, got: %v", err)
+	if !strings.Contains(err.Error(), "no secret provider registered") {
+		t.Errorf("Expected 'no secret provider registered' error, got: %v", err)
 	}
 }

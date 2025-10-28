@@ -1,10 +1,10 @@
-# Property Resolvers
+# Secret Providers
 
-Property Resolvers provide an extensible mechanism for retrieving configuration values from various sources. This document explains how to use the built-in resolvers and how to create custom ones.
+Secret Providers offer an extensible mechanism for retrieving configuration values and secrets from various sources. This document explains how to use the built-in providers and how to create custom ones.
 
 ## Overview
 
-The property resolver system allows you to reference secrets and configuration values using a prefix-based syntax in your YAML configuration files:
+The secrets resolution system allows you to reference secrets and configuration values using a prefix-based syntax in your YAML configuration files:
 
 ```yaml
 server:
@@ -15,11 +15,11 @@ server:
   host: ${DATABASE_HOST}                     # Defaults to env: prefix
 ```
 
-**Important:** The resolver package is decoupled from config and provides both the infrastructure (interfaces and registry) and built-in resolver implementations. Your application must explicitly register the resolvers it needs before loading configuration.
+**Important:** The secrets package is decoupled from config and provides both the infrastructure (interfaces and registry) and built-in secret provider implementations. Your application must explicitly register the providers it needs before loading configuration.
 
-## Registering Resolvers
+## Registering Secret Providers
 
-Resolvers must be registered **before** calling `cfg.Load()`. Here's a typical setup in your main function:
+Secret providers must be registered **before** calling `cfg.Load()`. Here's a typical setup in your main function:
 
 ```go
 func main() {
@@ -29,41 +29,41 @@ func main() {
         log.Fatal(err)
     }
 
-    // Register resolvers BEFORE calling Load()
-    // Environment resolver (default - always register first)
-    resolver.Register("env", resolver.NewEnvResolver())
+    // Register secret providers BEFORE calling Load()
+    // Environment provider (default - always register first)
+    secrets.Register("env", secrets.NewEnvResolver())
 
-    // File resolver (if file_resolver is configured)
-    fileResolverCfg, err := config.LoadConfig[resolver.FileResolverConfig]("file_resolver", cfg)
+    // File provider (if file_resolver is configured)
+    fileResolverCfg, err := config.LoadConfig[secrets.FileResolverConfig]("file_resolver", cfg)
     if err == nil {
         fileResolver, err := fileResolverCfg.CreateClient()
         if err != nil {
-            log.Fatal().Err(err).Msg("Failed to create file resolver")
+            log.Fatal().Err(err).Msg("Failed to create file secret provider")
         }
-        resolver.Register("file", fileResolver)
-        log.Info().Str("secrets_dir", fileResolverCfg.SecretsDir).Msg("File resolver registered")
+        secrets.Register("file", fileResolver)
+        log.Info().Str("secrets_dir", fileResolverCfg.SecretsDir).Msg("File secret provider registered")
     }
 
-    // Vault resolver (if vault is configured)
-    vaultCfg, err := config.LoadConfig[resolver.VaultConfig]("vault", cfg)
+    // Vault provider (if vault is configured)
+    vaultCfg, err := config.LoadConfig[secrets.VaultConfig]("vault", cfg)
     if err == nil {
         vaultClient, err := vaultCfg.CreateClient()
         if err != nil {
             log.Fatal().Err(err).Msg("Failed to create Vault client")
         }
-        resolver.Register("vault", resolver.NewVaultResolver(vaultClient, vaultCfg.Path))
-        log.Info().Msg("Vault resolver registered")
+        secrets.Register("vault", secrets.NewVaultResolver(vaultClient, vaultCfg.Path))
+        log.Info().Msg("Vault secret provider registered")
     }
 
-    // AWS Secrets Manager resolver (if aws is configured)
-    awsCfg, err := config.LoadConfig[resolver.AWSConfig]("aws", cfg)
+    // AWS Secrets Manager provider (if aws is configured)
+    awsCfg, err := config.LoadConfig[secrets.AWSConfig]("aws", cfg)
     if err == nil {
         awsClient, err := awsCfg.CreateClient()
         if err != nil {
             log.Fatal().Err(err).Msg("Failed to create AWS client")
         }
-        resolver.Register("aws", resolver.NewAWSResolver(awsClient, awsCfg.SecretName))
-        log.Info().Msg("AWS resolver registered")
+        secrets.Register("aws", secrets.NewAWSResolver(awsClient, awsCfg.SecretName))
+        log.Info().Msg("AWS secret provider registered")
     }
 
     // Now load and expand the configuration
@@ -76,11 +76,11 @@ func main() {
 }
 ```
 
-## Built-in Resolvers
+## Built-in Secret Providers
 
-### Environment Variable Resolver (env:)
+### Environment Variable Provider (env:)
 
-Retrieves values from environment variables. This is the default resolver when no prefix is specified.
+Retrieves values from environment variables. This is the default provider when no prefix is specified.
 
 **Usage:**
 ```yaml
@@ -93,12 +93,12 @@ database_host: ${DATABASE_HOST}
 
 **Registration:**
 ```go
-resolver.Register("env", resolver.NewEnvResolver())
+secrets.Register("env", secrets.NewEnvResolver())
 ```
 
 **Configuration:** No additional configuration needed.
 
-### File Resolver (file:)
+### File Provider (file:)
 
 Reads secrets from files in a configured directory. Useful for Docker secrets, Kubernetes secrets, or local development.
 
@@ -114,27 +114,27 @@ server:
 
 **Registration:**
 ```go
-fileResolverCfg, err := config.LoadConfig[resolver.FileResolverConfig]("file_resolver", cfg)
+fileResolverCfg, err := config.LoadConfig[secrets.FileResolverConfig]("file_resolver", cfg)
 if err == nil {
     fileResolver, err := fileResolverCfg.CreateClient()
     if err != nil {
-        log.Fatal().Err(err).Msg("Failed to create file resolver")
+        log.Fatal().Err(err).Msg("Failed to create file secret provider")
     }
-    resolver.Register("file", fileResolver)
+    secrets.Register("file", fileResolver)
 }
 ```
 
 **Configuration:** Add a `file_resolver` section to your YAML config:
 - `secrets_dir`: Directory containing secret files (required)
 
-**Validation:** The file resolver validates that:
+**Validation:** The file provider validates that:
 - The `secrets_dir` is not empty
 - The directory exists
 - The path is actually a directory (not a file)
 
 **File Format:** Files should contain the secret value as plain text. Whitespace is automatically trimmed.
 
-### Vault Resolver (vault:)
+### Vault Provider (vault:)
 
 Retrieves secrets from HashiCorp Vault. Supports both KV v1 and KV v2 secret engines.
 
@@ -153,13 +153,13 @@ server:
 
 **Registration:**
 ```go
-vaultCfg, err := config.LoadConfig[resolver.VaultConfig]("vault", cfg)
+vaultCfg, err := config.LoadConfig[secrets.VaultConfig]("vault", cfg)
 if err == nil {
     vaultClient, err := vaultCfg.CreateClient()
     if err != nil {
         log.Fatal().Err(err).Msg("Failed to create Vault client")
     }
-    resolver.Register("vault", resolver.NewVaultResolver(vaultClient, vaultCfg.Path))
+    secrets.Register("vault", secrets.NewVaultResolver(vaultClient, vaultCfg.Path))
 }
 ```
 
@@ -169,7 +169,7 @@ if err == nil {
 - `path`: Path to read secrets from (e.g., "secret/data/myapp" for KV v2)
 - `namespace`: Optional Vault namespace
 
-### AWS Secrets Manager Resolver (aws:)
+### AWS Secrets Manager Provider (aws:)
 
 Retrieves secrets from AWS Secrets Manager. Supports both JSON-formatted secrets (with multiple key-value pairs) and plain text secrets.
 
@@ -189,13 +189,13 @@ server:
 
 **Registration:**
 ```go
-awsCfg, err := config.LoadConfig[resolver.AWSConfig]("aws", cfg)
+awsCfg, err := config.LoadConfig[secrets.AWSConfig]("aws", cfg)
 if err == nil {
     awsClient, err := awsCfg.CreateClient()
     if err != nil {
         log.Fatal().Err(err).Msg("Failed to create AWS client")
     }
-    resolver.Register("aws", resolver.NewAWSResolver(awsClient, awsCfg.SecretName))
+    secrets.Register("aws", secrets.NewAWSResolver(awsClient, awsCfg.SecretName))
 }
 ```
 
@@ -223,11 +223,11 @@ if err == nil {
    ```
    For plain text secrets, the key parameter is ignored and the entire secret value is returned.
 
-**IAM Credentials:** If `access_key_id` and `secret_access_key` are not provided, the resolver will use the AWS default credential chain (IAM role, environment variables, shared credentials file, etc.)
+**IAM Credentials:** If `access_key_id` and `secret_access_key` are not provided, the provider will use the AWS default credential chain (IAM role, environment variables, shared credentials file, etc.)
 
-## Creating Custom Resolvers
+## Creating Custom Secret Providers
 
-You can create custom resolvers to retrieve configuration from any source: databases, remote APIs, encrypted stores, etc.
+You can create custom secret providers to retrieve configuration from any source: databases, remote APIs, encrypted stores, etc.
 
 ### Step 1: Implement the PropertyResolver Interface
 
@@ -235,26 +235,26 @@ You can create custom resolvers to retrieve configuration from any source: datab
 package mypackage
 
 import (
-    "github.com/animalet/sargantana-go/pkg/resolver"
+    "github.com/animalet/sargantana-go/pkg/secrets"
     "github.com/pkg/errors"
 )
 
-// CustomResolver retrieves properties from your custom source
-type CustomResolver struct {
+// CustomSecretProvider retrieves secrets from your custom source
+type CustomSecretProvider struct {
     apiEndpoint string
     apiKey      string
 }
 
-// NewCustomResolver creates a new instance
-func NewCustomResolver(endpoint, apiKey string) resolver.PropertyResolver {
-    return &CustomResolver{
+// NewCustomSecretProvider creates a new instance
+func NewCustomSecretProvider(endpoint, apiKey string) secrets.PropertyResolver {
+    return &CustomSecretProvider{
         apiEndpoint: endpoint,
         apiKey:      apiKey,
     }
 }
 
-// Resolve retrieves a property value
-func (c *CustomResolver) Resolve(key string) (string, error) {
+// Resolve retrieves a secret value
+func (c *CustomSecretProvider) Resolve(key string) (string, error) {
     // Your custom logic here
     value, err := c.fetchFromAPI(key)
     if err != nil {
@@ -263,33 +263,33 @@ func (c *CustomResolver) Resolve(key string) (string, error) {
     return value, nil
 }
 
-func (c *CustomResolver) fetchFromAPI(key string) (string, error) {
+func (c *CustomSecretProvider) fetchFromAPI(key string) (string, error) {
     // Implement your API call logic here
     // ...
     return "value", nil
 }
 ```
 
-### Step 2: Register Your Resolver
+### Step 2: Register Your Secret Provider
 
-Register your custom resolver before loading the configuration:
+Register your custom secret provider before loading the configuration:
 
 ```go
 package main
 
 import (
     "github.com/animalet/sargantana-go/pkg/config"
-    "github.com/animalet/sargantana-go/pkg/resolver"
+    "github.com/animalet/sargantana-go/pkg/secrets"
     "mypackage"
 )
 
 func main() {
-    // Register your custom resolver with a prefix
-    customResolver := mypackage.NewCustomResolver(
+    // Register your custom secret provider with a prefix
+    customProvider := mypackage.NewCustomSecretProvider(
         "https://api.example.com",
         "your-api-key",
     )
-    resolver.Register("custom", customResolver)
+    secrets.Register("custom", customProvider)
 
     // Now load your configuration
     cfg, err := config.ReadConfig("config.yaml")
@@ -302,11 +302,11 @@ func main() {
         panic(err)
     }
 
-    // Your custom resolver is now available!
+    // Your custom secret provider is now available!
 }
 ```
 
-### Step 3: Use Your Custom Resolver in Configuration
+### Step 3: Use Your Custom Secret Provider in Configuration
 
 ```yaml
 server:
@@ -316,21 +316,21 @@ server:
 
 ## Advanced Examples
 
-### Database Resolver
+### Database Secret Provider
 
 Retrieve configuration from a database:
 
 ```go
-type DatabaseResolver struct {
+type DatabaseSecretProvider struct {
     db *sql.DB
     tableName string
 }
 
-func NewDatabaseResolver(db *sql.DB, tableName string) resolver.PropertyResolver {
-    return &DatabaseResolver{db: db, tableName: tableName}
+func NewDatabaseSecretProvider(db *sql.DB, tableName string) secrets.PropertyResolver {
+    return &DatabaseSecretProvider{db: db, tableName: tableName}
 }
 
-func (d *DatabaseResolver) Resolve(key string) (string, error) {
+func (d *DatabaseSecretProvider) Resolve(key string) (string, error) {
     var value string
     query := fmt.Sprintf("SELECT value FROM %s WHERE key = $1", d.tableName)
     err := d.db.QueryRow(query, key).Scan(&value)
@@ -344,8 +344,8 @@ func (d *DatabaseResolver) Resolve(key string) (string, error) {
 
 ## Error Handling
 
-When a resolver fails to retrieve a value:
-1. The resolver should return a descriptive error
+When a secret provider fails to retrieve a value:
+1. The provider should return a descriptive error
 2. The `expand()` function will panic with the error wrapped
 3. This typically happens during config loading, causing startup to fail
 
@@ -353,48 +353,48 @@ This fail-fast behavior ensures your application doesn't start with missing conf
 
 ## Thread Safety
 
-The resolver registry is thread-safe using `sync.RWMutex`. You can:
-- Register resolvers from multiple goroutines
-- Resolve properties concurrently during configuration expansion
+The secrets registry is thread-safe using `sync.RWMutex`. You can:
+- Register providers from multiple goroutines
+- Resolve secrets concurrently during configuration expansion
 
-However, it's recommended to register all resolvers during application initialization before starting concurrent operations.
+However, it's recommended to register all providers during application initialization before starting concurrent operations.
 
 ## Best Practices
 
-1. **Register resolvers before Load()**: ALWAYS register all resolvers before calling `cfg.Load()`. The config package does not automatically register any resolvers.
+1. **Register providers before Load()**: ALWAYS register all secret providers before calling `cfg.Load()`. The config package does not automatically register any providers.
 
-2. **Register env resolver first**: Register the environment resolver first, as it's the default when no prefix is specified.
+2. **Register env provider first**: Register the environment provider first, as it's the default when no prefix is specified.
 
 3. **Use descriptive prefixes**: Choose short, memorable prefix names (e.g., "db", "aws", "consul")
 
 4. **Handle errors gracefully**: Return clear error messages from your `Resolve()` implementation
 
-5. **Log resolver activity**: Consider logging successful retrievals for debugging (see built-in resolvers for examples)
+5. **Log provider activity**: Consider logging successful retrievals for debugging (see built-in providers for examples)
 
-6. **Secure sensitive data**: If your resolver connects to remote services, ensure proper authentication and encryption
+6. **Secure sensitive data**: If your provider connects to remote services, ensure proper authentication and encryption
 
-7. **Test thoroughly**: Write tests for your custom resolvers, including error cases. Remember to register resolvers in your tests!
+7. **Test thoroughly**: Write tests for your custom providers, including error cases. Remember to register providers in your tests!
 
-8. **Document configuration**: Document what configuration your resolver needs (connection strings, credentials, etc.)
+8. **Document configuration**: Document what configuration your provider needs (connection strings, credentials, etc.)
 
-9. **Decoupled design**: The config package only provides infrastructure. Your application controls which resolvers are available.
+9. **Decoupled design**: The config package only provides infrastructure. Your application controls which providers are available.
 
-## Unregistering Resolvers
+## Unregistering Secret Providers
 
-You can unregister a resolver if needed:
+You can unregister a secret provider if needed:
 
 ```go
-resolver.Unregister("custom")
+secrets.Unregister("custom")
 ```
 
-This is primarily useful in tests or when dynamically managing resolvers.
+This is primarily useful in tests or when dynamically managing providers.
 
 ## Modular Configuration Pattern
 
-All resolver configurations (except the environment resolver) use the modular `LoadConfig[T]()` pattern:
+All secret provider configurations (except the environment provider) use the modular `LoadConfig[T]()` pattern:
 
 ```yaml
-# Optional resolver configurations
+# Optional secret provider configurations
 file_resolver:
   secrets_dir: "./secrets"
 
@@ -409,30 +409,30 @@ aws:
 ```
 
 **Key principles:**
-1. **Optional by design**: If a resolver section is not present in the config, it's simply not loaded
-2. **Type-safe**: Each resolver config implements `Validatable` interface
+1. **Optional by design**: If a provider section is not present in the config, it's simply not loaded
+2. **Type-safe**: Each provider config implements `Validatable` interface
 3. **ClientFactory pattern**: Each config has a `CreateClient()` method that returns the typed client
 4. **Consistent loading**: All use `config.LoadConfig[T]("key", cfg)` pattern
 5. **Validation**: Configs are validated before client creation
 
 **Example configuration types:**
-- `resolver.FileResolverConfig` - File-based secrets
-- `resolver.VaultConfig` - HashiCorp Vault
-- `resolver.AWSConfig` - AWS Secrets Manager
+- `secrets.FileResolverConfig` - File-based secrets
+- `secrets.VaultConfig` - HashiCorp Vault
+- `secrets.AWSConfig` - AWS Secrets Manager
 
 This pattern ensures the core `ServerConfig` remains minimal and focused only on essential server settings (address, session name/secret), while optional components are loaded modularly.
 
 ## Architecture Notes
 
-The property resolver system is located in the `pkg/resolver/` package and uses:
-- **PropertyResolver interface**: Contract for all resolvers (`resolver` package)
-- **PropertyResolverRegistry**: Thread-safe registry mapping prefixes to resolvers (`resolver` package)
-- **Global registry**: `Global()` instance used by the config system
+The secrets resolution system is located in the `pkg/secrets/` package and uses:
+- **PropertyResolver interface**: Contract for all secret providers (`secrets` package)
+- **Registry**: Thread-safe registry mapping prefixes to providers (`secrets` package)
+- **Global functions**: `Register()`, `Resolve()` functions used by the config system
 - **Parser**: Splits "prefix:key" syntax (defaults to "env:" if no prefix)
 - **Expansion**: Integrated with Go's `os.Expand()` during config loading
 
 The system is fully decoupled from the config package:
-- The `config` package calls `resolver.Global().Resolve()` to resolve properties
-- The `resolver` package contains all resolver implementations
-- The `config` package has no knowledge of specific resolvers
-- Applications control which resolvers are available by registering them
+- The `config` package calls `secrets.Resolve()` to resolve properties
+- The `secrets` package contains all provider implementations
+- The `config` package has no knowledge of specific providers
+- Applications control which providers are available by registering them
