@@ -4,20 +4,22 @@
 package config
 
 import (
+	"encoding/json"
+	"encoding/xml"
 	"os"
 	"reflect"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
-// Config holds the configuration settings for the Sargantana Go server.
-// It encapsulates all necessary configuration parameters including network settings,
-// session storage options, security settings, and debugging preferences.
-type Config struct {
-	ServerConfig       ServerConfig       `yaml:"server"`
-	ControllerBindings ControllerBindings `yaml:"controllers"`
-	Other              map[string]any     `yaml:",inline"`
+type Config map[string]ModuleRawConfig
+type ModuleRawConfig []byte
+
+func Unmarshal[T Validatable](r ModuleRawConfig) (config *T, err error) {
+	err = unmarshal(r, &config)
+	return config, err
 }
 
 // Validatable interface defines types that can be validated.
@@ -40,106 +42,121 @@ type Validatable interface {
 //	client, err := cfg.Vault.CreateClient()  // Returns (*api.Client, error) directly
 type ClientFactory[T any] interface {
 	Validatable
-	// CreateClient creates and configures a client from the config details.
+	// CreateClient creates and configures a client from the Config details.
 	// Returns the strongly-typed client T and an error if creation fails.
 	CreateClient() (T, error)
 }
 
-// Validate checks the Config struct for required fields and valid values.
-// It validates the ServerConfig and each ControllerBinding.
-// Returns an error if any validation fails.
-func (c *Config) Validate() error {
-	if err := c.ServerConfig.Validate(); err != nil {
-		return errors.Wrap(err, "server configuration is invalid")
+func ReadModular(path string) (cfg Config, err error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to read configuration file: %s", path)
 	}
-
-	return c.ControllerBindings.Validate()
+	err = unmarshal(data, &cfg)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error marshalling to %s", format)
+	}
+	return cfg, nil
 }
 
-// ReadConfig reads the YAML configuration file and unmarshalls its content into the provided struct.
-//
-// Parameters:
-//   - file: Path to the YAML configuration file
-//
-// Returns:
-//   - *T: Pointer to the struct of type T containing the unmarshalled configuration
-//   - error: Error if reading or unmarshalling
-func ReadConfig(file string) (*Config, error) {
-	data, err := os.ReadFile(file)
+func ReadFull[T Validatable](path string) (full *T, err error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to read configuration file: %s", path)
+	}
+	err = unmarshal(data, &full)
 	if err != nil {
 		return nil, err
 	}
 
-	var out *Config
-	err = yaml.Unmarshal(data, &out)
+	return doExpand(full, err)
+}
+
+func Load[T Validatable](cfg ModuleRawConfig) (partial *T, err error) {
+	err = unmarshal(cfg, &partial)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	return doExpand(partial, err)
 }
 
-// Load validates and processes the configuration.
-func (cfg *Config) Load() (err error) {
-	expandVariables(reflect.ValueOf(&cfg.ServerConfig).Elem())
-	if err = cfg.ServerConfig.Validate(); err != nil {
-		return errors.Wrap(err, "server configuration is invalid")
+func doExpand[T Validatable](toExpand *T, err error) (*T, error) {
+	expandVariables(reflect.ValueOf(toExpand).Elem())
+	if err = (*toExpand).Validate(); err != nil {
+		return nil, errors.Wrap(err, "configuration is invalid")
 	}
+	return toExpand, nil
+}
 
-	// Validate all controller bindings
-	for i, binding := range cfg.ControllerBindings {
-		if err = binding.Validate(); err != nil {
-			return errors.Wrapf(err, "controller binding at index %d is invalid", i)
-		}
+var format = YamlFormat
+
+func UseFormat(fId formatId) {
+	format = fId
+}
+
+type formatId string
+
+const (
+	YamlFormat formatId = "yaml"
+	JsonFormat formatId = "json"
+	TomlFormat formatId = "toml"
+	XmlFormat  formatId = "xml"
+)
+
+func unmarshal(in []byte, out any) error {
+	switch format {
+	case YamlFormat:
+		return yaml.Unmarshal(in, out)
+	case JsonFormat:
+		return json.Unmarshal(in, out)
+	case TomlFormat:
+		return toml.Unmarshal(in, out)
+	case XmlFormat:
+		return xml.Unmarshal(in, out)
+	default:
+		return errors.Errorf("unsupported format: %s", format)
 	}
+}
 
+// UnmarshalYAML implements custom YAML unmarshaling for ModuleRawConfig
+func (m *ModuleRawConfig) UnmarshalYAML(value *yaml.Node) error {
+	// Re-marshal the node to get raw bytes
+	data, err := yaml.Marshal(value)
+	if err != nil {
+		return err
+	}
+	*m = data
 	return nil
 }
 
-// LoadConfig loads a partial configuration from the Config.Other map by key.
-// It unmarshals, validates, and expands variables for the configuration.
-func LoadConfig[T Validatable](key string, cfg *Config) (partial *T, err error) {
-	c, exist := cfg.Other[key]
-	if !exist {
-		return nil, errors.Errorf("no configuration found for %q", key)
-	}
-
-	data, err := yaml.Marshal(c)
-	if err != nil {
-		return nil, errors.Wrap(err, "error marshalling to YAML")
-	}
-
-	partial, err = UnmarshalTo[T](data)
-	if err != nil {
-		return nil, err
-	}
-
-	expandVariables(reflect.ValueOf(partial).Elem())
-	if err = (*partial).Validate(); err != nil {
-		return nil, errors.Wrap(err, "configuration is invalid")
-	}
-	return partial, nil
+// UnmarshalJSON implements custom JSON unmarshaling
+func (m *ModuleRawConfig) UnmarshalJSON(data []byte) error {
+	*m = data
+	return nil
 }
 
-// UnmarshalTo unmarshals raw YAML data into a new instance of type T.
-// This function creates a new instance and returns it, avoiding addressability issues.
-func UnmarshalTo[T Validatable](data []byte) (*T, error) {
-	if data == nil {
-		return nil, nil
-	}
-
-	var result T
-	err := yaml.Unmarshal(data, &result)
+// UnmarshalTOML implements custom TOML unmarshaling
+func (m *ModuleRawConfig) UnmarshalTOML(data interface{}) error {
+	bytes, err := toml.Marshal(data)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	*m = bytes
+	return nil
+}
+
+// UnmarshalXML implements custom XML unmarshaling
+func (m *ModuleRawConfig) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	var node interface{}
+	if err := d.DecodeElement(&node, &start); err != nil {
+		return err
 	}
 
-	if err = result.Validate(); err != nil {
-		return nil, errors.Wrap(err, "configuration is invalid")
+	// Re-marshal to get raw bytes
+	data, err := xml.Marshal(node)
+	if err != nil {
+		return err
 	}
-
-	// Always try to expand environment variables for structs
-	v := reflect.ValueOf(&result).Elem()
-	expandVariables(v)
-
-	return &result, nil
+	*m = data
+	return nil
 }

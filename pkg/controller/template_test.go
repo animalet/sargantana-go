@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )
@@ -72,7 +72,7 @@ func TestNewTemplateController(t *testing.T) {
 				t.Fatalf("Failed to marshal config: %v", err)
 			}
 
-			controller, err := NewTemplateController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
+			controller, err := NewTemplateController(configBytes, server.ControllerContext{ServerConfig: server.WebServerConfig{}})
 
 			if tt.expectedError {
 				if err == nil {
@@ -123,7 +123,7 @@ func TestTemplateController_BindWithTemplates(t *testing.T) {
 		Path: templatesDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewTemplateController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
+	controller, err := NewTemplateController(configBytes, server.ControllerContext{ServerConfig: server.WebServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create template controller: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestTemplateController_BindWithTemplates(t *testing.T) {
 	engine := gin.New()
 
 	// Bind should not panic and should load templates
-	tmpl.Bind(engine, nil)
+	tmpl.Bind(engine)
 
 	// Verify templates were loaded by checking if the HTML render is set
 	if engine.HTMLRender == nil {
@@ -166,7 +166,7 @@ func TestTemplateController_BindWithMultipleTemplates(t *testing.T) {
 		Path: templatesDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewTemplateController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
+	controller, err := NewTemplateController(configBytes, server.ControllerContext{ServerConfig: server.WebServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create template controller: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestTemplateController_BindWithMultipleTemplates(t *testing.T) {
 	engine := gin.New()
 
 	// Should load all templates
-	tmpl.Bind(engine, nil)
+	tmpl.Bind(engine)
 
 	if engine.HTMLRender == nil {
 		t.Error("Expected HTML renderer to be set after Bind with multiple templates")
@@ -197,7 +197,7 @@ func TestTemplateController_BindEmptyDirectory(t *testing.T) {
 		Path: templatesDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewTemplateController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
+	controller, err := NewTemplateController(configBytes, server.ControllerContext{ServerConfig: server.WebServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create template controller: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestTemplateController_BindEmptyDirectory(t *testing.T) {
 	engine := gin.New()
 
 	// Bind should not panic and should log warning but not load templates
-	tmpl.Bind(engine, nil)
+	tmpl.Bind(engine)
 
 	// HTML renderer should not be set for empty directory
 	if engine.HTMLRender != nil {
@@ -234,7 +234,7 @@ func TestTemplateController_BindNonExistentDirectory(t *testing.T) {
 		Path: nonExistentDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewTemplateController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
+	controller, err := NewTemplateController(configBytes, server.ControllerContext{ServerConfig: server.WebServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create template controller: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestTemplateController_BindNonExistentDirectory(t *testing.T) {
 	engine := gin.New()
 
 	// Bind should not panic when directory doesn't exist (it checks and skips)
-	tmpl.Bind(engine, nil)
+	tmpl.Bind(engine)
 
 	// HTML renderer should not be set
 	if engine.HTMLRender != nil {
@@ -270,7 +270,7 @@ func TestTemplateController_Close(t *testing.T) {
 		Path: templatesDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewTemplateController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
+	controller, err := NewTemplateController(configBytes, server.ControllerContext{ServerConfig: server.WebServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create template controller: %v", err)
 	}

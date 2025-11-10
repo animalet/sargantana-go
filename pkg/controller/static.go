@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -44,8 +45,8 @@ func (s StaticControllerConfig) Validate() error {
 	return nil
 }
 
-func NewStaticController(configData config.ControllerConfig, _ ControllerContext) (IController, error) {
-	c, err := config.UnmarshalTo[StaticControllerConfig](configData)
+func NewStaticController(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
+	c, err := config.Load[StaticControllerConfig](configData)
 	if err != nil {
 		return nil, err
 	}
@@ -64,13 +65,13 @@ func NewStaticController(configData config.ControllerConfig, _ ControllerContext
 // static is a controller that serves static files or directories.
 // Each instance handles a single path mapping to either a directory or a file.
 type static struct {
-	IController
+	server.IController
 	config StaticControllerConfig
 }
 
 // Bind registers the static controller with the provided Gin engine.
 // It sets up routes for serving static files or directories from the configured path.
-func (s *static) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
+func (s *static) Bind(engine *gin.Engine) {
 	if s.config.File != "" {
 		log.Info().Str("path", s.config.Path).Str("file", s.config.File).Msg("Binding static file")
 		engine.StaticFile(s.config.Path, s.config.File)

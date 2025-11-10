@@ -353,7 +353,6 @@ func TestVaultPropertyResolution_Success(t *testing.T) {
 
 	// Register the resolver
 	Register("vault", vaultResolver)
-	defer Unregister("vault")
 
 	// Test resolving a property using vault: prefix
 	result, err := Resolve("vault:GOOGLE_KEY")
@@ -393,7 +392,6 @@ func TestVaultPropertyResolution_NonexistentKey(t *testing.T) {
 
 	vaultResolver := NewVaultSecretLoader(client, vaultCfg.Path)
 	Register("vault", vaultResolver)
-	defer Unregister("vault")
 
 	_, err = Resolve("vault:NONEXISTENT_KEY")
 	if err == nil {
@@ -420,7 +418,6 @@ func TestVaultPropertyResolution_InvalidToken(t *testing.T) {
 
 	vaultResolver := NewVaultSecretLoader(client, vaultCfg.Path)
 	Register("vault", vaultResolver)
-	defer Unregister("vault")
 
 	_, err = Resolve("vault:GOOGLE_KEY")
 	if err == nil {
@@ -429,21 +426,6 @@ func TestVaultPropertyResolution_InvalidToken(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "failed to read secret") && !strings.Contains(err.Error(), "permission denied") {
 		t.Errorf("Expected authentication error, got: %v", err)
-	}
-}
-
-// TestVaultPropertyResolution_NoResolverRegistered tests behavior when no resolver is registered
-func TestVaultPropertyResolution_NoResolverRegistered(t *testing.T) {
-	// Make sure vault resolver is not registered
-	Unregister("vault")
-
-	_, err := Resolve("vault:SOME_KEY")
-	if err == nil {
-		t.Fatal("Expected error when vault resolver is not registered")
-	}
-
-	if !strings.Contains(err.Error(), "no secret provider registered") {
-		t.Errorf("Expected 'no secret provider registered' error, got: %v", err)
 	}
 }
 
@@ -463,7 +445,6 @@ func TestVaultPropertyResolution_KVv1(t *testing.T) {
 
 	vaultResolver := NewVaultSecretLoader(client, vaultCfg.Path)
 	Register("vault", vaultResolver)
-	defer Unregister("vault")
 
 	// Test resolving from KV v1
 	result, err := Resolve("vault:GOOGLE_KEY")

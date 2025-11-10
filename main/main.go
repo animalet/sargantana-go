@@ -11,6 +11,7 @@ import (
 	"github.com/animalet/sargantana-go/pkg/secrets"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/animalet/sargantana-go/pkg/session"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -56,69 +57,72 @@ func main() {
 	server.AddControllerType("load_balancer", controller.NewLoadBalancerController)
 	server.AddControllerType("static", controller.NewStaticController)
 	server.AddControllerType("template", controller.NewTemplateController)
-
-	cfg, err := config.ReadConfig(*configFile)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Unable to read configuration file")
-		os.Exit(1)
-	}
-
-	// Register secret providers
-	// Environment provider (default - always register first)
-	secrets.Register("env", secrets.NewEnvLoader())
-
-	// File provider (if file_resolver is configured)
-	fileResolverCfg, err := config.LoadConfig[secrets.FileSecretConfig]("file_resolver", cfg)
-	if err == nil {
-		fileResolver, err := fileResolverCfg.CreateClient()
-		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create file secret provider")
+	defer func() {
+		// Exit gracefully after panicking
+		if r := recover(); r != nil {
+			log.Fatal().Msgf("Fatal error: %v", r)
 			os.Exit(1)
 		}
-		secrets.Register("file", fileResolver)
-		log.Info().Str("secrets_dir", fileResolverCfg.SecretsDir).Msg("File secret provider registered")
-	}
+	}()
+	cfg := readConfig(*configFile)
 
-	// Vault provider (if vault is configured)
-	vaultCfg, err := config.LoadConfig[secrets.VaultConfig]("vault", cfg)
-	if err == nil {
-		vaultClient, err := vaultCfg.CreateClient()
-		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create Vault client")
-			os.Exit(1)
-		}
-		secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
-		log.Info().Msg("Vault secret provider registered")
-	}
-
-	sargantana, err := server.NewServer(cfg)
+	serverCfg, err := config.Load[server.SargantanaConfig](cfg["server"])
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create server")
-		os.Exit(1)
+		panic(errors.Wrap(err, "failed to load server configuration"))
 	}
+	sargantana := server.NewServer(*serverCfg)
 
-	redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
+	redisCfg, err := config.Load[database.RedisConfig](cfg["redis"])
 	if err != nil {
-		log.Fatal().Err(err).Msg("Unable to load Redis configuration")
-		os.Exit(1)
+		panic(errors.Wrap(err, "failed to load Redis configuration"))
 	}
 
 	if redisCfg != nil {
 		redisPool, err := redisCfg.CreateClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Unable to create Redis connection pool")
-			os.Exit(1)
+			panic(errors.Wrap(err, "failed to create Redis client"))
 		}
-		store, err := session.NewRedisSessionStore(*debugMode, []byte(cfg.ServerConfig.SessionSecret), redisPool)
+		defer redisPool.Close()
+		store, err := session.NewRedisSessionStore(*debugMode, []byte(serverCfg.WebServerConfig.SessionSecret), redisPool)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Unable to create Redis session store")
 			os.Exit(1)
 		}
-		sargantana.SetSessionStore(&store)
+		sargantana.SetSessionStore(store)
 	}
 
 	err = sargantana.StartAndWaitForSignal()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Server error")
 	}
+}
+
+func readConfig(file string) config.Config {
+	cfg, err := config.ReadModular(file)
+	if err != nil {
+		panic(err)
+	}
+
+	// Register Vault provider if configured
+	vaultCfg, err := config.Load[secrets.VaultConfig](cfg["vault"])
+	if err != nil {
+		panic(errors.Wrap(err, "failed to load Vault configuration"))
+	}
+	vaultClient, err := vaultCfg.CreateClient()
+	if err != nil {
+		panic(errors.Wrap(err, "failed to create Vault client"))
+	}
+	secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
+
+	// Register file provider if configured
+	fileResolverCfg, err := config.Load[secrets.FileSecretConfig](cfg["file_resolver"])
+	if err != nil {
+		panic(errors.Wrap(err, "failed to load file secret resolver configuration"))
+	}
+	fileResolver, err := fileResolverCfg.CreateClient()
+	if err != nil {
+		panic(errors.Wrap(err, "failed to create file secret provider"))
+	}
+	secrets.Register("file", fileResolver)
+	return cfg
 }

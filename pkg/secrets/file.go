@@ -72,7 +72,6 @@ func (f *FileSecretLoader) Resolve(key string) (string, error) {
 		return "", errors.New("no secrets directory configured")
 	}
 
-	key = strings.TrimSpace(key)
 	if key == "" {
 		return "", errors.New("no file specified for file secret")
 	}

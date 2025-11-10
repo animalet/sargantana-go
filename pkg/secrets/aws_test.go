@@ -341,7 +341,6 @@ func TestAWSPropertyResolution_Success(t *testing.T) {
 
 	// Register the resolver
 	Register("aws", awsResolver)
-	defer Unregister("aws")
 
 	// Test resolving a property using aws: prefix
 	result, err := Resolve("aws:GOOGLE_KEY")
@@ -383,7 +382,6 @@ func TestAWSPropertyResolution_PlainText(t *testing.T) {
 
 	awsResolver := NewAWSSecretLoader(client, awsCfg.SecretName)
 	Register("aws", awsResolver)
-	defer Unregister("aws")
 
 	// For plain text secrets, any key returns the entire value
 	result, err := Resolve("aws:ANY_KEY")
@@ -414,7 +412,6 @@ func TestAWSPropertyResolution_NonexistentKey(t *testing.T) {
 
 	awsResolver := NewAWSSecretLoader(client, awsCfg.SecretName)
 	Register("aws", awsResolver)
-	defer Unregister("aws")
 
 	_, err = Resolve("aws:NONEXISTENT_KEY")
 	if err == nil {
@@ -423,23 +420,5 @@ func TestAWSPropertyResolution_NonexistentKey(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("Expected 'not found' error, got: %v", err)
-	}
-}
-
-// Note: LocalStack doesn't validate credentials in property resolution tests either
-// In production AWS, invalid credentials would cause authentication errors
-
-// TestAWSPropertyResolution_NoResolverRegistered tests behavior when no resolver is registered
-func TestAWSPropertyResolution_NoResolverRegistered(t *testing.T) {
-	// Make sure aws resolver is not registered
-	Unregister("aws")
-
-	_, err := Resolve("aws:SOME_KEY")
-	if err == nil {
-		t.Fatal("Expected error when aws resolver is not registered")
-	}
-
-	if !strings.Contains(err.Error(), "no secret provider registered") {
-		t.Errorf("Expected 'no secret provider registered' error, got: %v", err)
 	}
 }

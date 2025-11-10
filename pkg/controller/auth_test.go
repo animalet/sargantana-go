@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -40,8 +40,8 @@ func newTestAuthConfig() AuthControllerConfig {
 }
 
 // Helper function to create a test ControllerContext
-func newTestControllerContext(serverConfig config.ServerConfig, sessionStore *sessions.Store) ControllerContext {
-	return ControllerContext{
+func newTestControllerContext(serverConfig server.WebServerConfig, sessionStore *sessions.Store) server.ControllerContext {
+	return server.ControllerContext{
 		ServerConfig: serverConfig,
 		SessionStore: sessionStore,
 	}
@@ -51,7 +51,7 @@ func TestNewAuthController(t *testing.T) {
 	tests := []struct {
 		name          string
 		configData    AuthControllerConfig
-		serverConfig  config.ServerConfig
+		serverConfig  server.WebServerConfig
 		expectedError bool
 	}{
 		{
@@ -70,7 +70,7 @@ func TestNewAuthController(t *testing.T) {
 					},
 				},
 			},
-			serverConfig: config.ServerConfig{
+			serverConfig: server.WebServerConfig{
 				Address: "localhost:8080",
 			},
 			expectedError: false,
@@ -91,7 +91,7 @@ func TestNewAuthController(t *testing.T) {
 					},
 				},
 			},
-			serverConfig: config.ServerConfig{
+			serverConfig: server.WebServerConfig{
 				Address: "0.0.0.0:9000",
 			},
 			expectedError: false,
@@ -125,7 +125,7 @@ func TestNewAuthController(t *testing.T) {
 func TestAuth_UserFactory(t *testing.T) {
 	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
-	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+	serverConfig := server.WebServerConfig{Address: "localhost:8080"}
 
 	controller, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
@@ -255,7 +255,7 @@ func TestLoginFunc(t *testing.T) {
 func TestAuth_Close(t *testing.T) {
 	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
-	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+	serverConfig := server.WebServerConfig{Address: "localhost:8080"}
 
 	controller, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
@@ -274,7 +274,7 @@ func TestAuth_Routes(t *testing.T) {
 
 	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
-	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+	serverConfig := server.WebServerConfig{Address: "localhost:8080"}
 
 	authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
@@ -285,7 +285,7 @@ func TestAuth_Routes(t *testing.T) {
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
 
-	authController.Bind(engine, LoginFunc)
+	authController.Bind(engine)
 
 	// Test that routes are registered
 	routes := engine.Routes()
@@ -315,7 +315,7 @@ func TestAuth_UserRoute_NoAuth(t *testing.T) {
 
 	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
-	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+	serverConfig := server.WebServerConfig{Address: "localhost:8080"}
 
 	authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
@@ -326,7 +326,7 @@ func TestAuth_UserRoute_NoAuth(t *testing.T) {
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
 
-	authController.Bind(engine, LoginFunc)
+	authController.Bind(engine)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/auth/user", nil)
@@ -342,7 +342,7 @@ func TestAuth_AuthRouteHandler(t *testing.T) {
 
 	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
-	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+	serverConfig := server.WebServerConfig{Address: "localhost:8080"}
 
 	authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
@@ -353,7 +353,7 @@ func TestAuth_AuthRouteHandler(t *testing.T) {
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
 
-	authController.Bind(engine, LoginFunc)
+	authController.Bind(engine)
 
 	// Test auth route without provider
 	w := httptest.NewRecorder()
@@ -371,7 +371,7 @@ func TestAuth_CallbackRouteHandler(t *testing.T) {
 
 	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
-	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+	serverConfig := server.WebServerConfig{Address: "localhost:8080"}
 
 	authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
@@ -382,7 +382,7 @@ func TestAuth_CallbackRouteHandler(t *testing.T) {
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
 
-	authController.Bind(engine, LoginFunc)
+	authController.Bind(engine)
 
 	// Test callback route without provider
 	w := httptest.NewRecorder()
@@ -400,7 +400,7 @@ func TestAuth_LogoutRouteHandler(t *testing.T) {
 
 	configData := newTestAuthConfig()
 	configBytes, _ := yaml.Marshal(configData)
-	serverConfig := config.ServerConfig{Address: "localhost:8080"}
+	serverConfig := server.WebServerConfig{Address: "localhost:8080"}
 
 	authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 	if err != nil {
@@ -411,7 +411,7 @@ func TestAuth_LogoutRouteHandler(t *testing.T) {
 	store := cookie.NewStore([]byte("secret"))
 	engine.Use(sessions.Sessions("test", store))
 
-	authController.Bind(engine, LoginFunc)
+	authController.Bind(engine)
 
 	// Test logout route
 	w := httptest.NewRecorder()
@@ -482,7 +482,7 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			configData := newTestAuthConfig()
 			configBytes, _ := yaml.Marshal(configData)
-			serverConfig := config.ServerConfig{Address: tt.configAddress}
+			serverConfig := server.WebServerConfig{Address: tt.configAddress}
 
 			authController, err := NewAuthController(configBytes, newTestControllerContext(serverConfig, nil))
 			if err != nil {
@@ -493,7 +493,7 @@ func TestAuth_SetCallbackFromConfig(t *testing.T) {
 			store := cookie.NewStore([]byte("secret"))
 			engine.Use(sessions.Sessions("test", store))
 
-			authController.Bind(engine, LoginFunc)
+			authController.Bind(engine)
 		})
 	}
 }
@@ -828,7 +828,7 @@ func TestAuth_IntegrationTest(t *testing.T) {
 
 	address := "localhost:8080"
 	ProviderFactory = &MockProviderFactory{}
-	serverConfig := config.ServerConfig{
+	serverConfig := server.WebServerConfig{
 		Address: address,
 	}
 	configBytes, _ := yaml.Marshal(configData)
@@ -839,7 +839,7 @@ func TestAuth_IntegrationTest(t *testing.T) {
 		t.Fatalf("Failed to create auth controller: %v", err)
 	}
 
-	authController.Bind(engine, LoginFunc)
+	authController.Bind(engine)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/auth/openid-connect", nil)

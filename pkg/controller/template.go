@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -15,8 +16,8 @@ type TemplateControllerConfig struct {
 	Path string `yaml:"path"`
 }
 
-func NewTemplateController(configData config.ControllerConfig, _ ControllerContext) (IController, error) {
-	c, err := config.UnmarshalTo[TemplateControllerConfig](configData)
+func NewTemplateController(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
+	c, err := config.Load[TemplateControllerConfig](configData)
 	if err != nil {
 		return nil, err
 	}
@@ -45,13 +46,13 @@ func (c TemplateControllerConfig) Validate() error {
 // It provides functionality for serving frontend assets like CSS, JavaScript,
 // images, and HTML files, as well as Go template rendering capabilities.
 type template struct {
-	IController
+	server.IController
 	path string
 }
 
 // Bind registers the template controller with the provided Gin engine.
 // It sets up the HTML template rendering by loading templates from the configured directory.
-func (t *template) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
+func (t *template) Bind(engine *gin.Engine) {
 	if stat, err := os.Stat(t.path); err == nil && stat.IsDir() {
 		var found bool
 		err = filepath.WalkDir(t.path, func(path string, d fs.DirEntry, err error) error {

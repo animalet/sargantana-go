@@ -1,8 +1,4 @@
-// Package controller provides the core controller interface and implementations
-// for the Sargantana Go web framework. Controllers handle specific aspects of
-// web application functionality such as authentication, static file serving,
-// and load balancing.
-package controller
+package server
 
 import (
 	"github.com/animalet/sargantana-go/pkg/config"
@@ -21,7 +17,7 @@ type IController interface {
 	// Parameters:
 	//   - engine: The Gin HTTP router engine to register routes with
 	//   - loginMiddleware: Pre-configured middleware function for protecting routes that require authentication
-	Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc)
+	Bind(engine *gin.Engine)
 
 	// Close performs cleanup operations when the controller is being shut down.
 	// This method should release any resources held by the controller such as
@@ -32,18 +28,18 @@ type IController interface {
 }
 
 // ControllerContext provides runtime dependencies and configuration to controllers
-// during instantiation. This separates pure YAML configuration (ServerConfig) from
+// during instantiation. This separates pure YAML configuration (WebServerConfig) from
 // runtime dependencies like session stores, databases, or loggers.
 //
 // This pattern allows controllers to access necessary dependencies without
 // coupling to the server's lifecycle methods (Start, Stop, etc.).
 type ControllerContext struct {
 	// ServerConfig contains the pure YAML configuration from the config file
-	ServerConfig config.ServerConfig
+	ServerConfig WebServerConfig
 
 	// SessionStore is the session storage implementation (cookie-based or Redis-based)
 	// Used by authentication controllers to configure gothic.Store
-	SessionStore *sessions.Store
+	SessionStore sessions.Store
 
 	// Future additions can include:
 	// Logger       *zerolog.Logger
@@ -51,6 +47,6 @@ type ControllerContext struct {
 	// Database     *sql.DB
 }
 
-// Constructor is a factory function that creates a new controller instance.
+// ControllerFactory is a factory function that creates a new controller instance.
 // It receives the controller-specific configuration and a context with runtime dependencies.
-type Constructor func(controllerConfig config.ControllerConfig, ctx ControllerContext) (IController, error)
+type ControllerFactory func(controllerConfig config.ModuleRawConfig, ctx ControllerContext) (IController, error)

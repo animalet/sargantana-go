@@ -455,8 +455,6 @@ store, _ := session.NewMemcachedSessionStore(debugMode, []byte(secret), client)
 sargantana.SetSessionStore(&store)
 ```
 
-See [CLAUDE.md](CLAUDE.md) for detailed session store configuration examples.
-
 ### Session Usage in Handlers
 
 ```go

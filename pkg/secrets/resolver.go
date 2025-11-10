@@ -1,5 +1,3 @@
-// package secrets provides an extensible secret resolution system that allows
-// developers to register custom secret providers for different prefixes.
 package secrets
 
 import (
@@ -36,7 +34,6 @@ type SecretLoader interface {
 var providers = make(map[string]SecretLoader)
 
 func init() {
-	// Register default provider in the global registry
 	Register("env", NewEnvLoader())
 }
 
@@ -50,8 +47,6 @@ func init() {
 //
 //	secrets.Register("vault", NewVaultSecretLoader(vaultClient, vaultPath))
 //	secrets.Register("custom", NewCustomProvider(customConfig))
-//
-// Thread-safe: This method can be called concurrently.
 func Register(prefix string, provider SecretLoader) {
 	if _, exists := providers[prefix]; exists {
 		// Log warning about override (but don't fail)
@@ -59,14 +54,6 @@ func Register(prefix string, provider SecretLoader) {
 	}
 
 	providers[prefix] = provider
-}
-
-// Unregister removes a provider for a specific prefix.
-// This is useful for testing or dynamic reconfiguration.
-//
-// Thread-safe: This method can be called concurrently.
-func Unregister(prefix string) {
-	delete(providers, prefix)
 }
 
 // Resolve attempts to resolve a secret using the appropriate provider.
@@ -81,8 +68,6 @@ func Unregister(prefix string) {
 // Returns:
 //   - string: The resolved secret value
 //   - error: An error if no provider is found or resolution fails
-//
-// Thread-safe: This method can be called concurrently.
 func Resolve(property string) (string, error) {
 	// Parse prefix and key
 	prefix, key := parseProperty(property)
@@ -100,24 +85,6 @@ func Resolve(property string) (string, error) {
 	}
 
 	return value, nil
-}
-
-// GetResolver returns the provider registered for a specific prefix.
-// Returns nil if no provider is registered for the prefix.
-func GetResolver(prefix string) SecretLoader {
-	return providers[prefix]
-}
-
-// ListPrefixes returns a list of all registered prefixes.
-// Useful for debugging and documentation.
-//
-// Thread-safe: This method can be called concurrently.
-func ListPrefixes() []string {
-	prefixes := make([]string, 0, len(providers))
-	for prefix := range providers {
-		prefixes = append(prefixes, prefix)
-	}
-	return prefixes
 }
 
 // parseProperty splits a property string into prefix and key.

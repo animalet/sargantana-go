@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -37,8 +38,8 @@ func (l LoadBalancerControllerConfig) Validate() error {
 	return nil
 }
 
-func NewLoadBalancerController(configData config.ControllerConfig, _ ControllerContext) (IController, error) {
-	c, err := config.UnmarshalTo[LoadBalancerControllerConfig](configData)
+func NewLoadBalancerController(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
+	c, err := config.Load[LoadBalancerControllerConfig](configData)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse load balancer controller config")
 	}
@@ -74,7 +75,7 @@ func NewLoadBalancerController(configData config.ControllerConfig, _ ControllerC
 // It distributes incoming requests across multiple backend endpoints and supports
 // optional authentication requirements for protected load-balanced routes.
 type loadBalancer struct {
-	IController
+	server.IController
 	endpoints     []url.URL
 	endpointIndex int
 	mu            sync.Mutex
@@ -83,20 +84,20 @@ type loadBalancer struct {
 	auth          bool
 }
 
-func (l *loadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+func (l *loadBalancer) Bind(engine *gin.Engine) {
 	if len(l.endpoints) == 0 {
 		log.Warn().Msg("Load balancer not loaded: no endpoints configured")
 		return
 	}
 
 	if l.auth {
-		engine.GET(l.path, loginMiddleware, l.forward).
-			POST(l.path, loginMiddleware, l.forward).
-			PUT(l.path, loginMiddleware, l.forward).
-			DELETE(l.path, loginMiddleware, l.forward).
-			PATCH(l.path, loginMiddleware, l.forward).
-			HEAD(l.path, loginMiddleware, l.forward).
-			OPTIONS(l.path, loginMiddleware, l.forward)
+		engine.GET(l.path, LoginFunc, l.forward).
+			POST(l.path, LoginFunc, l.forward).
+			PUT(l.path, LoginFunc, l.forward).
+			DELETE(l.path, LoginFunc, l.forward).
+			PATCH(l.path, LoginFunc, l.forward).
+			HEAD(l.path, LoginFunc, l.forward).
+			OPTIONS(l.path, LoginFunc, l.forward)
 	} else {
 		engine.GET(l.path, l.forward).
 			POST(l.path, l.forward).

@@ -1,4 +1,4 @@
-package config
+package server
 
 import (
 	"strings"
@@ -9,13 +9,13 @@ import (
 func TestServerConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      ServerConfig
+		config      WebServerConfig
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name: "valid config",
-			config: ServerConfig{
+			config: WebServerConfig{
 				Address:       ":8080",
 				SessionName:   "test-session",
 				SessionSecret: "test-secret",
@@ -24,7 +24,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "valid config with host",
-			config: ServerConfig{
+			config: WebServerConfig{
 				Address:       "localhost:8080",
 				SessionName:   "test-session",
 				SessionSecret: "test-secret",
@@ -33,7 +33,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "missing session secret",
-			config: ServerConfig{
+			config: WebServerConfig{
 				Address:     ":8080",
 				SessionName: "test-session",
 			},
@@ -42,7 +42,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "missing session name",
-			config: ServerConfig{
+			config: WebServerConfig{
 				Address:       ":8080",
 				SessionSecret: "test-secret",
 			},
@@ -51,7 +51,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "missing address",
-			config: ServerConfig{
+			config: WebServerConfig{
 				SessionName:   "test-session",
 				SessionSecret: "test-secret",
 			},
@@ -60,7 +60,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid address format",
-			config: ServerConfig{
+			config: WebServerConfig{
 				Address:       "not-a-valid-address",
 				SessionName:   "test-session",
 				SessionSecret: "test-secret",
@@ -70,7 +70,7 @@ func TestServerConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid port",
-			config: ServerConfig{
+			config: WebServerConfig{
 				Address:       ":99999",
 				SessionName:   "test-session",
 				SessionSecret: "test-secret",

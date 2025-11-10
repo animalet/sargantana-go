@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )
@@ -82,7 +82,7 @@ func TestNewStaticController(t *testing.T) {
 				t.Fatalf("Failed to marshal config: %v", err)
 			}
 
-			controller, err := NewStaticController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
+			controller, err := NewStaticController(configBytes, server.ControllerContext{ServerConfig: server.WebServerConfig{}})
 
 			if tt.expectedError {
 				if err == nil {
@@ -131,14 +131,14 @@ func TestStatic_BindDirectory(t *testing.T) {
 		Dir:  staticDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	controller, err := NewStaticController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
+	controller, err := NewStaticController(configBytes, server.ControllerContext{ServerConfig: server.WebServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
 
 	static := controller.(*static)
 	engine := gin.New()
-	static.Bind(engine, nil)
+	static.Bind(engine)
 
 	tests := []struct {
 		name           string
@@ -202,13 +202,13 @@ func TestStatic_BindFile(t *testing.T) {
 		File: faviconPath,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	staticController, err := NewStaticController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
+	staticController, err := NewStaticController(configBytes, server.ControllerContext{ServerConfig: server.WebServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
 
 	engine := gin.New()
-	staticController.Bind(engine, nil)
+	staticController.Bind(engine)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/favicon.ico", nil)
@@ -237,7 +237,7 @@ func TestStatic_Close(t *testing.T) {
 		Dir:  staticDir,
 	}
 	configBytes, _ := yaml.Marshal(configData)
-	staticController, err := NewStaticController(configBytes, ControllerContext{ServerConfig: config.ServerConfig{}})
+	staticController, err := NewStaticController(configBytes, server.ControllerContext{ServerConfig: server.WebServerConfig{}})
 	if err != nil {
 		t.Fatalf("Failed to create static controller: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestStatic_MultipleInstances(t *testing.T) {
 	publicBytes, _ := yaml.Marshal(publicConfig)
 	adminBytes, _ := yaml.Marshal(adminConfig)
 
-	ctx := ControllerContext{ServerConfig: config.ServerConfig{}}
+	ctx := server.ControllerContext{ServerConfig: server.WebServerConfig{}}
 	publicController, err := NewStaticController(publicBytes, ctx)
 	if err != nil {
 		t.Fatalf("Failed to create public controller: %v", err)
@@ -301,8 +301,8 @@ func TestStatic_MultipleInstances(t *testing.T) {
 
 	// Bind both to the same engine
 	engine := gin.New()
-	publicController.Bind(engine, nil)
-	adminController.Bind(engine, nil)
+	publicController.Bind(engine)
+	adminController.Bind(engine)
 
 	// Test public path
 	w := httptest.NewRecorder()

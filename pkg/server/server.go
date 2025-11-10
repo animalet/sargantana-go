@@ -1,6 +1,3 @@
-// Package server provides the core HTTP server implementation for the Sargantana Go web framework.
-// It handles server lifecycle management, controller registration, session configuration,
-// secrets loading, and graceful shutdown functionality.
 package server
 
 import (
@@ -13,8 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/animalet/sargantana-go/pkg/config"
-	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -27,16 +22,15 @@ import (
 // It encapsulates the server configuration, HTTP server instance, shutdown hooks,
 // and signal handling for graceful shutdown.
 type Server struct {
-	config          *config.Config
+	config          SargantanaConfig
 	httpServer      *http.Server
 	shutdownHooks   []func() error
 	shutdownChannel chan os.Signal
-	controllers     []controller.IController
-	sessionStore    *sessions.Store
+	sessionStore    sessions.Store
 }
 
 // controllerRegistry holds the mapping of controller type names to their factory functions.
-var controllerRegistry = make(map[string]controller.Constructor)
+var controllerRegistry = make(map[string]ControllerFactory)
 
 var debug = false
 
@@ -49,51 +43,17 @@ func SetDebug(debugEnabled bool) {
 	}
 }
 
-func GetDebug() bool {
-	return debug
+func NewServer(cfg SargantanaConfig) *Server {
+	return &Server{
+		config: cfg,
+	}
 }
 
-func (s *Server) SetSessionStore(sessionStore *sessions.Store) {
+func (s *Server) SetSessionStore(sessionStore sessions.Store) {
 	s.sessionStore = sessionStore
 }
 
-// NewServerFromConfigFile creates a new Server instance by loading configuration from the specified file.
-//
-// Parameters:
-//   - configFile: Path to the configuration file to load settings from
-//
-// Returns:
-//   - *Server: The configured server instance
-//   - error: An error if the server could not be created, nil otherwise
-func NewServerFromConfigFile(configFile string) (*Server, error) {
-	cfg, err := config.ReadConfig(configFile)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewServer(cfg)
-}
-
-// NewServer creates a new Server instance with the provided configuration.
-//
-// Parameters:
-//   - cfg: Pointer to the configuration struct containing server settings
-//
-// Returns:
-//   - *Server: The configured server instance
-//   - error: An error if the server could not be created, nil otherwise
-func NewServer(cfg *config.Config) (*Server, error) {
-	err := cfg.Load()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to load configuration")
-	}
-
-	log.Info().Msg("Configuration loaded successfully")
-
-	return &Server{config: cfg}, nil
-}
-
-func AddControllerType(typeName string, factory controller.Constructor) {
+func AddControllerType(typeName string, factory ControllerFactory) {
 	log.Info().Msgf("Registering controller type %q", typeName)
 	_, exists := controllerRegistry[typeName]
 	if exists {
@@ -102,12 +62,12 @@ func AddControllerType(typeName string, factory controller.Constructor) {
 	controllerRegistry[typeName] = factory
 }
 
-func configureControllers(c *config.Config, sessionStore *sessions.Store) (controllers []controller.IController, configErrors []error) {
+func configureControllers(c SargantanaConfig, sessionStore sessions.Store) (controllers []IController, configErrors []error) {
 	instanceCounts := make(map[string]int) // Track instances per type for auto-naming
 
 	// Build the controller context with runtime dependencies
-	ctx := controller.ControllerContext{
-		ServerConfig: c.ServerConfig,
+	ctx := ControllerContext{
+		ServerConfig: c.WebServerConfig,
 		SessionStore: sessionStore,
 	}
 
@@ -140,7 +100,7 @@ func configureControllers(c *config.Config, sessionStore *sessions.Store) (contr
 	return controllers, configErrors
 }
 
-func newController(ctx controller.ControllerContext, name string, binding config.ControllerBinding, factory controller.Constructor) (newController controller.IController, err error) {
+func newController(ctx ControllerContext, name string, binding ControllerBinding, factory ControllerFactory) (newController IController, err error) {
 	log.Info().Msgf("Configuring %s controller of type: %s", name, binding.TypeName)
 	defer func() {
 		if r := recover(); r != nil {
@@ -148,7 +108,7 @@ func newController(ctx controller.ControllerContext, name string, binding config
 			newController = nil
 		}
 	}()
-	if newController, err = factory(binding.ConfigData, ctx); err != nil {
+	if newController, err = factory(binding.Config, ctx); err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to configure %s controller of type: %s", name, binding.TypeName))
 	}
 	return newController, err
@@ -172,11 +132,11 @@ func (s *Server) StartAndWaitForSignal() error {
 func (s *Server) Start() (err error) {
 	if debug {
 		log.Debug().Msg("Debug mode is enabled")
-		log.Debug().Msgf("Listen address: %q", s.config.ServerConfig.Address)
-		log.Debug().Msgf("Session cookie name: %q", s.config.ServerConfig.SessionName)
+		log.Debug().Msgf("Listen address: %q", s.config.WebServerConfig.Address)
+		log.Debug().Msgf("Session cookie name: %q", s.config.WebServerConfig.SessionName)
 		log.Debug().Msg("Expected controllers:")
 		for _, binding := range s.config.ControllerBindings {
-			log.Debug().Msgf(" - Type: %s, Name: %s\n%s", binding.TypeName, binding.Name, string(binding.ConfigData))
+			log.Debug().Msgf(" - Type: %s, Name: %s\n%s", binding.TypeName, binding.Name, binding.Config)
 		}
 		gin.SetMode(gin.DebugMode)
 	} else {
@@ -210,7 +170,6 @@ func (s *Server) bootstrap() error {
 			log.Error().Msgf(" - %v", configErr)
 		}
 	}
-	s.controllers = controllers
 
 	// Initialize Gin engine
 	gin.ForceConsoleColor()
@@ -229,27 +188,27 @@ func (s *Server) bootstrap() error {
 	engine.Use(
 		gin.Logger(),
 		gin.Recovery(),
-		sessions.Sessions(s.config.ServerConfig.SessionName, *s.sessionStore),
+		sessions.Sessions(s.config.WebServerConfig.SessionName, s.sessionStore),
 	)
 
-	for _, c := range s.controllers {
-		c.Bind(engine, controller.LoginFunc)
+	for _, c := range controllers {
+		c.Bind(engine)
 		s.addShutdownHook(c.Close)
 	}
 
 	s.httpServer = &http.Server{
-		Addr:    s.config.ServerConfig.Address,
+		Addr:    s.config.WebServerConfig.Address,
 		Handler: engine,
 	}
 
-	log.Info().Msgf("Starting server on %s", s.config.ServerConfig.Address)
+	log.Info().Msgf("Starting server on %s", s.config.WebServerConfig.Address)
 	s.listenAndServe()
 
 	return nil
 }
 
-func (s *Server) createSessionStore(isReleaseMode bool) (*sessions.Store, error) {
-	secret := s.config.ServerConfig.SessionSecret
+func (s *Server) createSessionStore(isReleaseMode bool) (sessions.Store, error) {
+	secret := s.config.WebServerConfig.SessionSecret
 	if secret == "" {
 		return nil, fmt.Errorf("session secret is not set")
 	}
@@ -259,7 +218,7 @@ func (s *Server) createSessionStore(isReleaseMode bool) (*sessions.Store, error)
 	// For Redis or other session stores, use SetSessionStore() before calling Start()
 	log.Info().Msg("Using default cookie-based session storage")
 	sessionStore := session.NewCookieStore(isReleaseMode, sessionSecret)
-	return &sessionStore, nil
+	return sessionStore, nil
 }
 
 func (s *Server) waitForSignal() error {

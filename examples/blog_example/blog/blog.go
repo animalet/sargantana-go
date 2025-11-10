@@ -8,6 +8,7 @@ import (
 
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/controller"
+	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -42,19 +43,19 @@ func (b Config) Validate() error {
 	return nil
 }
 
-func (b *Controller) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+func (b *Controller) Bind(engine *gin.Engine) {
 	engine.GET(b.config.FeedPath, b.getFeed)
 	engine.POST(b.config.PostPath, b.createPost)
 	engine.GET(b.config.PostPath+"/:id", b.getPost)
 	engine.DELETE(b.config.PostPath+"/:id", b.deletePost)
-	engine.GET(b.config.AdminAreaPath, loginMiddleware, b.adminArea)
+	engine.GET(b.config.AdminAreaPath, controller.LoginFunc, b.adminArea)
 }
 
 func (b *Controller) Close() error { return nil }
 
-func NewBlogController(db *pgxpool.Pool) controller.Constructor {
-	return func(configData config.ControllerConfig, _ controller.ControllerContext) (controller.IController, error) {
-		cfg, err := config.UnmarshalTo[Config](configData)
+func NewBlogController(db *pgxpool.Pool) server.ControllerFactory {
+	return func(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
+		cfg, err := config.Load[Config](configData)
 		if err != nil {
 			return nil, err
 		}

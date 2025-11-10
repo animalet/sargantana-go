@@ -1,8 +1,10 @@
-package config
+package server
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/animalet/sargantana-go/pkg/config"
 )
 
 // TestControllerBindings_Validate tests validation of multiple controller bindings
@@ -17,14 +19,18 @@ func TestControllerBindings_Validate(t *testing.T) {
 			name: "all valid bindings",
 			bindings: ControllerBindings{
 				{
-					TypeName:   "auth",
-					Name:       "oauth",
-					ConfigData: []byte("key: value"),
+					TypeName: "auth",
+					Name:     "oauth",
+					Config: config.Config{
+						SargantanaConfig: []byte("key: value"),
+					},
 				},
 				{
-					TypeName:   "static",
-					Name:       "public",
-					ConfigData: []byte("path: /public"),
+					TypeName: "static",
+					Name:     "public",
+					Config: config.Config{
+						SargantanaConfig: []byte("path: /public"),
+					},
 				},
 			},
 			expectError: false,
@@ -38,15 +44,17 @@ func TestControllerBindings_Validate(t *testing.T) {
 			name: "one invalid binding",
 			bindings: ControllerBindings{
 				{
-					TypeName:   "auth",
-					Name:       "oauth",
-					ConfigData: []byte("key: value"),
-				},
+					TypeName: "auth",
+					Name:     "oauth",
+					Config: config.Config{
+						SargantanaConfig: []byte("key: value"),
+					}},
 				{
-					TypeName:   "", // Invalid - missing type
-					Name:       "invalid",
-					ConfigData: []byte("key: value"),
-				},
+					TypeName: "", // Invalid - missing type
+					Name:     "invalid",
+					Config: config.Config{
+						SargantanaConfig: []byte("key: value"),
+					}},
 			},
 			expectError: true,
 			errorMsg:    "controller binding at index 1 is invalid",
@@ -55,12 +63,16 @@ func TestControllerBindings_Validate(t *testing.T) {
 			name: "multiple invalid bindings",
 			bindings: ControllerBindings{
 				{
-					TypeName:   "", // Invalid
-					ConfigData: []byte("key: value"),
+					TypeName: "", // Invalid
+					Config: config.Config{
+						SargantanaConfig: []byte("key: value"),
+					},
 				},
 				{
-					TypeName:   "static",
-					ConfigData: nil, // Invalid
+					TypeName: "static",
+					Config: config.Config{
+						SargantanaConfig: nil,
+					},
 				},
 			},
 			expectError: true,
@@ -70,8 +82,10 @@ func TestControllerBindings_Validate(t *testing.T) {
 			name: "valid binding without name",
 			bindings: ControllerBindings{
 				{
-					TypeName:   "static",
-					ConfigData: []byte("path: /public"),
+					TypeName: "static",
+					Config: config.Config{
+						SargantanaConfig: []byte("path: /public"),
+					},
 					// Name omitted - should be valid
 				},
 			},

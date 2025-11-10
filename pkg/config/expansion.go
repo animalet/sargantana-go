@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"reflect"
+	"strings"
 
 	"github.com/animalet/sargantana-go/pkg/secrets"
 	"github.com/pkg/errors"
@@ -33,7 +34,7 @@ func expandVariables(val reflect.Value) {
 	switch val.Kind() {
 	case reflect.String:
 		if val.CanSet() {
-			val.SetString(os.Expand(val.String(), expand))
+			val.SetString(os.Expand(strings.TrimSpace(val.String()), expand))
 		}
 	case reflect.Struct:
 		for i := 0; i < val.NumField(); i++ {

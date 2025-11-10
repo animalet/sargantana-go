@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
@@ -131,8 +132,8 @@ func (a AuthControllerConfig) Validate() error {
 	return nil
 }
 
-func NewAuthController(configData config.ControllerConfig, ctx ControllerContext) (IController, error) {
-	c, err := config.UnmarshalTo[AuthControllerConfig](configData)
+func NewAuthController(configData config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
+	c, err := config.Load[AuthControllerConfig](configData)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal auth controller config")
 	}
@@ -172,10 +173,9 @@ func NewAuthController(configData config.ControllerConfig, ctx ControllerContext
 
 	// Set the gothic store if available in controller context
 	if ctx.SessionStore != nil {
-		gothic.Store = *ctx.SessionStore
+		gothic.Store = ctx.SessionStore
 		log.Debug().Msg("Auth controller: gothic.Store configured from controller context")
 	}
-
 	return &auth{
 		loginPath:        providerToGin(c.LoginPath),
 		logoutPath:       providerToGin(c.LogoutPath),
@@ -199,7 +199,7 @@ type ProvidersFactory interface {
 // It supports 50+ OAuth2 providers through the Goth library and handles
 // the complete authentication flow including user session management.
 type auth struct {
-	IController
+	server.IController
 	loginPath        string
 	logoutPath       string
 	userInfoPath     string
@@ -224,10 +224,6 @@ type UserObject struct {
 // Usage:
 //
 //	engine.GET("/protected", controller.LoginFunc, myProtectedHandler)
-//
-// Responses:
-//   - 403 Forbidden: No user session found (not logged in)
-//   - 401 Unauthorized: User session expired (need to log in again)
 func LoginFunc(c *gin.Context) {
 	userSession := sessions.Default(c)
 	userObject := userSession.Get("user")
@@ -252,7 +248,7 @@ func LoginFunc(c *gin.Context) {
 	c.Next()
 }
 
-func (a *auth) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+func (a *auth) Bind(engine *gin.Engine) {
 	hack := func(c *gin.Context) {
 		// Hack to make gothic work with gin
 		q := c.Request.URL.Query()
@@ -268,7 +264,7 @@ func (a *auth) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 
 	engine.GET(a.loginPath, hack, a.login).GET(a.callbackPath, hack, a.callback)
 	engine.GET(a.logoutPath, a.logout)
-	engine.GET(a.userInfoPath, loginMiddleware, a.userInfo)
+	engine.GET(a.userInfoPath, LoginFunc, a.userInfo)
 }
 
 func (a *auth) Close() error {
