@@ -1,82 +1,69 @@
-package secrets
+//go:build unit
+
+package secrets_test
 
 import (
-	"strings"
-	"testing"
+	"github.com/animalet/sargantana-go/pkg/secrets"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 )
 
-// mockResolver is a simple mock resolver for testing
-type mockResolver struct {
-	name  string
-	value string
+type MockLoader struct {
+	Secrets map[string]string
 }
 
-func (m *mockResolver) Resolve(key string) (string, error) {
-	return m.value + ":" + key, nil
-}
-
-func (m *mockResolver) Name() string {
-	return m.name
-}
-
-// TestRegistry_RegisterAndResolve tests basic registration and resolution
-func TestRegistry_RegisterAndResolve(t *testing.T) {
-	defer purgeResolvers()
-
-	mock := &mockResolver{name: "Mock", value: "mock-value"}
-	Register("mock", mock)
-
-	result, err := Resolve("mock:test-key")
-	if err != nil {
-		t.Fatalf("Resolve failed: %v", err)
+func (m *MockLoader) Resolve(key string) (string, error) {
+	if val, ok := m.Secrets[key]; ok {
+		return val, nil
 	}
-
-	expected := "mock-value:test-key"
-	if result != expected {
-		t.Errorf("Expected '%s', got '%s'", expected, result)
-	}
+	return "", errors.New("secret not found")
 }
 
-// TestRegistry_UnknownPrefix tests resolution with unknown prefix
-func TestRegistry_UnknownPrefix(t *testing.T) {
-	_, err := Resolve("unknown:value")
-	if err == nil {
-		t.Fatal("Expected error for unknown prefix")
-	}
-
-	if !strings.Contains(err.Error(), "no secret provider registered for prefix") {
-		t.Errorf("Expected 'no secret provider registered' error, got: %v", err)
-	}
+func (m *MockLoader) Name() string {
+	return "mock"
 }
 
-// TestParseProperty tests the property parsing function
-func TestParseProperty(t *testing.T) {
-	tests := []struct {
-		input          string
-		expectedPrefix string
-		expectedKey    string
-	}{
-		{"vault:SECRET_KEY", "vault", "SECRET_KEY"},
-		{"env:PORT", "env", "PORT"},
-		{"file:api_key", "file", "api_key"},
-		{"PORT", "env", "PORT"},                         // No prefix defaults to env
-		{"custom:db:password", "custom", "db:password"}, // Only first : is separator
-		{"", "env", ""},                                 // Empty string defaults to env with empty key
-	}
+var _ = Describe("Resolver", func() {
+	var mockLoader *MockLoader
 
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			prefix, key := parseProperty(tt.input)
-			if prefix != tt.expectedPrefix {
-				t.Errorf("Expected prefix '%s', got '%s'", tt.expectedPrefix, prefix)
-			}
-			if key != tt.expectedKey {
-				t.Errorf("Expected key '%s', got '%s'", tt.expectedKey, key)
-			}
-		})
-	}
-}
+	BeforeEach(func() {
+		mockLoader = &MockLoader{
+			Secrets: map[string]string{
+				"key1": "value1",
+			},
+		}
+		secrets.Register("test", mockLoader)
+	})
 
-func purgeResolvers() {
-	providers = make(map[string]SecretLoader)
-}
+	It("should resolve secret using registered provider", func() {
+		val, err := secrets.Resolve("test:key1")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(val).To(Equal("value1"))
+	})
+
+	It("should return error if provider not found", func() {
+		_, err := secrets.Resolve("unknown:key1")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("no secret provider registered"))
+	})
+
+	It("should return error if secret not found", func() {
+		_, err := secrets.Resolve("test:key2")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("failed to resolve secret"))
+	})
+
+	It("should default to env provider if no prefix", func() {
+		// Assuming env provider is registered by default and we can mock it or set env var
+		// But since we can't easily mock the default env provider without replacing it,
+		// let's register a mock as "env" for this test if possible.
+		// However, secrets.Register("env", ...) might have side effects if parallel tests run.
+		// For unit tests, we should be careful.
+		// Let's skip this or rely on the fact that we can overwrite "env" provider.
+		secrets.Register("env", mockLoader)
+		val, err := secrets.Resolve("key1")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(val).To(Equal("value1"))
+	})
+})

@@ -20,7 +20,7 @@ Sargantana Go is a modular configuration-driven web framework built on [Gin](htt
 ** Configuration System with Secret Management**
 - YAML-based configuration with environment variable expansion
 - Pluggable secret loaders implementing `SecretLoader` interface (env, file, Vault, AWS Secrets Manager)
-- Type-safe configuration loading with validation via `ClientFactory[T]` pattern
+- Type-safe configuration loading with validation via `Validatable[T]`, also datasource creation from those configurations via `ClientFactory[T]`
 
 ** Modular Web Server Architecture**
 - Controller-based system where each controller type can have multiple instances
@@ -901,10 +901,16 @@ the [Testing Guide](docs/testing.md).
 git clone https://github.com/animalet/sargantana-go.git
 cd sargantana-go
 
-# Start test services
+# Start test services (required for integration tests)
 docker-compose up -d
 
-# Run tests
+# Run unit tests
+make test-unit
+
+# Run integration tests
+make test-integration
+
+# Run all tests
 make test
 
 # Build the project

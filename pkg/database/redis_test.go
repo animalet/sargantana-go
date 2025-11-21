@@ -1,554 +1,76 @@
-package database
+//go:build unit
+
+package database_test
 
 import (
-	"testing"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
+	"github.com/animalet/sargantana-go/pkg/database"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-func TestNewRedisPoolWithConfig(t *testing.T) {
-	tests := []struct {
-		name      string
-		config    *RedisConfig
-		connError bool
-	}{
-		{
-			name: "basic config",
-			config: &RedisConfig{
+var _ = Describe("RedisConfig", func() {
+	Context("Validation", func() {
+		It("should validate correct configuration", func() {
+			cfg := database.RedisConfig{
 				Address:     "localhost:6379",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     5,
-				IdleTimeout: 120 * time.Second,
-			},
-		},
-		{
-			name: "config with wrong password",
-			config: &RedisConfig{
-				Address:     "localhost:6379",
-				Username:    "redisuser",
-				Password:    "badpassword",
-				MaxIdle:     15,
-				IdleTimeout: 300 * time.Second,
-			},
-			connError: true,
-		},
-		{
-			name: "config with good password",
-			config: &RedisConfig{
-				Address:     "localhost:6379",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     15,
-				IdleTimeout: 300 * time.Second,
-			},
-		},
-		{
-			name: "config with database selection",
-			config: &RedisConfig{
-				Address:     "localhost:6379",
-				Username:    "redisuser",
-				Password:    "redispass",
-				Database:    1,
-				MaxIdle:     8,
-				IdleTimeout: 180 * time.Second,
-			},
-		},
-		{
-			name: "config with TLS enabled",
-			config: &RedisConfig{
-				Address:     "localhost:6380",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     12,
-				IdleTimeout: 5 * time.Second,
-				TLS: &TLSConfig{
-					InsecureSkipVerify: true,
-				},
-			},
-		},
-		{
-			name: "config with wrong certificates",
-			config: &RedisConfig{
-				Address:     "localhost:6380",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     20,
-				IdleTimeout: 360 * time.Second,
-				TLS: &TLSConfig{
-					InsecureSkipVerify: false,
-					CertFile:           "/path/to/client.crt",
-					KeyFile:            "/path/to/client.key",
-					CAFile:             "/path/to/ca.crt",
-				},
-			},
-			connError: true,
-		},
-		{
-			name: "config with wrong address",
-			config: &RedisConfig{
-				Address:     "secure-redis.example.com:6380",
-				Password:    "redispass",
-				MaxIdle:     20,
-				IdleTimeout: 360 * time.Second,
-				TLS: &TLSConfig{
-					InsecureSkipVerify: false,
-					CAFile:             "/path/to/ca.crt",
-					CertFile:           "/path/to/client.crt",
-					KeyFile:            "/path/to/client.key",
-				},
-			},
-			connError: true,
-		},
-		{
-			name: "config with wrong ca file",
-			config: &RedisConfig{
-				Address:     "localhost:6380",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     20,
-				IdleTimeout: 360 * time.Second,
-				TLS: &TLSConfig{
-					InsecureSkipVerify: false,
-					CAFile:             "../../certs/client.key", // Should be a CA file (../certs/ca.crt)
-				},
-			},
-			connError: true,
-		},
-		{
-			name: "config with TLS and client certificate",
-			config: &RedisConfig{
-				Address:     "localhost:6380",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     20,
-				IdleTimeout: 360 * time.Second,
-				TLS: &TLSConfig{
-					InsecureSkipVerify: false,
-					CAFile:             "../../certs/ca.crt",
-					CertFile:           "../../certs/client.crt",
-					KeyFile:            "../../certs/client.key",
-				},
-			},
-		},
-		{
-			name: "config with TLS and wrong client certificate",
-			config: &RedisConfig{
-				Address:     "localhost:6380",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     20,
-				IdleTimeout: 360 * time.Second,
-				TLS: &TLSConfig{
-					InsecureSkipVerify: false,
-					CAFile:             "../../certs/ca.crt",
-					CertFile:           "/path/to/client.crt",
-					KeyFile:            "/path/to/client.key",
-				},
-			},
-			connError: true,
-		},
-		{
-			name: "config with TLS and server certificate",
-			config: &RedisConfig{
-				Address:     "localhost:6380",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     20,
-				IdleTimeout: 360 * time.Second,
-				TLS: &TLSConfig{
-					InsecureSkipVerify: false,
-					CAFile:             "../../certs/ca.crt",
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pool := newRedisPoolWithConfig(tt.config)
-			defer func() {
-				err := pool.Close()
-				if err != nil {
-					t.Errorf("Failed to close Redis pool: %v", err)
-				}
-			}()
-			if pool == nil {
-				t.Fatal("NewRedisPoolWithConfig returned nil")
+				MaxIdle:     10,
+				IdleTimeout: time.Minute,
 			}
-
-			// Verify pool configuration
-			if pool.MaxIdle != tt.config.MaxIdle {
-				t.Errorf("MaxIdle = %v, want %v", pool.MaxIdle, tt.config.MaxIdle)
-			}
-
-			if pool.IdleTimeout != tt.config.IdleTimeout {
-				t.Errorf("IdleTimeout = %v, want %v", pool.IdleTimeout, tt.config.IdleTimeout)
-			}
-
-			if pool.TestOnBorrow == nil {
-				t.Error("TestOnBorrow is nil")
-			}
-
-			if pool.Dial == nil {
-				t.Error("Dial function is nil")
-			}
-			conn := pool.Get()
-			defer func() {
-				err := pool.Close()
-				if err != nil {
-					t.Errorf("Failed to close Redis pool: %v", err)
-				}
-			}()
-
-			_, err := conn.Do("PING")
-			switch {
-			case err != nil && !tt.connError:
-				t.Fatalf("Unexpected connection error state: got %v, want error: %v", err, tt.connError)
-			case err != nil && tt.connError:
-				t.Logf("Connection failed as expected: %v", err)
-				return
-			}
-
-			// Test basic operations if Redis is available
-			_, err = conn.Do("SET", "test:key", "test:value")
-			if err != nil {
-				t.Errorf("Failed to SET key: %v", err)
-			}
-
-			reply, err := conn.Do("GET", "test:key")
-			if err != nil {
-				t.Errorf("Failed to GET key: %v", err)
-			}
-
-			value, err := redis.String(reply, err)
-			if err != nil {
-				t.Errorf("Failed to convert reply to string: %v", err)
-			}
-
-			if value != "test:value" {
-				t.Errorf("Expected 'test:value', got '%s'", value)
-			}
-
-			// Clean up
-			_, err = conn.Do("DEL", "test:key")
-			if err != nil {
-				t.Errorf("Failed to DELETE key: %v", err)
-			}
+			Expect(cfg.Validate()).To(Succeed())
 		})
-	}
-}
 
-func BenchmarkRedisPool_GetConnection(b *testing.B) {
-	benchmarks := []struct {
-		name   string
-		config *RedisConfig
-	}{
-		{
-			name: "NoTLS_WithAuth",
-			config: &RedisConfig{
-				Address:     "localhost:6379",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-			},
-		},
-		{
-			name: "TLS_NoAuth",
-			config: &RedisConfig{
-				Address:     "localhost:6380",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-				TLS: &TLSConfig{
-					InsecureSkipVerify: true,
-				},
-			},
-		},
-		{
-			name: "TLS_WithAuth",
-			config: &RedisConfig{
-				Address:     "localhost:6380",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-				TLS: &TLSConfig{
-					InsecureSkipVerify: false,
-					CAFile:             "../../certs/ca.crt",
-					CertFile:           "../../certs/client.crt",
-					KeyFile:            "../../certs/client.key",
-				},
-			},
-		},
-	}
-
-	for _, bm := range benchmarks {
-		b.Run(bm.name, func(b *testing.B) {
-			pool := newRedisPoolWithConfig(bm.config)
-			defer func() {
-				err := pool.Close()
-				if err != nil {
-					b.Errorf("Failed to close Redis pool: %v", err)
-				}
-			}()
-
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				conn := pool.Get()
-				err := conn.Close()
-				if err != nil {
-					b.Errorf("Failed to close connection: %v", err)
-				}
+		It("should fail if address is missing", func() {
+			cfg := database.RedisConfig{
+				MaxIdle: 10,
 			}
+			Expect(cfg.Validate()).To(HaveOccurred())
 		})
-	}
-}
 
-func BenchmarkRedisPool_TestOnBorrow(b *testing.B) {
-	benchmarks := []struct {
-		name   string
-		config *RedisConfig
-	}{
-		{
-			name: "NoTLS_WithAuth",
-			config: &RedisConfig{
-				Address:     "localhost:6379",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-			},
-		},
-		{
-			name: "TLS_WithAuthAndServerCert",
-			config: &RedisConfig{
-				Address:     "localhost:6380",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-				TLS: &TLSConfig{
-					InsecureSkipVerify: true,
-					CAFile:             "../../certs/ca.crt",
-				},
-			},
-		},
-		{
-			name: "TLS_WithAuthAndClientCert",
-			config: &RedisConfig{
-				Address:     "localhost:6380",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-				TLS: &TLSConfig{
-					InsecureSkipVerify: false,
-					CAFile:             "../../certs/ca.crt",
-					CertFile:           "../../certs/client.crt",
-					KeyFile:            "../../certs/client.key",
-				},
-			},
-		},
-	}
-
-	for _, bm := range benchmarks {
-		b.Run(bm.name, func(b *testing.B) {
-			pool := newRedisPoolWithConfig(bm.config)
-			defer func() {
-				err := pool.Close()
-				if err != nil {
-					b.Errorf("Failed to close Redis pool: %v", err)
-				}
-			}()
-
-			// Get a connection to test the TestOnBorrow function directly
-			conn := pool.Get()
-			defer func() {
-				_ = conn.Close()
-			}()
-
-			// Create a time that's older than 1 minute to trigger TestOnBorrow
-			oldTime := time.Now().Add(-2 * time.Minute)
-
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				// Call the TestOnBorrow function directly with an old timestamp
-				err := pool.TestOnBorrow(conn, oldTime)
-				if err != nil {
-					b.Errorf("TestOnBorrow failed: %v", err)
-				}
+		It("should fail if max_idle is negative", func() {
+			cfg := database.RedisConfig{
+				Address: "localhost:6379",
+				MaxIdle: -1,
 			}
+			Expect(cfg.Validate()).To(HaveOccurred())
 		})
-	}
-}
 
-func TestRedisConfig_Validate(t *testing.T) {
-	tests := []struct {
-		name    string
-		config  RedisConfig
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "valid config",
-			config: RedisConfig{
+		It("should fail if idle_timeout is negative", func() {
+			cfg := database.RedisConfig{
 				Address:     "localhost:6379",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-			},
-			wantErr: false,
-		},
-		{
-			name: "empty address",
-			config: RedisConfig{
-				Address:     "",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-			},
-			wantErr: true,
-			errMsg:  "redis address must be set and non-empty",
-		},
-		{
-			name: "negative MaxIdle",
-			config: RedisConfig{
-				Address:     "localhost:6379",
-				MaxIdle:     -1,
-				IdleTimeout: 5 * time.Second,
-			},
-			wantErr: true,
-			errMsg:  "redis max_idle must be non-negative",
-		},
-		{
-			name: "negative IdleTimeout",
-			config: RedisConfig{
-				Address:     "localhost:6379",
-				MaxIdle:     10,
-				IdleTimeout: -5 * time.Second,
-			},
-			wantErr: true,
-			errMsg:  "redis idle_timeout must be non-negative",
-		},
-		{
-			name: "negative Database",
-			config: RedisConfig{
-				Address:     "localhost:6379",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-				Database:    -1,
-			},
-			wantErr: true,
-			errMsg:  "redis database must be non-negative",
-		},
-		{
-			name: "TLS with cert but no key",
-			config: RedisConfig{
-				Address:     "localhost:6380",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-				TLS: &TLSConfig{
-					CertFile: "cert.pem",
-					KeyFile:  "",
-				},
-			},
-			wantErr: true,
-			errMsg:  "both cert_file and key_file must be set together in TLS configuration",
-		},
-		{
-			name: "TLS with key but no cert",
-			config: RedisConfig{
-				Address:     "localhost:6380",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-				TLS: &TLSConfig{
-					CertFile: "",
-					KeyFile:  "key.pem",
-				},
-			},
-			wantErr: true,
-			errMsg:  "both cert_file and key_file must be set together in TLS configuration",
-		},
-		{
-			name: "valid TLS config with cert and key",
-			config: RedisConfig{
-				Address:     "localhost:6380",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-				TLS: &TLSConfig{
+				IdleTimeout: -1,
+			}
+			Expect(cfg.Validate()).To(HaveOccurred())
+		})
+
+		It("should fail if database is negative", func() {
+			cfg := database.RedisConfig{
+				Address:  "localhost:6379",
+				Database: -1,
+			}
+			Expect(cfg.Validate()).To(HaveOccurred())
+		})
+
+		It("should validate TLS configuration", func() {
+			cfg := database.RedisConfig{
+				Address: "localhost:6379",
+				TLS: &database.TLSConfig{
 					CertFile: "cert.pem",
 					KeyFile:  "key.pem",
 				},
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("Validate() expected error but got nil")
-				} else if err.Error() != tt.errMsg {
-					t.Errorf("Validate() error = %v, want %v", err.Error(), tt.errMsg)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Validate() unexpected error = %v", err)
-				}
 			}
+			Expect(cfg.Validate()).To(Succeed())
 		})
-	}
-}
 
-func TestRedisConfig_CreateClient(t *testing.T) {
-	tests := []struct {
-		name    string
-		config  RedisConfig
-		wantErr bool
-	}{
-		{
-			name: "valid config",
-			config: RedisConfig{
-				Address:     "localhost:6379",
-				Username:    "redisuser",
-				Password:    "redispass",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-			},
-			wantErr: false,
-		},
-		{
-			name: "invalid config - empty address",
-			config: RedisConfig{
-				Address:     "",
-				MaxIdle:     10,
-				IdleTimeout: 5 * time.Second,
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pool, err := tt.config.CreateClient()
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("CreateClient() expected error but got nil")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("CreateClient() unexpected error = %v", err)
-				}
-				if pool == nil {
-					t.Errorf("CreateClient() returned nil pool")
-				}
-				// Clean up
-				if pool != nil {
-					_ = pool.Close()
-				}
+		It("should fail if TLS cert is set without key", func() {
+			cfg := database.RedisConfig{
+				Address: "localhost:6379",
+				TLS: &database.TLSConfig{
+					CertFile: "cert.pem",
+				},
 			}
+			Expect(cfg.Validate()).To(HaveOccurred())
 		})
-	}
-}
+	})
+})

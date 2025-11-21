@@ -19,7 +19,10 @@ type ModuleRawConfig []byte
 
 func Unmarshal[T Validatable](r ModuleRawConfig) (config *T, err error) {
 	err = unmarshal(r, &config)
-	return config, err
+	if err != nil {
+		return nil, err
+	}
+	return doExpand(config, err)
 }
 
 // Validatable interface defines types that can be validated.

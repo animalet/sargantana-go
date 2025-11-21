@@ -6,6 +6,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	redissessions "github.com/gin-contrib/sessions/redis"
 	"github.com/gomodule/redigo/redis"
+	"github.com/pkg/errors"
 )
 
 // NewRedisSessionStore creates a new Redis-based session store with secure default settings.
@@ -25,6 +26,9 @@ import (
 //
 // Returns an error if Redis store creation or configuration fails.
 func NewRedisSessionStore(secure bool, secret []byte, pool *redis.Pool) (sessions.Store, error) {
+	if pool == nil {
+		return nil, errors.New("Redis pool cannot be nil")
+	}
 	store, err := redissessions.NewStoreWithPool(pool, secret)
 	if err != nil {
 		return nil, err

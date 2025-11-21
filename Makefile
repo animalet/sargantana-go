@@ -87,7 +87,15 @@ test:
 
 test-with-coverage:
 	@echo "Running tests with coverage..."
-	go test $(shell go list ./... | grep -v '/examples/') -covermode=atomic -coverprofile=coverage.out
+	go test -tags=unit,integration $(shell go list ./... | grep -v '/examples/') -covermode=atomic -coverprofile=coverage.out
+
+test-unit:
+	@echo "Running unit tests..."
+	go test -tags=unit ./...
+
+test-integration:
+	@echo "Running integration tests..."
+	go test -tags=integration ./...
 
 check-coverage: test-with-coverage install-go-test-with-coverage
 	$(GO_TEST_COVERAGE) --config=./.testcoverage.yml
