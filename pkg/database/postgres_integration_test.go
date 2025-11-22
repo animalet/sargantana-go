@@ -30,4 +30,21 @@ var _ = Describe("PostgreSQL Integration", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result).To(Equal(1))
 	})
+
+	It("should connect with default settings (sslmode=prefer)", func() {
+		cfg := database.PostgresConfig{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "user",
+			Password: "password",
+			Database: "my_blog_db",
+			SSLMode:  "prefer",
+		}
+		pool, err := cfg.CreateClient()
+		Expect(err).NotTo(HaveOccurred())
+		defer pool.Close()
+
+		err = pool.Ping(context.Background())
+		Expect(err).NotTo(HaveOccurred())
+	})
 })

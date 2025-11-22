@@ -29,4 +29,19 @@ var _ = Describe("Memcached Integration", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(string(item.Value)).To(Equal("test-value"))
 	})
+
+	It("should connect with plaintext (no auth)", func() {
+		cfg := database.MemcachedConfig{
+			Servers: []string{"localhost:11211"},
+		}
+		client, err := cfg.CreateClient()
+		Expect(err).NotTo(HaveOccurred())
+
+		err = client.Set(&memcache.Item{Key: "test_ping", Value: []byte("pong")})
+		Expect(err).NotTo(HaveOccurred())
+
+		item, err := client.Get("test_ping")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(item.Value)).To(Equal("pong"))
+	})
 })

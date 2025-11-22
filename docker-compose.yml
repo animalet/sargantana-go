@@ -11,18 +11,7 @@ services:
     image: redis:7.2-alpine
     hostname: redis
     command: >
-      sh -c "
-      echo 'user default off' > users.acl &&
-      echo 'user redisuser on >redispass allcommands allkeys' >> users.acl &&
-      redis-server
-      --port 6379
-      --tls-port 6380
-      --tls-cert-file /certs/redis.crt
-      --tls-key-file /certs/redis.key
-      --tls-ca-cert-file /certs/ca.crt
-      --tls-auth-clients no
-      --aclfile users.acl
-      "
+      sh -c " echo 'user default off' > users.acl && echo 'user redisuser on >redispass allcommands allkeys' >> users.acl && redis-server --port 6379 --tls-port 6380 --tls-cert-file /certs/redis.crt --tls-key-file /certs/redis.key --tls-ca-cert-file /certs/ca.crt --tls-auth-clients no --aclfile users.acl "
     ports:
       - "6379:6379"
       - "6380:6380"
@@ -32,7 +21,7 @@ services:
       generate-certs:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -h redis -p 6379 -a redispass ping"]
+      test: [ "CMD-SHELL", "redis-cli -h redis -p 6379 -a redispass ping" ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -177,7 +166,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user"]
+      test: [ "CMD-SHELL", "pg_isready -U user" ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -210,7 +199,7 @@ services:
         echo "AWS Secrets Manager initialized with test secrets"
         wait
     healthcheck:
-      test: ["CMD", "awslocal", "secretsmanager", "list-secrets", "--query", "length(SecretList)", "--output", "text"]
+      test: [ "CMD", "awslocal", "secretsmanager", "list-secrets", "--query", "length(SecretList)", "--output", "text" ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -224,7 +213,7 @@ services:
       - "11211:11211"
     command: memcached -m 64 -vv
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "11211"]
+      test: [ "CMD", "nc", "-z", "localhost", "11211" ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -268,7 +257,7 @@ services:
     volumes:
       - mongodb_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -323,9 +312,73 @@ services:
     networks:
       - sargantana-network
 
+  mongodb-tls:
+    image: mongo:7.0
+    hostname: mongodb-tls
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: adminpass
+      MONGO_INITDB_DATABASE: sessions_test
+    ports:
+      - "27018:27017"
+    command: |
+      sh -c "
+        # Create mongod.conf
+        echo 'net:
+          bindIpAll: true
+          tls:
+            mode: requireTLS
+            certificateKeyFile: /certs/mongodb.pem
+            CAFile: /certs/ca.crt' > /etc/mongod.conf
+
+        # Create user script
+        echo \"db = db.getSiblingDB('admin');
+        var users = db.getUsers();
+        var userExists = false;
+        for (var i = 0; i < users.users.length; i++) {
+          if (users.users[i].user === 'testuser') {
+            userExists = true;
+            break;
+          }
+        }
+        if (!userExists) {
+          db.createUser({
+            user: 'testuser',
+            pwd: 'testpass',
+            roles: [{ role: 'readWrite', db: 'sessions_test' }]
+          });
+          print('Test user created successfully');
+        } else {
+          print('Test user already exists');
+        }\" > /docker-entrypoint-initdb.d/01-init-users.js
+
+        # Wait for certs to be generated
+        while [ ! -f /certs/mongodb.pem ]; do
+          echo 'Waiting for certificates...'
+          sleep 1
+        done
+        # Start Mongo with TLS config
+        exec docker-entrypoint.sh mongod --config /etc/mongod.conf
+      "
+    volumes:
+      - mongodb_tls_data:/data/db
+      - ./certs:/certs:ro
+    depends_on:
+      generate-mongodb-certs:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "mongosh", "--tls", "--tlsCertificateKeyFile", "/certs/mongodb.pem", "--tlsCAFile", "/certs/ca.crt", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sargantana-network
+
 volumes:
   pg_data:
   mongodb_data:
+  mongodb_tls_data:
+
 
 networks:
   sargantana-network:

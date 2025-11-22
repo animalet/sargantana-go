@@ -122,6 +122,22 @@ func (a AuthControllerConfig) Validate() error {
 		return errors.New("redirect_on_logout must be set and non-empty")
 	}
 	for name, provider := range a.Providers {
+		if name == "wecom" {
+			if provider.CorpID == "" {
+				return errors.Errorf("provider %s corp_id must be set and non-empty", name)
+			}
+			if provider.Secret == "" {
+				return errors.Errorf("provider %s secret must be set and non-empty", name)
+			}
+			continue
+		}
+		if name == "steam" {
+			if provider.Key == "" {
+				return errors.Errorf("provider %s key must be set and non-empty", name)
+			}
+			continue
+		}
+
 		if provider.Key == "" {
 			return errors.Errorf("provider %s key must be set and non-empty", name)
 		}
