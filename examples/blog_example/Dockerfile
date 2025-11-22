@@ -16,7 +16,7 @@ COPY . .
 
 # Build the blog example
 WORKDIR /build/examples/blog_example
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/blog-server ./main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/blog-server ./cmd/main.go
 
 # Stage 2: Create minimal runtime image
 FROM scratch

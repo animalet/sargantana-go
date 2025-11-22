@@ -66,13 +66,13 @@ func main() {
 	}()
 	cfg := readConfig(*configFile)
 
-	serverCfg, err := config.Load[server.SargantanaConfig](cfg["server"])
+	serverCfg, err := config.Load[server.SargantanaConfig](cfg.Get("server"))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load server configuration"))
 	}
 	sargantana := server.NewServer(*serverCfg)
 
-	redisCfg, err := config.Load[database.RedisConfig](cfg["redis"])
+	redisCfg, err := config.Load[database.RedisConfig](cfg.Get("redis"))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load Redis configuration"))
 	}
@@ -108,7 +108,7 @@ func readConfig(file string) config.Config {
 	}
 
 	// Register Vault provider if configured
-	vaultCfg, err := config.Load[secrets.VaultConfig](cfg["vault"])
+	vaultCfg, err := config.Load[secrets.VaultConfig](cfg.Get("vault"))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load Vault configuration"))
 	}
@@ -119,7 +119,7 @@ func readConfig(file string) config.Config {
 	secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
 
 	// Register file provider if configured
-	fileResolverCfg, err := config.Load[secrets.FileSecretConfig](cfg["file_resolver"])
+	fileResolverCfg, err := config.Load[secrets.FileSecretConfig](cfg.Get("file_resolver"))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load file secret resolver configuration"))
 	}

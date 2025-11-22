@@ -52,7 +52,7 @@ func readConfig() config.Config {
 	}
 
 	// Register Vault provider if configured
-	vaultCfg, err := config.Load[secrets.VaultConfig](cfg["vault"])
+	vaultCfg, err := config.Load[secrets.VaultConfig](cfg.Get("vault"))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load Vault configuration"))
 	}
@@ -63,7 +63,7 @@ func readConfig() config.Config {
 	secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
 
 	// Register file provider if configured
-	fileResolverCfg, err := config.Load[secrets.FileSecretConfig](cfg["file_resolver"])
+	fileResolverCfg, err := config.Load[secrets.FileSecretConfig](cfg.Get("file_resolver"))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load file secret resolver configuration"))
 	}
@@ -76,14 +76,14 @@ func readConfig() config.Config {
 }
 
 func newServer(cfg config.Config) (sargantana *server.Server, redisPool *redis.Pool) {
-	serverCfg, err := config.Load[server.SargantanaConfig](cfg["sargantana"])
+	serverCfg, err := config.Load[server.SargantanaConfig](cfg.Get("sargantana"))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load server configuration"))
 	}
 	sargantana = server.NewServer(*serverCfg)
 
 	// Set up Redis session store if configured
-	redisCfg, err := config.Load[database.RedisConfig](cfg["redis"])
+	redisCfg, err := config.Load[database.RedisConfig](cfg.Get("redis"))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load Redis configuration"))
 	}
@@ -100,7 +100,7 @@ func newServer(cfg config.Config) (sargantana *server.Server, redisPool *redis.P
 }
 
 func newPgPool(cfg config.Config) *pgxpool.Pool {
-	postgresCfg, err := config.Load[database.PostgresConfig](cfg["database"])
+	postgresCfg, err := config.Load[database.PostgresConfig](cfg.Get("database"))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load PostgreSQL configuration"))
 	}
