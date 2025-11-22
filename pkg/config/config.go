@@ -22,7 +22,7 @@ func Unmarshal[T Validatable](r ModuleRawConfig) (config *T, err error) {
 	if err != nil {
 		return nil, err
 	}
-	return doExpand(config, err)
+	return doExpand(config)
 }
 
 // Validatable interface defines types that can be validated.
@@ -72,7 +72,7 @@ func ReadFull[T Validatable](path string) (full *T, err error) {
 		return nil, err
 	}
 
-	return doExpand(full, err)
+	return doExpand(full)
 }
 
 func Load[T Validatable](cfg ModuleRawConfig) (partial *T, err error) {
@@ -80,12 +80,12 @@ func Load[T Validatable](cfg ModuleRawConfig) (partial *T, err error) {
 	if err != nil {
 		return nil, err
 	}
-	return doExpand(partial, err)
+	return doExpand(partial)
 }
 
-func doExpand[T Validatable](toExpand *T, err error) (*T, error) {
+func doExpand[T Validatable](toExpand *T) (*T, error) {
 	expandVariables(reflect.ValueOf(toExpand).Elem())
-	if err = (*toExpand).Validate(); err != nil {
+	if err := (*toExpand).Validate(); err != nil {
 		return nil, errors.Wrap(err, "configuration is invalid")
 	}
 	return toExpand, nil

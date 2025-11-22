@@ -82,7 +82,11 @@ func main() {
 		if err != nil {
 			panic(errors.Wrap(err, "failed to create Redis client"))
 		}
-		defer redisPool.Close()
+		defer func() {
+			if err := redisPool.Close(); err != nil {
+				log.Error().Err(err).Msg("Failed to close Redis pool")
+			}
+		}()
 		store, err := session.NewRedisSessionStore(*debugMode, []byte(serverCfg.WebServerConfig.SessionSecret), redisPool)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Unable to create Redis session store")

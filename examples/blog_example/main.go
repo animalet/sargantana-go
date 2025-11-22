@@ -33,7 +33,11 @@ func main() {
 	server.AddControllerType("blog", blog.NewBlogController(pool))
 
 	sargantana, redisPool := newServer(cfg)
-	defer redisPool.Close()
+	defer func() {
+		if err := redisPool.Close(); err != nil {
+			log.Error().Err(err).Msg("Failed to close Redis pool")
+		}
+	}()
 	err := sargantana.StartAndWaitForSignal()
 	if err != nil {
 		panic(err)
