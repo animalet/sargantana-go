@@ -14,7 +14,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Config map[string]ModuleRawConfig
+type Config struct {
+	modules map[string]ModuleRawConfig
+}
+
 type ModuleRawConfig []byte
 
 func Unmarshal[T Validatable](r ModuleRawConfig) (config *T, err error) {
@@ -50,16 +53,17 @@ type ClientFactory[T any] interface {
 	CreateClient() (T, error)
 }
 
-func ReadModular(path string) (cfg Config, err error) {
+func ReadModular(path string) (cfg *Config, err error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read configuration file: %s", path)
 	}
-	err = unmarshal(data, &cfg)
+	var modules map[string]ModuleRawConfig
+	err = unmarshal(data, &modules)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error marshalling to %s", format)
 	}
-	return cfg, nil
+	return &Config{modules: modules}, nil
 }
 
 func ReadFull[T Validatable](path string) (full *T, err error) {
@@ -75,8 +79,16 @@ func ReadFull[T Validatable](path string) (full *T, err error) {
 	return doExpand(full)
 }
 
-func Load[T Validatable](cfg ModuleRawConfig) (partial *T, err error) {
-	err = unmarshal(cfg, &partial)
+func Get[T Validatable](c *Config, name string) (*T, error) {
+	raw, ok := c.modules[name]
+	if !ok {
+		// If the module is missing, we might want to return nil, nil or an error.
+		// Returning nil, nil allows checking for optional configs.
+		return nil, nil
+	}
+
+	var partial *T
+	err := unmarshal(raw, &partial)
 	if err != nil {
 		return nil, err
 	}

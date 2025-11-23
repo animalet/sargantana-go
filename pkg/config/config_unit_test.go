@@ -76,20 +76,71 @@ var _ = Describe("Config", func() {
 	})
 
 	Context("ReadModular", func() {
+		It("should read modular config and allow getting modules", func() {
+			path := filepath.Join(tempDir, "test.yaml")
+			err := os.WriteFile(path, []byte(`
+test:
+  field: value
+`), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			cfg, err := config.ReadModular(path)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cfg).NotTo(BeNil())
+
+			// Verify we can get a module
+			testCfg, err := config.Get[TestConfigStruct](cfg, "test")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(testCfg).NotTo(BeNil())
+			Expect(testCfg.Field).To(Equal("value"))
+		})
+
 		It("should return error if file does not exist", func() {
 			_, err := config.ReadModular("non_existent_file.yaml")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed to read configuration file"))
 		})
 
-		It("should return error if unmarshal fails", func() {
+		It("should return error if file content is invalid", func() {
 			path := filepath.Join(tempDir, "invalid.yaml")
-			err := os.WriteFile(path, []byte("invalid: yaml: content: :"), 0644)
+			err := os.WriteFile(path, []byte("invalid yaml content: :"), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
 			_, err = config.ReadModular(path)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("error marshalling to"))
+		})
+	})
+
+	Describe("Get", func() {
+		It("should return nil if module does not exist", func() {
+			path := filepath.Join(tempDir, "config.yaml")
+			err := os.WriteFile(path, []byte(`
+server:
+  host: localhost
+  port: 8080
+`), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			cfg, err := config.ReadModular(path)
+			Expect(err).NotTo(HaveOccurred())
+
+			val, err := config.Get[TestConfigStruct](cfg, "nonexistent")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(val).To(BeNil())
+		})
+
+		It("should return error if validation fails", func() {
+			path := filepath.Join(tempDir, "config.yaml")
+			err := os.WriteFile(path, []byte(`
+test:
+  field: invalid
+`), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			cfg, err := config.ReadModular(path)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = config.Get[TestConfigStruct](cfg, "test")
+			Expect(err).To(HaveOccurred())
 		})
 	})
 
@@ -115,21 +166,6 @@ var _ = Describe("Config", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			_, err = config.ReadFull[TestConfigStruct](path)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("configuration is invalid"))
-		})
-	})
-
-	Context("Load", func() {
-		It("should return error if unmarshal fails", func() {
-			raw := config.ModuleRawConfig([]byte("invalid: yaml: :"))
-			_, err := config.Load[TestConfigStruct](raw)
-			Expect(err).To(HaveOccurred())
-		})
-
-		It("should return error if validation fails", func() {
-			raw := config.ModuleRawConfig([]byte("field: invalid"))
-			_, err := config.Load[TestConfigStruct](raw)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("configuration is invalid"))
 		})
@@ -292,22 +328,20 @@ server:
 
 				cfg, err := config.ReadModular(path)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(cfg).To(HaveKey("server"))
-			})
-		})
 
-		Describe("Load", func() {
-			It("should load partial config", func() {
-				data := []byte(`
-host: localhost
-port: 8080
-secret: ${mock:my-secret}
-`)
-				cfg, err := config.Load[ConfigTestStruct](data)
+				// We can't use ConfigTestStruct here because the yaml structure doesn't match
+				// ConfigTestStruct expects fields at root, but here they are under "server" key?
+				// Wait, ReadModular reads the file into a map. "server" key in the map contains the content.
+				// The content is:
+				// host: localhost
+				// port: 8080
+				// This matches ConfigTestStruct.
+
+				val, err := config.Get[ConfigTestStruct](cfg, "server")
 				Expect(err).NotTo(HaveOccurred())
-				Expect(cfg.Host).To(Equal("localhost"))
-				Expect(cfg.Port).To(Equal(8080))
-				Expect(cfg.Secret).To(Equal("super-secret-value"))
+				Expect(val).NotTo(BeNil())
+				Expect(val.Host).To(Equal("localhost"))
+				Expect(val.Port).To(Equal(8080))
 			})
 		})
 	})

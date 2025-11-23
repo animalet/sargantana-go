@@ -44,7 +44,7 @@ func main() {
 	}
 }
 
-func readConfig() config.Config {
+func readConfig() *config.Config {
 	config.UseFormat(config.YamlFormat)
 	cfg, err := config.ReadModular("./config.yaml")
 	if err != nil {
@@ -52,57 +52,69 @@ func readConfig() config.Config {
 	}
 
 	// Register Vault provider if configured
-	vaultCfg, err := config.Load[secrets.VaultConfig](cfg.Get("vault"))
+	vaultCfg, err := config.Get[secrets.VaultConfig](cfg, "vault")
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load Vault configuration"))
 	}
-	vaultClient, err := vaultCfg.CreateClient()
-	if err != nil {
-		panic(errors.Wrap(err, "failed to create Vault client"))
+	if vaultCfg != nil {
+		vaultClient, err := vaultCfg.CreateClient()
+		if err != nil {
+			panic(errors.Wrap(err, "failed to create Vault client"))
+		}
+		secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
 	}
-	secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
 
 	// Register file provider if configured
-	fileResolverCfg, err := config.Load[secrets.FileSecretConfig](cfg.Get("file_resolver"))
+	fileResolverCfg, err := config.Get[secrets.FileSecretConfig](cfg, "file_resolver")
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load file secret resolver configuration"))
 	}
-	fileResolver, err := fileResolverCfg.CreateClient()
-	if err != nil {
-		panic(errors.Wrap(err, "failed to create file secret provider"))
+	if fileResolverCfg != nil {
+		fileResolver, err := fileResolverCfg.CreateClient()
+		if err != nil {
+			panic(errors.Wrap(err, "failed to create file secret provider"))
+		}
+		secrets.Register("file", fileResolver)
 	}
-	secrets.Register("file", fileResolver)
 	return cfg
 }
 
-func newServer(cfg config.Config) (sargantana *server.Server, redisPool *redis.Pool) {
-	serverCfg, err := config.Load[server.SargantanaConfig](cfg.Get("sargantana"))
+func newServer(cfg *config.Config) (sargantana *server.Server, redisPool *redis.Pool) {
+	serverCfg, err := config.Get[server.SargantanaConfig](cfg, "sargantana")
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load server configuration"))
+	}
+	if serverCfg == nil {
+		panic("server configuration is required")
 	}
 	sargantana = server.NewServer(*serverCfg)
 
 	// Set up Redis session store if configured
-	redisCfg, err := config.Load[database.RedisConfig](cfg.Get("redis"))
+	redisCfg, err := config.Get[database.RedisConfig](cfg, "redis")
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load Redis configuration"))
 	}
-	redisPool, err = redisCfg.CreateClient()
-	if err != nil {
-		panic(errors.Wrap(err, "failed to create Redis connection pool"))
+	if redisCfg != nil {
+		redisPool, err = redisCfg.CreateClient()
+		if err != nil {
+			panic(errors.Wrap(err, "failed to create Redis connection pool"))
+		}
+		store, err := session.NewRedisSessionStore(false, []byte(serverCfg.WebServerConfig.SessionSecret), redisPool)
+		if err != nil {
+			panic(errors.Wrap(err, "failed to create Redis session store"))
+		}
+		sargantana.SetSessionStore(store)
 	}
-	store, err := session.NewRedisSessionStore(false, []byte(serverCfg.WebServerConfig.SessionSecret), redisPool)
-	if err != nil {
-		panic(errors.Wrap(err, "failed to create Redis session store"))
-	}
-	sargantana.SetSessionStore(store)
 	return sargantana, redisPool
 }
 
-func newPgPool(cfg config.Config) *pgxpool.Pool {
-	postgresCfg, err := config.Load[database.PostgresConfig](cfg.Get("database"))
+func newPgPool(cfg *config.Config) *pgxpool.Pool {
+	postgresCfg, err := config.Get[database.PostgresConfig](cfg, "database")
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load PostgreSQL configuration"))
+	}
+	if postgresCfg == nil {
+		panic("database configuration is required")
 	}
 
 	pool, err := postgresCfg.CreateClient()
