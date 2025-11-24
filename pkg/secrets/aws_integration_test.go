@@ -1,11 +1,10 @@
 //go:build integration
 
-package secrets_test
+package secrets
 
 import (
 	"context"
 
-	"github.com/animalet/sargantana-go/pkg/secrets"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -13,7 +12,7 @@ import (
 
 var _ = Describe("AWS Secrets Manager Integration", func() {
 	It("should retrieve JSON secrets from AWS Secrets Manager", func() {
-		cfg := secrets.AWSConfig{
+		cfg := AWSConfig{
 			Region:          "us-east-1",
 			AccessKeyID:     "test",
 			SecretAccessKey: "test",
@@ -24,14 +23,14 @@ var _ = Describe("AWS Secrets Manager Integration", func() {
 		client, err := cfg.CreateClient()
 		Expect(err).NotTo(HaveOccurred())
 
-		loader := secrets.NewAWSSecretLoader(client, cfg.SecretName)
+		loader := NewAWSSecretLoader(client, cfg.SecretName)
 		val, err := loader.Resolve("GOOGLE_KEY")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(val).To(Equal("test-google-key"))
 	})
 
 	It("should retrieve plain text secrets from AWS Secrets Manager", func() {
-		cfg := secrets.AWSConfig{
+		cfg := AWSConfig{
 			Region:          "us-east-1",
 			AccessKeyID:     "test",
 			SecretAccessKey: "test",
@@ -42,7 +41,7 @@ var _ = Describe("AWS Secrets Manager Integration", func() {
 		client, err := cfg.CreateClient()
 		Expect(err).NotTo(HaveOccurred())
 
-		loader := secrets.NewAWSSecretLoader(client, cfg.SecretName)
+		loader := NewAWSSecretLoader(client, cfg.SecretName)
 		// For plain text secrets, the key is ignored
 		val, err := loader.Resolve("ignored-key")
 		Expect(err).NotTo(HaveOccurred())
@@ -50,7 +49,7 @@ var _ = Describe("AWS Secrets Manager Integration", func() {
 	})
 
 	It("should authenticate with static credentials and retrieve JSON secrets", func() {
-		cfg := secrets.AWSConfig{
+		cfg := AWSConfig{
 			Region:          "us-east-1",
 			AccessKeyID:     "test",
 			SecretAccessKey: "test",
@@ -66,7 +65,7 @@ var _ = Describe("AWS Secrets Manager Integration", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// Create loader and resolve secret
-		loader := secrets.NewAWSSecretLoader(client, cfg.SecretName)
+		loader := NewAWSSecretLoader(client, cfg.SecretName)
 
 		val, err := loader.Resolve("GOOGLE_KEY")
 		Expect(err).NotTo(HaveOccurred())

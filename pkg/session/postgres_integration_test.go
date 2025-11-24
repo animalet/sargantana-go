@@ -1,10 +1,9 @@
 //go:build integration
 
-package session_test
+package session
 
 import (
 	"github.com/animalet/sargantana-go/pkg/database"
-	"github.com/animalet/sargantana-go/pkg/session"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -25,7 +24,7 @@ var _ = Describe("Postgres Session Integration", func() {
 		defer pool.Close()
 
 		// Create Session Store
-		store, err := session.NewPostgresSessionStore(false, []byte("secret-key-32-bytes-long-123456"), pool, "sessions")
+		store, err := NewPostgresSessionStore(false, []byte("secret-key-32-bytes-long-123456"), pool, "sessions")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(store).NotTo(BeNil())
 	})

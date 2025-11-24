@@ -1,9 +1,8 @@
 //go:build unit
 
-package session_test
+package session
 
 import (
-	"github.com/animalet/sargantana-go/pkg/session"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gomodule/redigo/redis"
 	. "github.com/onsi/ginkgo/v2"
@@ -25,7 +24,7 @@ var _ = Describe("Session Stores", func() {
 	Context("Cookie Store", func() {
 		It("should create a new cookie store with correct options", func() {
 			secret := []byte("secret-key")
-			store := session.NewCookieStore(true, secret)
+			store := NewCookieStore(true, secret)
 			Expect(store).NotTo(BeNil())
 
 			// Type assertion to check if it's a cookie store
@@ -44,14 +43,14 @@ var _ = Describe("Session Stores", func() {
 				},
 			}
 
-			store, err := session.NewRedisSessionStore(true, secret, pool)
+			store, err := NewRedisSessionStore(true, secret, pool)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(store).NotTo(BeNil())
 		})
 
 		It("should fail if pool is nil", func() {
 			secret := []byte("secret-key")
-			_, err := session.NewRedisSessionStore(true, secret, nil)
+			_, err := NewRedisSessionStore(true, secret, nil)
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -59,7 +58,7 @@ var _ = Describe("Session Stores", func() {
 	Context("Postgres Store", func() {
 		It("should fail if pool is nil", func() {
 			secret := []byte("secret-key")
-			_, err := session.NewPostgresSessionStore(true, secret, nil, "sessions")
+			_, err := NewPostgresSessionStore(true, secret, nil, "sessions")
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -74,7 +73,7 @@ var _ = Describe("Session Stores", func() {
 	Context("MongoDB Store", func() {
 		It("should fail if client is nil", func() {
 			secret := []byte("secret-key")
-			_, err := session.NewMongoDBSessionStore(true, secret, nil, "db", "coll")
+			_, err := NewMongoDBSessionStore(true, secret, nil, "db", "coll")
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -82,7 +81,7 @@ var _ = Describe("Session Stores", func() {
 	Context("Memcached Store", func() {
 		It("should fail if client is nil", func() {
 			secret := []byte("secret-key")
-			_, err := session.NewMemcachedSessionStore(true, secret, nil)
+			_, err := NewMemcachedSessionStore(true, secret, nil)
 			Expect(err).To(HaveOccurred())
 		})
 	})

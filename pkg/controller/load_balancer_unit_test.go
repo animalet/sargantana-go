@@ -1,6 +1,6 @@
 //go:build unit
 
-package controller_test
+package controller
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/animalet/sargantana-go/pkg/config"
-	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	. "github.com/onsi/ginkgo/v2"
@@ -20,7 +19,7 @@ import (
 var _ = Describe("Load Balancer Controller", func() {
 	Context("LoadBalancerControllerConfig Validate", func() {
 		It("should return error if path is empty", func() {
-			cfg := controller.LoadBalancerControllerConfig{
+			cfg := LoadBalancerControllerConfig{
 				Endpoints: []string{"http://localhost:8080"},
 			}
 			err := cfg.Validate()
@@ -29,7 +28,7 @@ var _ = Describe("Load Balancer Controller", func() {
 		})
 
 		It("should return error if endpoints are empty", func() {
-			cfg := controller.LoadBalancerControllerConfig{
+			cfg := LoadBalancerControllerConfig{
 				Path: "/api",
 			}
 			err := cfg.Validate()
@@ -38,7 +37,7 @@ var _ = Describe("Load Balancer Controller", func() {
 		})
 
 		It("should pass with valid config", func() {
-			cfg := controller.LoadBalancerControllerConfig{
+			cfg := LoadBalancerControllerConfig{
 				Path:      "/api",
 				Endpoints: []string{"http://localhost:8080"},
 			}
@@ -66,7 +65,11 @@ endpoints:
   - http://localhost:8081
   - http://localhost:8082
 `)
-			ctrl, err := controller.NewLoadBalancerController(cfgBytes, server.ControllerContext{})
+			var lbCfg LoadBalancerControllerConfig
+			err := yaml.Unmarshal(cfgBytes, &lbCfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			ctrl, err := NewLoadBalancerController(&lbCfg, server.ControllerContext{})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ctrl).NotTo(BeNil())
 
@@ -80,9 +83,13 @@ path: /api
 endpoints:
   - http://%
 `)
-			_, err := controller.NewLoadBalancerController(cfgBytes, server.ControllerContext{})
+			var lbCfg LoadBalancerControllerConfig
+			err := yaml.Unmarshal(cfgBytes, &lbCfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = NewLoadBalancerController(&lbCfg, server.ControllerContext{})
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid endpoint URL"))
+			Expect(err.Error()).To(ContainSubstring("failed to parse load balancer path"))
 		})
 
 		It("should handle backend errors", func() {
@@ -93,7 +100,11 @@ endpoints:
 			defer backend.Close()
 
 			cfgBytes := []byte("path: /api\nendpoints:\n  - " + backend.URL)
-			ctrl, err := controller.NewLoadBalancerController(cfgBytes, server.ControllerContext{})
+			var lbCfg LoadBalancerControllerConfig
+			err := yaml.Unmarshal(cfgBytes, &lbCfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			ctrl, err := NewLoadBalancerController(&lbCfg, server.ControllerContext{})
 			Expect(err).NotTo(HaveOccurred())
 
 			ctrl.Bind(engine)
@@ -118,7 +129,11 @@ endpoints:
 			defer backend.Close()
 
 			cfgBytes := []byte("path: /api\nendpoints:\n  - " + backend.URL)
-			ctrl, err := controller.NewLoadBalancerController(cfgBytes, server.ControllerContext{})
+			var lbCfg LoadBalancerControllerConfig
+			err := yaml.Unmarshal(cfgBytes, &lbCfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			ctrl, err := NewLoadBalancerController(&lbCfg, server.ControllerContext{})
 			Expect(err).NotTo(HaveOccurred())
 
 			ctrl.Bind(engine)
@@ -179,16 +194,38 @@ endpoints:
 				rawConfigBytes, _ := yaml.Marshal(rawConfigMap)
 				rawConfig := config.ModuleRawConfig(rawConfigBytes)
 
+				var lbCfg LoadBalancerControllerConfig
+				err := yaml.Unmarshal(rawConfig, &lbCfg)
+				Expect(err).NotTo(HaveOccurred())
+
 				ctx := server.ControllerContext{}
-				ctrl, err := controller.NewLoadBalancerController(rawConfig, ctx)
+				ctrl, err := NewLoadBalancerController(&lbCfg, ctx)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ctrl).NotTo(BeNil())
 			})
 
 			It("should fail with invalid config", func() {
 				rawConfig := config.ModuleRawConfig([]byte(`invalid yaml`))
+				var lbCfg LoadBalancerControllerConfig
+				err := yaml.Unmarshal(rawConfig, &lbCfg)
+				// Expect(err).To(HaveOccurred()) // Unmarshal might fail or succeed depending on garbage, but Validate is called inside RegisterController usually.
+				// Here we are calling NewLoadBalancerController directly which assumes valid config struct if passed.
+				// But wait, NewLoadBalancerController used to unmarshal. Now it takes struct.
+				// So if we pass a struct, it is "valid" as a struct.
+				// The validation logic is in Validate() which is called by Register
+				// So unit testing NewLoadBalancerController with invalid yaml is now "testing yaml unmarshal" which is outside scope,
+				// OR we test that NewLoadBalancerController handles invalid struct data if it does any validation itself?
+				// It seems NewLoadBalancerController does some validation (url parsing).
+
+				// Let's adjust the test to pass an invalid config struct that causes NewLoadBalancerController to fail.
+				// The original test passed "invalid yaml".
+				// If we pass a struct with invalid URL in endpoints, it should fail.
+				lbCfg = LoadBalancerControllerConfig{
+					Path:      "/api",
+					Endpoints: []string{"http://%"},
+				}
 				ctx := server.ControllerContext{}
-				_, err := controller.NewLoadBalancerController(rawConfig, ctx)
+				_, err = NewLoadBalancerController(&lbCfg, ctx)
 				Expect(err).To(HaveOccurred())
 			})
 		})
@@ -205,8 +242,12 @@ endpoints:
 				rawConfigBytes, _ := yaml.Marshal(rawConfigMap)
 				rawConfig := config.ModuleRawConfig(rawConfigBytes)
 
+				var lbCfg LoadBalancerControllerConfig
+				err := yaml.Unmarshal(rawConfig, &lbCfg)
+				Expect(err).NotTo(HaveOccurred())
+
 				ctx := server.ControllerContext{}
-				ctrl, _ := controller.NewLoadBalancerController(rawConfig, ctx)
+				ctrl, _ := NewLoadBalancerController(&lbCfg, ctx)
 
 				engine := gin.New()
 				ctrl.Bind(engine)

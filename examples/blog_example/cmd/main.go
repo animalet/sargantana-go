@@ -24,13 +24,13 @@ func main() {
 		TimeFormat: "2006-01-02 15:04:05",
 	})
 	server.SetDebug(true)
-	server.AddControllerType("auth", controller.NewAuthController)
-	server.AddControllerType("static", controller.NewStaticController)
-	server.AddControllerType("template", controller.NewTemplateController)
+	server.RegisterController("auth", controller.NewAuthController)
+	server.RegisterController("static", controller.NewStaticController)
+	server.RegisterController("template", controller.NewTemplateController)
 	cfg := readConfig()
 	pool := newPgPool(cfg)
 	defer pool.Close()
-	server.AddControllerType("blog", blog.NewBlogController(pool))
+	server.RegisterController("blog", blog.NewBlogController(pool))
 
 	sargantana, redisPool := newServer(cfg)
 	defer func() {

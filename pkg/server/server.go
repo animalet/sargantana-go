@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -51,13 +52,25 @@ func (s *Server) SetSessionStore(sessionStore sessions.Store) {
 	s.sessionStore = sessionStore
 }
 
-func AddControllerType(typeName string, factory ControllerFactory) {
+func addControllerType(typeName string, factory ControllerFactory) {
 	log.Info().Msgf("Registering controller type %q", typeName)
 	_, exists := controllerRegistry[typeName]
 	if exists {
 		log.Warn().Msgf("Controller type %q is already registered, overriding", typeName)
 	}
 	controllerRegistry[typeName] = factory
+}
+
+// RegisterController registers a controller factory that takes a typed configuration.
+// T must implement config.Validatable.
+func RegisterController[T config.Validatable](typeName string, factory func(cfg *T, ctx ControllerContext) (IController, error)) {
+	addControllerType(typeName, func(raw config.ModuleRawConfig, ctx ControllerContext) (IController, error) {
+		cfg, err := config.Unmarshal[T](raw)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to unmarshal configuration for controller type %s", typeName)
+		}
+		return factory(cfg, ctx)
+	})
 }
 
 func configureControllers(c SargantanaConfig, sessionStore sessions.Store) (controllers []IController, configErrors []error) {

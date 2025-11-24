@@ -1,11 +1,10 @@
 //go:build unit
 
-package database_test
+package database
 
 import (
 	"time"
 
-	"github.com/animalet/sargantana-go/pkg/database"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -13,7 +12,7 @@ import (
 var _ = Describe("PostgresConfig", func() {
 	Context("Validation", func() {
 		It("should validate correct configuration", func() {
-			cfg := database.PostgresConfig{
+			cfg := PostgresConfig{
 				Host:     "localhost",
 				Port:     5432,
 				Database: "testdb",
@@ -25,7 +24,7 @@ var _ = Describe("PostgresConfig", func() {
 		})
 
 		It("should fail if host is missing", func() {
-			cfg := database.PostgresConfig{
+			cfg := PostgresConfig{
 				Port:     5432,
 				Database: "testdb",
 				User:     "user",
@@ -35,7 +34,7 @@ var _ = Describe("PostgresConfig", func() {
 		})
 
 		It("should fail if port is missing", func() {
-			cfg := database.PostgresConfig{
+			cfg := PostgresConfig{
 				Host:     "localhost",
 				Database: "testdb",
 				User:     "user",
@@ -45,7 +44,7 @@ var _ = Describe("PostgresConfig", func() {
 		})
 
 		It("should fail if database is missing", func() {
-			cfg := database.PostgresConfig{
+			cfg := PostgresConfig{
 				Host:     "localhost",
 				Port:     5432,
 				User:     "user",
@@ -55,7 +54,7 @@ var _ = Describe("PostgresConfig", func() {
 		})
 
 		It("should fail if user is missing", func() {
-			cfg := database.PostgresConfig{
+			cfg := PostgresConfig{
 				Host:     "localhost",
 				Port:     5432,
 				Database: "testdb",
@@ -65,7 +64,7 @@ var _ = Describe("PostgresConfig", func() {
 		})
 
 		It("should fail if password is missing", func() {
-			cfg := database.PostgresConfig{
+			cfg := PostgresConfig{
 				Host:     "localhost",
 				Port:     5432,
 				Database: "testdb",
@@ -75,7 +74,7 @@ var _ = Describe("PostgresConfig", func() {
 		})
 
 		It("should fail with invalid ssl mode", func() {
-			cfg := database.PostgresConfig{
+			cfg := PostgresConfig{
 				Host:     "localhost",
 				Port:     5432,
 				Database: "testdb",
@@ -87,7 +86,7 @@ var _ = Describe("PostgresConfig", func() {
 		})
 
 		It("should fail with invalid pool settings", func() {
-			cfg := database.PostgresConfig{
+			cfg := PostgresConfig{
 				Host:     "localhost",
 				Port:     5432,
 				Database: "testdb",
@@ -103,7 +102,7 @@ var _ = Describe("PostgresConfig", func() {
 		})
 
 		It("should validate correct pool settings", func() {
-			cfg := database.PostgresConfig{
+			cfg := PostgresConfig{
 				Host:            "localhost",
 				Port:            5432,
 				Database:        "testdb",

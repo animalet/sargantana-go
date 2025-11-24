@@ -1,13 +1,12 @@
 //go:build integration
 
-package database_test
+package database
 
 import (
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/animalet/sargantana-go/pkg/database"
 	"github.com/gomodule/redigo/redis"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -15,7 +14,7 @@ import (
 
 var _ = Describe("Redis Integration", func() {
 	It("should connect to redis and perform operations", func() {
-		cfg := database.RedisConfig{
+		cfg := RedisConfig{
 			Address:     "localhost:6379",
 			Username:    "redisuser",
 			Password:    "redispass",
@@ -43,13 +42,13 @@ var _ = Describe("Redis Integration", func() {
 		projectRoot := filepath.Dir(filepath.Dir(cwd))
 		certsDir := filepath.Join(projectRoot, "certs")
 
-		cfg := database.RedisConfig{
+		cfg := RedisConfig{
 			Address:     "localhost:6380",
 			Username:    "redisuser",
 			Password:    "redispass",
 			MaxIdle:     3,
 			IdleTimeout: 240 * time.Second,
-			TLS: &database.TLSConfig{
+			TLS: &TLSConfig{
 				CAFile:             filepath.Join(certsDir, "ca.crt"),
 				InsecureSkipVerify: true, // Debugging TLS issue
 			},
@@ -70,13 +69,13 @@ var _ = Describe("Redis Integration", func() {
 		projectRoot := filepath.Dir(filepath.Dir(cwd))
 		certsDir := filepath.Join(projectRoot, "certs")
 
-		cfg := database.RedisConfig{
+		cfg := RedisConfig{
 			Address:     "localhost:6380",
 			Username:    "redisuser",
 			Password:    "redispass",
 			MaxIdle:     3,
 			IdleTimeout: 240 * time.Second,
-			TLS: &database.TLSConfig{
+			TLS: &TLSConfig{
 				CAFile:             filepath.Join(certsDir, "ca.crt"),
 				CertFile:           filepath.Join(certsDir, "client.crt"),
 				KeyFile:            filepath.Join(certsDir, "client.key"),

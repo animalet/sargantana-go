@@ -1,9 +1,8 @@
 //go:build unit
 
-package secrets_test
+package secrets
 
 import (
-	"github.com/animalet/sargantana-go/pkg/secrets"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -11,7 +10,7 @@ import (
 var _ = Describe("Vault Secrets", func() {
 	Context("VaultConfig Validate", func() {
 		It("should return error if address is empty", func() {
-			cfg := secrets.VaultConfig{
+			cfg := VaultConfig{
 				Token: "token",
 			}
 			err := cfg.Validate()
@@ -20,7 +19,7 @@ var _ = Describe("Vault Secrets", func() {
 		})
 
 		It("should return error if token is empty", func() {
-			cfg := secrets.VaultConfig{
+			cfg := VaultConfig{
 				Address: "http://localhost:8200",
 			}
 			err := cfg.Validate()
@@ -29,7 +28,7 @@ var _ = Describe("Vault Secrets", func() {
 		})
 
 		It("should pass with valid config", func() {
-			cfg := secrets.VaultConfig{
+			cfg := VaultConfig{
 				Address: "http://localhost:8200",
 				Token:   "token",
 				Path:    "secret/data/myapp",

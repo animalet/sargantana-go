@@ -1,12 +1,11 @@
 //go:build unit
 
-package server_test
+package server
 
 import (
 	"time"
 
 	"github.com/animalet/sargantana-go/pkg/config"
-	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -15,7 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// MockController implements server.IController
+// MockController implements IController
 type MockController struct {
 	BindFunc  func(*gin.Engine)
 	CloseFunc func() error
@@ -37,22 +36,22 @@ func (m *MockController) Close() error {
 var _ = Describe("Server", func() {
 	Context("NewServer", func() {
 		It("should create a new server instance", func() {
-			cfg := server.SargantanaConfig{
-				WebServerConfig: server.WebServerConfig{
+			cfg := SargantanaConfig{
+				WebServerConfig: WebServerConfig{
 					Address: ":8080",
 				},
 			}
-			srv := server.NewServer(cfg)
+			srv := NewServer(cfg)
 			Expect(srv).NotTo(BeNil())
 		})
 	})
 
 	Context("Controller Registry", func() {
 		It("should register and retrieve controller factory", func() {
-			dummyFactory := func(c config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
+			dummyFactory := func(c config.ModuleRawConfig, ctx ControllerContext) (IController, error) {
 				return nil, nil
 			}
-			server.AddControllerType("dummy", dummyFactory)
+			addControllerType("dummy", dummyFactory)
 
 			// We can't directly access the registry to verify, but we can verify via behavior if we had a way to trigger it
 			// For now, just ensuring it doesn't panic is a start.
@@ -61,8 +60,8 @@ var _ = Describe("Server", func() {
 
 	Context("Server Configuration", func() {
 		It("should validate configuration", func() {
-			cfg := server.SargantanaConfig{
-				WebServerConfig: server.WebServerConfig{
+			cfg := SargantanaConfig{
+				WebServerConfig: WebServerConfig{
 					Address:       ":8080",
 					SessionName:   "session",
 					SessionSecret: "secret",
@@ -73,8 +72,8 @@ var _ = Describe("Server", func() {
 		})
 
 		It("should fail validation if secret is missing", func() {
-			cfg := server.SargantanaConfig{
-				WebServerConfig: server.WebServerConfig{
+			cfg := SargantanaConfig{
+				WebServerConfig: WebServerConfig{
 					Address:     ":8080",
 					SessionName: "session",
 				},
@@ -86,18 +85,18 @@ var _ = Describe("Server", func() {
 
 	Context("Lifecycle", func() {
 		var (
-			cfg          server.SargantanaConfig
+			cfg          SargantanaConfig
 			sessionStore sessions.Store
 		)
 
 		BeforeEach(func() {
-			cfg = server.SargantanaConfig{
-				WebServerConfig: server.WebServerConfig{
+			cfg = SargantanaConfig{
+				WebServerConfig: WebServerConfig{
 					Address:       "localhost:8081", // Use different port to avoid conflicts
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
-				ControllerBindings: []server.ControllerBinding{
+				ControllerBindings: []ControllerBinding{
 					{
 						TypeName: "mock-controller",
 						Name:     "test-controller",
@@ -110,11 +109,11 @@ var _ = Describe("Server", func() {
 		})
 
 		It("should create, start and shutdown the server", func() {
-			s := server.NewServer(cfg)
+			s := NewServer(cfg)
 			s.SetSessionStore(sessionStore)
 
 			// Register mock controller
-			server.AddControllerType("mock-controller", func(cfg config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
+			addControllerType("mock-controller", func(cfg config.ModuleRawConfig, ctx ControllerContext) (IController, error) {
 				return &MockController{}, nil
 			})
 
@@ -131,11 +130,11 @@ var _ = Describe("Server", func() {
 		})
 
 		It("should execute shutdown hooks", func() {
-			s := server.NewServer(cfg)
+			s := NewServer(cfg)
 			s.SetSessionStore(sessionStore)
 
 			hookCalled := false
-			server.AddControllerType("mock-controller", func(cfg config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
+			addControllerType("mock-controller", func(cfg config.ModuleRawConfig, ctx ControllerContext) (IController, error) {
 				return &MockController{
 					CloseFunc: func() error {
 						hookCalled = true
@@ -155,30 +154,30 @@ var _ = Describe("Server", func() {
 
 	Context("SetDebug", func() {
 		It("should set debug mode", func() {
-			server.SetDebug(true)
+			SetDebug(true)
 			Expect(true).To(BeTrue())
-			server.SetDebug(false)
+			SetDebug(false)
 			Expect(true).To(BeTrue())
 		})
 
 		It("should start in debug mode", func() {
-			server.SetDebug(true)
-			defer server.SetDebug(false)
+			SetDebug(true)
+			defer SetDebug(false)
 
-			cfg := server.SargantanaConfig{
-				WebServerConfig: server.WebServerConfig{
+			cfg := SargantanaConfig{
+				WebServerConfig: WebServerConfig{
 					Address:       "localhost:8086",
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
-				ControllerBindings: []server.ControllerBinding{
+				ControllerBindings: []ControllerBinding{
 					{TypeName: "mock-controller", Config: config.ModuleRawConfig{}},
 				},
 			}
-			s := server.NewServer(cfg)
+			s := NewServer(cfg)
 			s.SetSessionStore(cookie.NewStore([]byte("secret")))
 
-			server.AddControllerType("mock-controller", func(cfg config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
+			addControllerType("mock-controller", func(cfg config.ModuleRawConfig, ctx ControllerContext) (IController, error) {
 				return &MockController{}, nil
 			})
 
@@ -202,21 +201,21 @@ var _ = Describe("Server", func() {
 
 	Context("Controller Configuration", func() {
 		It("should handle auto-naming for multiple instances", func() {
-			cfg := server.SargantanaConfig{
-				WebServerConfig: server.WebServerConfig{
+			cfg := SargantanaConfig{
+				WebServerConfig: WebServerConfig{
 					Address:       "localhost:8082",
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
-				ControllerBindings: []server.ControllerBinding{
+				ControllerBindings: []ControllerBinding{
 					{TypeName: "mock-controller", Config: config.ModuleRawConfig{}},
 					{TypeName: "mock-controller", Config: config.ModuleRawConfig{}},
 				},
 			}
-			s := server.NewServer(cfg)
+			s := NewServer(cfg)
 			s.SetSessionStore(cookie.NewStore([]byte("secret")))
 
-			server.AddControllerType("mock-controller", func(cfg config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
+			addControllerType("mock-controller", func(cfg config.ModuleRawConfig, ctx ControllerContext) (IController, error) {
 				return &MockController{}, nil
 			})
 
@@ -226,26 +225,26 @@ var _ = Describe("Server", func() {
 		})
 
 		It("should handle factory error", func() {
-			cfg := server.SargantanaConfig{
-				WebServerConfig: server.WebServerConfig{
+			cfg := SargantanaConfig{
+				WebServerConfig: WebServerConfig{
 					Address:       "localhost:8083",
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
-				ControllerBindings: []server.ControllerBinding{
+				ControllerBindings: []ControllerBinding{
 					{TypeName: "error-controller", Config: config.ModuleRawConfig{}},
 				},
 			}
-			s := server.NewServer(cfg)
+			s := NewServer(cfg)
 			s.SetSessionStore(cookie.NewStore([]byte("secret")))
 
-			server.AddControllerType("error-controller", func(cfg config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
+			addControllerType("error-controller", func(cfg config.ModuleRawConfig, ctx ControllerContext) (IController, error) {
 				return nil, errors.New("factory error")
 			})
 
 			// Start should not fail, but controller won't be added (logged as error)
 			// Wait, configureControllers returns configErrors, but bootstrap logs them and continues?
-			// Let's check server.go:167
+			// Let's check go:167
 			// if len(configurationErrors) > 0 { log.Error... }
 			// It does NOT return error.
 			err := s.Start()
@@ -254,20 +253,20 @@ var _ = Describe("Server", func() {
 		})
 
 		It("should handle factory panic", func() {
-			cfg := server.SargantanaConfig{
-				WebServerConfig: server.WebServerConfig{
+			cfg := SargantanaConfig{
+				WebServerConfig: WebServerConfig{
 					Address:       "localhost:8084",
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
-				ControllerBindings: []server.ControllerBinding{
+				ControllerBindings: []ControllerBinding{
 					{TypeName: "panic-controller", Config: config.ModuleRawConfig{}},
 				},
 			}
-			s := server.NewServer(cfg)
+			s := NewServer(cfg)
 			s.SetSessionStore(cookie.NewStore([]byte("secret")))
 
-			server.AddControllerType("panic-controller", func(cfg config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
+			addControllerType("panic-controller", func(cfg config.ModuleRawConfig, ctx ControllerContext) (IController, error) {
 				panic("factory panic")
 			})
 
@@ -279,20 +278,20 @@ var _ = Describe("Server", func() {
 
 	Context("Shutdown Hooks", func() {
 		It("should handle hook error", func() {
-			cfg := server.SargantanaConfig{
-				WebServerConfig: server.WebServerConfig{
+			cfg := SargantanaConfig{
+				WebServerConfig: WebServerConfig{
 					Address:       "localhost:8085",
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
-				ControllerBindings: []server.ControllerBinding{
+				ControllerBindings: []ControllerBinding{
 					{TypeName: "hook-error-controller", Config: config.ModuleRawConfig{}},
 				},
 			}
-			s := server.NewServer(cfg)
+			s := NewServer(cfg)
 			s.SetSessionStore(cookie.NewStore([]byte("secret")))
 
-			server.AddControllerType("hook-error-controller", func(cfg config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
+			addControllerType("hook-error-controller", func(cfg config.ModuleRawConfig, ctx ControllerContext) (IController, error) {
 				return &MockController{
 					CloseFunc: func() error {
 						return errors.New("hook error")
@@ -310,48 +309,48 @@ var _ = Describe("Server", func() {
 
 	Context("Start Errors", func() {
 		It("should fail if session secret is missing", func() {
-			cfg := server.SargantanaConfig{
-				WebServerConfig: server.WebServerConfig{
+			cfg := SargantanaConfig{
+				WebServerConfig: WebServerConfig{
 					Address:     ":8080",
 					SessionName: "session",
 					// Missing secret
 				},
 			}
-			s := server.NewServer(cfg)
+			s := NewServer(cfg)
 			err := s.Start()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("session secret is not set"))
 		})
 
 		It("should fail if controller config is invalid", func() {
-			cfg := server.SargantanaConfig{
-				WebServerConfig: server.WebServerConfig{
+			cfg := SargantanaConfig{
+				WebServerConfig: WebServerConfig{
 					Address:       ":8080",
 					SessionName:   "session",
 					SessionSecret: "secret",
 				},
-				ControllerBindings: []server.ControllerBinding{
+				ControllerBindings: []ControllerBinding{
 					{TypeName: "nonexistent"},
 				},
 			}
-			s := server.NewServer(cfg)
+			s := NewServer(cfg)
 			_ = s.Start()
 		})
 	})
 
 	Context("AddControllerType", func() {
 		It("should add a controller type", func() {
-			factory := func(configData config.ModuleRawConfig, context server.ControllerContext) (server.IController, error) {
+			factory := func(configData config.ModuleRawConfig, context ControllerContext) (IController, error) {
 				return nil, nil
 			}
-			server.AddControllerType("custom", factory)
+			addControllerType("custom", factory)
 			Expect(true).To(BeTrue())
 		})
 	})
 
 	Context("ServerConfig Validation", func() {
 		It("should validate valid config", func() {
-			cfg := server.WebServerConfig{
+			cfg := WebServerConfig{
 				Address:       "localhost:8080",
 				SessionName:   "test-session",
 				SessionSecret: "12345678901234567890123456789012",
@@ -361,7 +360,7 @@ var _ = Describe("Server", func() {
 		})
 
 		It("should fail validation if address is missing", func() {
-			cfg := server.WebServerConfig{
+			cfg := WebServerConfig{
 				SessionName:   "test-session",
 				SessionSecret: "12345678901234567890123456789012",
 			}
@@ -371,7 +370,7 @@ var _ = Describe("Server", func() {
 		})
 
 		It("should fail validation if session secret is too short", func() {
-			cfg := server.WebServerConfig{
+			cfg := WebServerConfig{
 				Address:       "localhost:8080",
 				SessionName:   "test-session",
 				SessionSecret: "",
@@ -385,7 +384,7 @@ var _ = Describe("Server", func() {
 	Context("ControllerConfig Validation", func() {
 		Context("ControllerBinding", func() {
 			It("should return error if type_name is empty", func() {
-				cb := server.ControllerBinding{
+				cb := ControllerBinding{
 					Config: config.ModuleRawConfig([]byte{}),
 				}
 				err := cb.Validate()
@@ -394,7 +393,7 @@ var _ = Describe("Server", func() {
 			})
 
 			It("should return error if config is missing", func() {
-				cb := server.ControllerBinding{
+				cb := ControllerBinding{
 					TypeName: "static",
 				}
 				err := cb.Validate()
@@ -403,7 +402,7 @@ var _ = Describe("Server", func() {
 			})
 
 			It("should pass with valid config", func() {
-				cb := server.ControllerBinding{
+				cb := ControllerBinding{
 					Name:     "my-static",
 					TypeName: "static",
 					Config:   config.ModuleRawConfig([]byte{}),
@@ -415,7 +414,7 @@ var _ = Describe("Server", func() {
 
 		Context("ControllerBindings", func() {
 			It("should return error if any binding is invalid", func() {
-				cbs := server.ControllerBindings{
+				cbs := ControllerBindings{
 					{Name: "valid", TypeName: "static", Config: config.ModuleRawConfig([]byte{})},
 					{Name: "invalid", TypeName: "static"}, // Missing config
 				}
@@ -425,7 +424,7 @@ var _ = Describe("Server", func() {
 			})
 
 			It("should pass if all bindings are valid", func() {
-				cbs := server.ControllerBindings{
+				cbs := ControllerBindings{
 					{Name: "valid1", TypeName: "static", Config: config.ModuleRawConfig([]byte{})},
 					{Name: "valid2", TypeName: "static", Config: config.ModuleRawConfig([]byte{})},
 				}

@@ -1,20 +1,19 @@
 //go:build unit
 
-package secrets_test
+package secrets
 
 import (
 	"os"
 
-	"github.com/animalet/sargantana-go/pkg/secrets"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("EnvLoader", func() {
-	var loader secrets.SecretLoader
+	var loader SecretLoader
 
 	BeforeEach(func() {
-		loader = secrets.NewEnvLoader()
+		loader = NewEnvLoader()
 	})
 
 	It("should resolve environment variable", func() {

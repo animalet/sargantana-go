@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -16,11 +15,7 @@ type TemplateControllerConfig struct {
 	Path string `yaml:"path"`
 }
 
-func NewTemplateController(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
-	c, err := config.Unmarshal[TemplateControllerConfig](configData)
-	if err != nil {
-		return nil, err
-	}
+func NewTemplateController(c *TemplateControllerConfig, _ server.ControllerContext) (server.IController, error) {
 
 	log.Info().
 		Str("path", c.Path).

@@ -3,7 +3,6 @@ package controller
 import (
 	"os"
 
-	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -45,11 +44,7 @@ func (s StaticControllerConfig) Validate() error {
 	return nil
 }
 
-func NewStaticController(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
-	c, err := config.Unmarshal[StaticControllerConfig](configData)
-	if err != nil {
-		return nil, err
-	}
+func NewStaticController(c *StaticControllerConfig, _ server.ControllerContext) (server.IController, error) {
 
 	log.Info().
 		Str("path", c.Path).

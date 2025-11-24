@@ -1,12 +1,11 @@
 //go:build integration
 
-package session_test
+package session
 
 import (
 	"context"
 
 	"github.com/animalet/sargantana-go/pkg/database"
-	"github.com/animalet/sargantana-go/pkg/session"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -26,7 +25,7 @@ var _ = Describe("MongoDB Session Integration", func() {
 		defer client.Disconnect(context.Background())
 
 		// Create Session Store
-		store, err := session.NewMongoDBSessionStore(false, []byte("secret-key-32-bytes-long-123456"), client, "session_test_db", "sessions")
+		store, err := NewMongoDBSessionStore(false, []byte("secret-key-32-bytes-long-123456"), client, "session_test_db", "sessions")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(store).NotTo(BeNil())
 

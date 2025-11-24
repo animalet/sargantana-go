@@ -1,19 +1,18 @@
 //go:build unit
 
-package secrets_test
+package secrets
 
 import (
 	"os"
 	"path/filepath"
 
-	"github.com/animalet/sargantana-go/pkg/secrets"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("FileSecretLoader", func() {
 	var (
-		loader  secrets.SecretLoader
+		loader  SecretLoader
 		tempDir string
 	)
 
@@ -21,7 +20,7 @@ var _ = Describe("FileSecretLoader", func() {
 		var err error
 		tempDir, err = os.MkdirTemp("", "secrets-test")
 		Expect(err).NotTo(HaveOccurred())
-		loader = secrets.NewFileSecretLoader(tempDir)
+		loader = NewFileSecretLoader(tempDir)
 	})
 
 	AfterEach(func() {

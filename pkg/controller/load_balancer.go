@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -38,11 +37,7 @@ func (l LoadBalancerControllerConfig) Validate() error {
 	return nil
 }
 
-func NewLoadBalancerController(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
-	c, err := config.Unmarshal[LoadBalancerControllerConfig](configData)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse load balancer controller config")
-	}
+func NewLoadBalancerController(c *LoadBalancerControllerConfig, _ server.ControllerContext) (server.IController, error) {
 	stringEndpoints := c.Endpoints
 	endpoints := make([]url.URL, 0, len(stringEndpoints))
 	log.Info().Str("path", c.Path).Msg("Load balancing path configured")

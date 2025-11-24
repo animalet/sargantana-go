@@ -1,4 +1,4 @@
-package secrets_test
+package secrets
 
 import (
 	"testing"

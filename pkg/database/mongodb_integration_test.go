@@ -1,6 +1,6 @@
 //go:build integration
 
-package database_test
+package database
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/animalet/sargantana-go/pkg/database"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.mongodb.org/mongo-driver/bson"
@@ -17,7 +16,7 @@ import (
 
 var _ = Describe("MongoDB Integration", func() {
 	It("should connect to mongodb and perform operations", func() {
-		cfg := database.MongoDBConfig{
+		cfg := MongoDBConfig{
 			URI:            "mongodb://localhost:27017",
 			Database:       "sessions_test",
 			Username:       "testuser",
@@ -47,13 +46,13 @@ var _ = Describe("MongoDB Integration", func() {
 		projectRoot := filepath.Dir(filepath.Dir(cwd))
 		certsDir := filepath.Join(projectRoot, "certs")
 
-		cfg := database.MongoDBConfig{
+		cfg := MongoDBConfig{
 			URI:        "mongodb://localhost:27018",
 			Database:   "sessions_test",
 			Username:   "testuser",
 			Password:   "testpass",
 			AuthSource: "admin",
-			TLS: &database.MongoDBTLSConfig{
+			TLS: &MongoDBTLSConfig{
 				CAFile:             filepath.Join(certsDir, "ca.crt"),
 				CertFile:           filepath.Join(certsDir, "client.crt"),
 				KeyFile:            filepath.Join(certsDir, "client.key"),

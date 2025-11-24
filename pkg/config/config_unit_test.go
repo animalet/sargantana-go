@@ -1,6 +1,6 @@
 //go:build unit
 
-package config_test
+package config
 
 import (
 	"encoding/json"
@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/secrets"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -84,19 +83,19 @@ test:
 `), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			cfg, err := config.NewConfig(path)
+			cfg, err := NewConfig(path)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cfg).NotTo(BeNil())
 
 			// Verify we can get a module
-			testCfg, err := config.Get[TestConfigStruct](cfg, "test")
+			testCfg, err := Get[TestConfigStruct](cfg, "test")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(testCfg).NotTo(BeNil())
 			Expect(testCfg.Field).To(Equal("value"))
 		})
 
 		It("should return error if file does not exist", func() {
-			_, err := config.NewConfig("non_existent_file.yaml")
+			_, err := NewConfig("non_existent_file.yaml")
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -105,14 +104,14 @@ test:
 			err := os.WriteFile(path, []byte("invalid yaml content: :"), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = config.NewConfig(path)
+			_, err = NewConfig(path)
 			Expect(err).To(HaveOccurred())
 		})
 	})
 
 	Describe("Get", func() {
 		It("should return nil if module does not exist", func() {
-			path := filepath.Join(tempDir, "config.yaml")
+			path := filepath.Join(tempDir, "yaml")
 			err := os.WriteFile(path, []byte(`
 server:
   host: localhost
@@ -120,40 +119,40 @@ server:
 `), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			cfg, err := config.NewConfig(path)
+			cfg, err := NewConfig(path)
 			Expect(err).NotTo(HaveOccurred())
 
-			val, err := config.Get[TestConfigStruct](cfg, "nonexistent")
+			val, err := Get[TestConfigStruct](cfg, "nonexistent")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(val).To(BeNil())
 		})
 
 		It("should return error if validation fails", func() {
-			path := filepath.Join(tempDir, "config.yaml")
+			path := filepath.Join(tempDir, "yaml")
 			err := os.WriteFile(path, []byte(`
 test:
   field: invalid
 `), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			cfg, err := config.NewConfig(path)
+			cfg, err := NewConfig(path)
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = config.Get[TestConfigStruct](cfg, "test")
+			_, err = Get[TestConfigStruct](cfg, "test")
 			Expect(err).To(HaveOccurred())
 		})
 	})
 
 	Context("Unmarshal", func() {
 		It("should return error if unmarshal fails", func() {
-			raw := config.ModuleRawConfig([]byte("invalid: yaml: :"))
-			_, err := config.Unmarshal[TestConfigStruct](raw)
+			raw := ModuleRawConfig([]byte("invalid: yaml: :"))
+			_, err := Unmarshal[TestConfigStruct](raw)
 			Expect(err).To(HaveOccurred())
 		})
 
 		It("should return error if validation fails", func() {
-			raw := config.ModuleRawConfig([]byte("field: invalid"))
-			_, err := config.Unmarshal[TestConfigStruct](raw)
+			raw := ModuleRawConfig([]byte("field: invalid"))
+			_, err := Unmarshal[TestConfigStruct](raw)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("configuration is invalid"))
 		})
@@ -161,41 +160,41 @@ test:
 
 	Context("Formats", func() {
 		It("should support JSON format", func() {
-			config.UseFormat(config.JsonFormat)
-			defer config.UseFormat(config.YamlFormat)
+			UseFormat(JsonFormat)
+			defer UseFormat(YamlFormat)
 
-			raw := config.ModuleRawConfig([]byte(`{"field": "value"}`))
-			cfg, err := config.Unmarshal[TestConfigStruct](raw)
+			raw := ModuleRawConfig([]byte(`{"field": "value"}`))
+			cfg, err := Unmarshal[TestConfigStruct](raw)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cfg.Field).To(Equal("value"))
 		})
 
 		It("should support TOML format", func() {
-			config.UseFormat(config.TomlFormat)
-			defer config.UseFormat(config.YamlFormat)
+			UseFormat(TomlFormat)
+			defer UseFormat(YamlFormat)
 
-			raw := config.ModuleRawConfig([]byte(`field = "value"`))
-			cfg, err := config.Unmarshal[TestConfigStruct](raw)
+			raw := ModuleRawConfig([]byte(`field = "value"`))
+			cfg, err := Unmarshal[TestConfigStruct](raw)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cfg.Field).To(Equal("value"))
 		})
 
 		It("should support XML format", func() {
-			config.UseFormat(config.XmlFormat)
-			defer config.UseFormat(config.YamlFormat)
+			UseFormat(XmlFormat)
+			defer UseFormat(YamlFormat)
 
-			raw := config.ModuleRawConfig([]byte(`<TestConfigStruct><field>value</field></TestConfigStruct>`))
-			cfg, err := config.Unmarshal[TestConfigStruct](raw)
+			raw := ModuleRawConfig([]byte(`<TestConfigStruct><field>value</field></TestConfigStruct>`))
+			cfg, err := Unmarshal[TestConfigStruct](raw)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cfg.Field).To(Equal("value"))
 		})
 
 		It("should return error for unsupported format", func() {
-			config.UseFormat("invalid")
-			defer config.UseFormat(config.YamlFormat)
+			UseFormat("invalid")
+			defer UseFormat(YamlFormat)
 
-			raw := config.ModuleRawConfig([]byte(`field: value`))
-			_, err := config.Unmarshal[TestConfigStruct](raw)
+			raw := ModuleRawConfig([]byte(`field: value`))
+			_, err := Unmarshal[TestConfigStruct](raw)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("unsupported format"))
 		})
@@ -203,14 +202,14 @@ test:
 
 	Context("ModuleRawConfig", func() {
 		It("should unmarshal YAML into ModuleRawConfig", func() {
-			var m config.ModuleRawConfig
+			var m ModuleRawConfig
 			err := yaml.Unmarshal([]byte("key: value"), &m)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(m)).To(ContainSubstring("key: value"))
 		})
 
 		It("should unmarshal JSON into ModuleRawConfig", func() {
-			var m config.ModuleRawConfig
+			var m ModuleRawConfig
 			err := json.Unmarshal([]byte(`{"key": "value"}`), &m)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(m)).To(Equal(`{"key": "value"}`))
@@ -226,14 +225,14 @@ test:
 			}
 			data := InvalidTOML{Ch: make(chan int)}
 
-			var m config.ModuleRawConfig
+			var m ModuleRawConfig
 			err := m.UnmarshalTOML(data)
 			Expect(err).To(HaveOccurred())
 			// toml.Marshal returns error for unsupported types
 		})
 
 		It("should return error when XML decode fails", func() {
-			var m config.ModuleRawConfig
+			var m ModuleRawConfig
 			// Create a decoder with a broken reader
 			decoder := xml.NewDecoder(&brokenReader{})
 			start := xml.StartElement{Name: xml.Name{Local: "root"}}
@@ -272,7 +271,7 @@ host: localhost
 port: 8080
 secret: ${mock:my-secret}
 `)
-				cfg, err := config.Unmarshal[ConfigTestStruct](data)
+				cfg, err := Unmarshal[ConfigTestStruct](data)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.Host).To(Equal("localhost"))
 				Expect(cfg.Port).To(Equal(8080))
@@ -283,7 +282,7 @@ secret: ${mock:my-secret}
 				data := []byte(`
 host: localhost
 `)
-				_, err := config.Unmarshal[ConfigTestStruct](data)
+				_, err := Unmarshal[ConfigTestStruct](data)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("port is required"))
 			})
@@ -291,7 +290,7 @@ host: localhost
 
 		Describe("ReadModular", func() {
 			It("should read modular config", func() {
-				path := filepath.Join(tempDir, "config.yaml")
+				path := filepath.Join(tempDir, "yaml")
 				err := os.WriteFile(path, []byte(`
 server:
   host: localhost
@@ -299,7 +298,7 @@ server:
 `), 0644)
 				Expect(err).NotTo(HaveOccurred())
 
-				cfg, err := config.NewConfig(path)
+				cfg, err := NewConfig(path)
 				Expect(err).NotTo(HaveOccurred())
 
 				// We can't use ConfigTestStruct here because the yaml structure doesn't match
@@ -310,7 +309,7 @@ server:
 				// port: 8080
 				// This matches ConfigTestStruct.
 
-				val, err := config.Get[ConfigTestStruct](cfg, "server")
+				val, err := Get[ConfigTestStruct](cfg, "server")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(val).NotTo(BeNil())
 				Expect(val.Host).To(Equal("localhost"))

@@ -1,11 +1,10 @@
 //go:build integration
 
-package database_test
+package database
 
 import (
 	"time"
 
-	"github.com/animalet/sargantana-go/pkg/database"
 	"github.com/bradfitz/gomemcache/memcache"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -13,7 +12,7 @@ import (
 
 var _ = Describe("Memcached Integration", func() {
 	It("should connect to memcached and perform operations", func() {
-		cfg := database.MemcachedConfig{
+		cfg := MemcachedConfig{
 			Servers:      []string{"localhost:11211"},
 			Timeout:      100 * time.Millisecond,
 			MaxIdleConns: 2,
@@ -31,7 +30,7 @@ var _ = Describe("Memcached Integration", func() {
 	})
 
 	It("should connect with plaintext (no auth)", func() {
-		cfg := database.MemcachedConfig{
+		cfg := MemcachedConfig{
 			Servers: []string{"localhost:11211"},
 		}
 		client, err := cfg.CreateClient()

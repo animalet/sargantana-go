@@ -1,9 +1,8 @@
 //go:build unit
 
-package secrets_test
+package secrets
 
 import (
-	"github.com/animalet/sargantana-go/pkg/secrets"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -11,7 +10,7 @@ import (
 var _ = Describe("AWS Secrets", func() {
 	Context("AWSConfig Validate", func() {
 		It("should return error if region is empty", func() {
-			cfg := secrets.AWSConfig{
+			cfg := AWSConfig{
 				AccessKeyID:     "key",
 				SecretAccessKey: "secret",
 			}
@@ -21,7 +20,7 @@ var _ = Describe("AWS Secrets", func() {
 		})
 
 		It("should return error if secret name is empty", func() {
-			cfg := secrets.AWSConfig{
+			cfg := AWSConfig{
 				Region: "us-east-1",
 			}
 			err := cfg.Validate()
@@ -30,7 +29,7 @@ var _ = Describe("AWS Secrets", func() {
 		})
 
 		It("should pass with valid config", func() {
-			cfg := secrets.AWSConfig{
+			cfg := AWSConfig{
 				Region:          "us-east-1",
 				AccessKeyID:     "key",
 				SecretAccessKey: "secret",

@@ -1,6 +1,6 @@
 //go:build unit
 
-package controller_test
+package controller
 
 import (
 	"net/http"
@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/animalet/sargantana-go/pkg/config"
-	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -51,7 +50,7 @@ func (m *MockSession) Authorize(provider goth.Provider, params goth.Params) (str
 	return "access-token", nil
 }
 
-// MockProviderFactory implements controller.ProvidersFactory
+// MockProviderFactory implements ProvidersFactory
 type MockProviderFactory struct{}
 
 func (m *MockProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
@@ -61,15 +60,15 @@ func (m *MockProviderFactory) CreateProviders(callbackURLTemplate string) []goth
 var _ = Describe("Auth Controller", func() {
 	Context("AuthControllerConfig Validate", func() {
 		It("should return error if no providers configured", func() {
-			cfg := controller.AuthControllerConfig{}
+			cfg := AuthControllerConfig{}
 			err := cfg.Validate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("at least one provider must be configured"))
 		})
 
 		It("should return error if callback_path is empty", func() {
-			cfg := controller.AuthControllerConfig{
-				Providers: map[string]controller.ProviderConfig{"google": {Key: "k", Secret: "s"}},
+			cfg := AuthControllerConfig{
+				Providers: map[string]ProviderConfig{"google": {Key: "k", Secret: "s"}},
 			}
 			err := cfg.Validate()
 			Expect(err).To(HaveOccurred())
@@ -78,8 +77,8 @@ var _ = Describe("Auth Controller", func() {
 
 		// Add more validation tests as needed...
 		It("should pass with valid config", func() {
-			cfg := controller.AuthControllerConfig{
-				Providers:        map[string]controller.ProviderConfig{"google": {Key: "k", Secret: "s"}},
+			cfg := AuthControllerConfig{
+				Providers:        map[string]ProviderConfig{"google": {Key: "k", Secret: "s"}},
 				CallbackPath:     "/auth/callback",
 				LoginPath:        "/login",
 				LogoutPath:       "/logout",
@@ -116,7 +115,11 @@ providers:
 			// Since config.Load uses unmarshal, passing bytes works if format is set or default
 			// Default is YAML
 
-			ctrl, err := controller.NewAuthController(cfgBytes, ctx)
+			var authCfg AuthControllerConfig
+			err := yaml.Unmarshal(cfgBytes, &authCfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			ctrl, err := NewAuthController(&authCfg, ctx)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ctrl).NotTo(BeNil())
 		})
@@ -139,7 +142,7 @@ var _ = Describe("Auth Middleware", func() {
 	})
 
 	It("should abort with 401 if user is not in session", func() {
-		engine.GET("/protected", controller.LoginFunc, func(c *gin.Context) {
+		engine.GET("/protected", LoginFunc, func(c *gin.Context) {
 			c.Status(http.StatusOK)
 		})
 
@@ -152,14 +155,14 @@ var _ = Describe("Auth Middleware", func() {
 	It("should abort with 401 if session is expired", func() {
 		engine.GET("/protected", func(c *gin.Context) {
 			session := sessions.Default(c)
-			user := controller.UserObject{
+			user := UserObject{
 				User: goth.User{
 					ExpiresAt: time.Now().Add(-1 * time.Hour),
 				},
 			}
 			session.Set("user", user)
 			session.Save()
-		}, controller.LoginFunc, func(c *gin.Context) {
+		}, LoginFunc, func(c *gin.Context) {
 			c.Status(http.StatusOK)
 		})
 
@@ -172,14 +175,14 @@ var _ = Describe("Auth Middleware", func() {
 	It("should pass if user is logged in and valid", func() {
 		engine.GET("/protected", func(c *gin.Context) {
 			session := sessions.Default(c)
-			user := controller.UserObject{
+			user := UserObject{
 				User: goth.User{
 					ExpiresAt: time.Now().Add(1 * time.Hour),
 				},
 			}
 			session.Set("user", user)
 			session.Save()
-		}, controller.LoginFunc, func(c *gin.Context) {
+		}, LoginFunc, func(c *gin.Context) {
 			c.Status(http.StatusOK)
 		})
 
@@ -193,30 +196,30 @@ var _ = Describe("Auth Middleware", func() {
 var _ = Describe("Auth Controller (Detailed)", func() {
 	var (
 		mockFactory *MockProviderFactory
-		origFactory controller.ProvidersFactory
+		origFactory ProvidersFactory
 	)
 
 	BeforeEach(func() {
 		mockFactory = &MockProviderFactory{}
-		origFactory = controller.ProviderFactory
-		controller.ProviderFactory = mockFactory
+		origFactory = ProviderFactory
+		ProviderFactory = mockFactory
 		gin.SetMode(gin.TestMode)
 	})
 
 	AfterEach(func() {
-		controller.ProviderFactory = origFactory
+		ProviderFactory = origFactory
 	})
 
 	Context("Configuration", func() {
 		It("should validate correct configuration", func() {
-			cfg := controller.AuthControllerConfig{
+			cfg := AuthControllerConfig{
 				CallbackPath:     "/auth/callback",
 				LoginPath:        "/auth/login",
 				LogoutPath:       "/auth/logout",
 				UserInfoPath:     "/auth/user",
 				RedirectOnLogin:  "/",
 				RedirectOnLogout: "/",
-				Providers: map[string]controller.ProviderConfig{
+				Providers: map[string]ProviderConfig{
 					"test": {Key: "key", Secret: "secret"},
 				},
 			}
@@ -224,8 +227,8 @@ var _ = Describe("Auth Controller (Detailed)", func() {
 		})
 
 		It("should fail validation on missing fields", func() {
-			cfg := controller.AuthControllerConfig{
-				Providers: map[string]controller.ProviderConfig{"test": {Key: "k", Secret: "s"}},
+			cfg := AuthControllerConfig{
+				Providers: map[string]ProviderConfig{"test": {Key: "k", Secret: "s"}},
 			}
 			// Check each field
 			cfg.CallbackPath = ""
@@ -254,27 +257,27 @@ var _ = Describe("Auth Controller (Detailed)", func() {
 		})
 
 		It("should fail if provider key or secret is missing", func() {
-			cfg := controller.AuthControllerConfig{
+			cfg := AuthControllerConfig{
 				CallbackPath:     "/cb",
 				LoginPath:        "/login",
 				LogoutPath:       "/logout",
 				UserInfoPath:     "/user",
 				RedirectOnLogin:  "/",
 				RedirectOnLogout: "/",
-				Providers: map[string]controller.ProviderConfig{
+				Providers: map[string]ProviderConfig{
 					"test": {Key: "", Secret: "secret"},
 				},
 			}
 			Expect(cfg.Validate()).To(HaveOccurred())
 			Expect(cfg.Validate().Error()).To(ContainSubstring("key must be set"))
 
-			cfg.Providers["test"] = controller.ProviderConfig{Key: "key", Secret: ""}
+			cfg.Providers["test"] = ProviderConfig{Key: "key", Secret: ""}
 			Expect(cfg.Validate()).To(HaveOccurred())
 			Expect(cfg.Validate().Error()).To(ContainSubstring("secret must be set"))
 		})
 
 		It("should fail if no providers configured", func() {
-			cfg := controller.AuthControllerConfig{}
+			cfg := AuthControllerConfig{}
 			Expect(cfg.Validate()).To(MatchError("at least one provider must be configured"))
 		})
 	})
@@ -284,9 +287,9 @@ var _ = Describe("Auth Controller (Detailed)", func() {
 			// We can't easily verify the internal state of Goth, but we can check if CreateProviders returns the right number
 			// and doesn't panic for supported providers.
 
-			// Let's try to cover the switch case by passing a config with many providers to NewAuthController.
+			// Let's try to cover the switch case by passing a config with many providers to NewAuth
 			// We need to reset ProviderFactory to nil to ensure the default one is used.
-			controller.ProviderFactory = nil
+			ProviderFactory = nil
 
 			providersMap := map[string]interface{}{
 				"twitter":         map[string]interface{}{"key": "k", "secret": "s"},
@@ -368,8 +371,12 @@ var _ = Describe("Auth Controller (Detailed)", func() {
 				SessionStore: store,
 			}
 
+			var authCfg AuthControllerConfig
+			err := yaml.Unmarshal(rawConfig, &authCfg)
+			Expect(err).NotTo(HaveOccurred())
+
 			// This will register providers in Goth.
-			ctrl, err := controller.NewAuthController(rawConfig, ctx)
+			ctrl, err := NewAuthController(&authCfg, ctx)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ctrl).NotTo(BeNil())
 		})
@@ -397,7 +404,11 @@ var _ = Describe("Auth Controller (Detailed)", func() {
 				SessionStore: store,
 			}
 
-			ctrl, err := controller.NewAuthController(rawConfig, ctx)
+			var authCfg AuthControllerConfig
+			err := yaml.Unmarshal(rawConfig, &authCfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			ctrl, err := NewAuthController(&authCfg, ctx)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ctrl).NotTo(BeNil())
 		})
@@ -408,13 +419,13 @@ var _ = Describe("Auth Controller (Detailed)", func() {
 			engine      *gin.Engine
 			store       sessions.Store
 			mockFactory *MockProviderFactory
-			origFactory controller.ProvidersFactory
+			origFactory ProvidersFactory
 		)
 
 		BeforeEach(func() {
 			mockFactory = &MockProviderFactory{}
-			origFactory = controller.ProviderFactory
-			controller.ProviderFactory = mockFactory
+			origFactory = ProviderFactory
+			ProviderFactory = mockFactory
 			gin.SetMode(gin.TestMode)
 
 			engine = gin.New()
@@ -438,12 +449,14 @@ var _ = Describe("Auth Controller (Detailed)", func() {
 				ServerConfig: server.WebServerConfig{Address: "localhost:8080"},
 				SessionStore: store,
 			}
-			ctrl, _ := controller.NewAuthController(rawConfig, ctx)
+			var authCfg AuthControllerConfig
+			_ = yaml.Unmarshal(rawConfig, &authCfg)
+			ctrl, _ := NewAuthController(&authCfg, ctx)
 			ctrl.Bind(engine)
 		})
 
 		AfterEach(func() {
-			controller.ProviderFactory = origFactory
+			ProviderFactory = origFactory
 		})
 
 		It("should redirect to provider on login", func() {

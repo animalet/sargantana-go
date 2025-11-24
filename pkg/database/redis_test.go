@@ -1,11 +1,10 @@
 //go:build unit
 
-package database_test
+package database
 
 import (
 	"time"
 
-	"github.com/animalet/sargantana-go/pkg/database"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -13,7 +12,7 @@ import (
 var _ = Describe("RedisConfig", func() {
 	Context("Validation", func() {
 		It("should validate correct configuration", func() {
-			cfg := database.RedisConfig{
+			cfg := RedisConfig{
 				Address:     "localhost:6379",
 				MaxIdle:     10,
 				IdleTimeout: time.Minute,
@@ -22,14 +21,14 @@ var _ = Describe("RedisConfig", func() {
 		})
 
 		It("should fail if address is missing", func() {
-			cfg := database.RedisConfig{
+			cfg := RedisConfig{
 				MaxIdle: 10,
 			}
 			Expect(cfg.Validate()).To(HaveOccurred())
 		})
 
 		It("should fail if max_idle is negative", func() {
-			cfg := database.RedisConfig{
+			cfg := RedisConfig{
 				Address: "localhost:6379",
 				MaxIdle: -1,
 			}
@@ -37,7 +36,7 @@ var _ = Describe("RedisConfig", func() {
 		})
 
 		It("should fail if idle_timeout is negative", func() {
-			cfg := database.RedisConfig{
+			cfg := RedisConfig{
 				Address:     "localhost:6379",
 				IdleTimeout: -1,
 			}
@@ -45,7 +44,7 @@ var _ = Describe("RedisConfig", func() {
 		})
 
 		It("should fail if database is negative", func() {
-			cfg := database.RedisConfig{
+			cfg := RedisConfig{
 				Address:  "localhost:6379",
 				Database: -1,
 			}
@@ -53,9 +52,9 @@ var _ = Describe("RedisConfig", func() {
 		})
 
 		It("should validate TLS configuration", func() {
-			cfg := database.RedisConfig{
+			cfg := RedisConfig{
 				Address: "localhost:6379",
-				TLS: &database.TLSConfig{
+				TLS: &TLSConfig{
 					CertFile: "cert.pem",
 					KeyFile:  "key.pem",
 				},
@@ -64,9 +63,9 @@ var _ = Describe("RedisConfig", func() {
 		})
 
 		It("should fail if TLS cert is set without key", func() {
-			cfg := database.RedisConfig{
+			cfg := RedisConfig{
 				Address: "localhost:6379",
-				TLS: &database.TLSConfig{
+				TLS: &TLSConfig{
 					CertFile: "cert.pem",
 				},
 			}

@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-contrib/sessions"
@@ -53,12 +52,8 @@ func (b *Controller) Bind(engine *gin.Engine) {
 
 func (b *Controller) Close() error { return nil }
 
-func NewBlogController(db *pgxpool.Pool) server.ControllerFactory {
-	return func(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
-		cfg, err := config.Unmarshal[Config](configData)
-		if err != nil {
-			return nil, err
-		}
+func NewBlogController(db *pgxpool.Pool) func(cfg *Config, _ server.ControllerContext) (server.IController, error) {
+	return func(cfg *Config, _ server.ControllerContext) (server.IController, error) {
 
 		tag, err := db.Exec(context.Background(), `CREATE TABLE IF NOT EXISTS posts (
         id SERIAL PRIMARY KEY,

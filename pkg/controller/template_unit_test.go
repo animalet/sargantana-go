@@ -1,13 +1,12 @@
 //go:build unit
 
-package controller_test
+package controller
 
 import (
 	"os"
 	"path/filepath"
 
 	"github.com/animalet/sargantana-go/pkg/config"
-	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	. "github.com/onsi/ginkgo/v2"
@@ -39,8 +38,12 @@ var _ = Describe("TemplateController", func() {
 			rawConfigBytes, _ := yaml.Marshal(rawConfigMap)
 			rawConfig := config.ModuleRawConfig(rawConfigBytes)
 
+			var tmplCfg TemplateControllerConfig
+			err := yaml.Unmarshal(rawConfig, &tmplCfg)
+			Expect(err).NotTo(HaveOccurred())
+
 			ctx := server.ControllerContext{}
-			ctrl, err := controller.NewTemplateController(rawConfig, ctx)
+			ctrl, err := NewTemplateController(&tmplCfg, ctx)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ctrl).NotTo(BeNil())
 		})
@@ -52,9 +55,13 @@ var _ = Describe("TemplateController", func() {
 			rawConfigBytes, _ := yaml.Marshal(rawConfigMap)
 			rawConfig := config.ModuleRawConfig(rawConfigBytes)
 
-			ctx := server.ControllerContext{}
-			_, err := controller.NewTemplateController(rawConfig, ctx)
+			var tmplCfg TemplateControllerConfig
+			err := yaml.Unmarshal(rawConfig, &tmplCfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = tmplCfg.Validate()
 			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("templates directory not present"))
 		})
 	})
 
@@ -70,8 +77,12 @@ var _ = Describe("TemplateController", func() {
 			rawConfigBytes, _ := yaml.Marshal(rawConfigMap)
 			rawConfig := config.ModuleRawConfig(rawConfigBytes)
 
+			var tmplCfg TemplateControllerConfig
+			err = yaml.Unmarshal(rawConfig, &tmplCfg)
+			Expect(err).NotTo(HaveOccurred())
+
 			ctx := server.ControllerContext{}
-			ctrl, _ := controller.NewTemplateController(rawConfig, ctx)
+			ctrl, _ := NewTemplateController(&tmplCfg, ctx)
 
 			engine := gin.New()
 			// This might panic if templates are invalid or not found, but we expect it to work

@@ -1,12 +1,11 @@
 //go:build unit
 
-package database_test
+package database
 
 import (
 	"os"
 	"path/filepath"
 
-	"github.com/animalet/sargantana-go/pkg/database"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -14,7 +13,7 @@ import (
 var _ = Describe("MongoDBConfig", func() {
 	Context("Validation", func() {
 		It("should validate correct configuration", func() {
-			cfg := database.MongoDBConfig{
+			cfg := MongoDBConfig{
 				URI:      "mongodb://localhost:27017",
 				Database: "testdb",
 			}
@@ -22,21 +21,21 @@ var _ = Describe("MongoDBConfig", func() {
 		})
 
 		It("should fail if URI is missing", func() {
-			cfg := database.MongoDBConfig{
+			cfg := MongoDBConfig{
 				Database: "testdb",
 			}
 			Expect(cfg.Validate()).To(HaveOccurred())
 		})
 
 		It("should fail if database is missing", func() {
-			cfg := database.MongoDBConfig{
+			cfg := MongoDBConfig{
 				URI: "mongodb://localhost:27017",
 			}
 			Expect(cfg.Validate()).To(HaveOccurred())
 		})
 
 		It("should fail if connect_timeout is negative", func() {
-			cfg := database.MongoDBConfig{
+			cfg := MongoDBConfig{
 				URI:            "mongodb://localhost:27017",
 				Database:       "testdb",
 				ConnectTimeout: -1,
@@ -45,7 +44,7 @@ var _ = Describe("MongoDBConfig", func() {
 		})
 
 		It("should fail if min_pool_size > max_pool_size", func() {
-			cfg := database.MongoDBConfig{
+			cfg := MongoDBConfig{
 				URI:         "mongodb://localhost:27017",
 				Database:    "testdb",
 				MaxPoolSize: 10,
@@ -68,10 +67,10 @@ var _ = Describe("MongoDBConfig", func() {
 			})
 
 			It("should fail if cert_file is set without key_file", func() {
-				cfg := database.MongoDBConfig{
+				cfg := MongoDBConfig{
 					URI:      "mongodb://localhost:27017",
 					Database: "testdb",
-					TLS: &database.MongoDBTLSConfig{
+					TLS: &MongoDBTLSConfig{
 						CertFile: "cert.pem",
 					},
 				}
@@ -79,10 +78,10 @@ var _ = Describe("MongoDBConfig", func() {
 			})
 
 			It("should fail if key_file is set without cert_file", func() {
-				cfg := database.MongoDBConfig{
+				cfg := MongoDBConfig{
 					URI:      "mongodb://localhost:27017",
 					Database: "testdb",
-					TLS: &database.MongoDBTLSConfig{
+					TLS: &MongoDBTLSConfig{
 						KeyFile: "key.pem",
 					},
 				}
@@ -90,10 +89,10 @@ var _ = Describe("MongoDBConfig", func() {
 			})
 
 			It("should fail if cert_file does not exist", func() {
-				cfg := database.MongoDBConfig{
+				cfg := MongoDBConfig{
 					URI:      "mongodb://localhost:27017",
 					Database: "testdb",
-					TLS: &database.MongoDBTLSConfig{
+					TLS: &MongoDBTLSConfig{
 						CertFile: "/non/existent/cert.pem",
 						KeyFile:  "/non/existent/key.pem",
 					},
@@ -113,10 +112,10 @@ var _ = Describe("MongoDBConfig", func() {
 				err = os.WriteFile(caPath, []byte("ca"), 0644)
 				Expect(err).NotTo(HaveOccurred())
 
-				cfg := database.MongoDBConfig{
+				cfg := MongoDBConfig{
 					URI:      "mongodb://localhost:27017",
 					Database: "testdb",
-					TLS: &database.MongoDBTLSConfig{
+					TLS: &MongoDBTLSConfig{
 						CertFile: certPath,
 						KeyFile:  keyPath,
 						CAFile:   caPath,

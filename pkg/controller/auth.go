@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -147,11 +146,7 @@ func (a AuthControllerConfig) Validate() error {
 	return nil
 }
 
-func NewAuthController(configData config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
-	c, err := config.Unmarshal[AuthControllerConfig](configData)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal auth controller config")
-	}
+func NewAuthController(c *AuthControllerConfig, ctx server.ControllerContext) (server.IController, error) {
 
 	var callbackEndpoint string
 	if c.CallbackHost != "" {

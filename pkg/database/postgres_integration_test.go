@@ -1,18 +1,17 @@
 //go:build integration
 
-package database_test
+package database
 
 import (
 	"context"
 
-	"github.com/animalet/sargantana-go/pkg/database"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("PostgreSQL Integration", func() {
 	It("should connect to postgres and perform operations", func() {
-		cfg := database.PostgresConfig{
+		cfg := PostgresConfig{
 			Host:     "localhost",
 			Port:     5432,
 			User:     "user",
@@ -32,7 +31,7 @@ var _ = Describe("PostgreSQL Integration", func() {
 	})
 
 	It("should connect with default settings (sslmode=prefer)", func() {
-		cfg := database.PostgresConfig{
+		cfg := PostgresConfig{
 			Host:     "localhost",
 			Port:     5432,
 			User:     "user",

@@ -53,10 +53,10 @@ func main() {
 		TimeFormat: "2006-01-02 15:04:05",
 	})
 	server.SetDebug(*debugMode)
-	server.AddControllerType("auth", controller.NewAuthController)
-	server.AddControllerType("load_balancer", controller.NewLoadBalancerController)
-	server.AddControllerType("static", controller.NewStaticController)
-	server.AddControllerType("template", controller.NewTemplateController)
+	server.RegisterController("auth", controller.NewAuthController)
+	server.RegisterController("load_balancer", controller.NewLoadBalancerController)
+	server.RegisterController("static", controller.NewStaticController)
+	server.RegisterController("template", controller.NewTemplateController)
 	defer func() {
 		// Exit gracefully after panicking
 		if r := recover(); r != nil {

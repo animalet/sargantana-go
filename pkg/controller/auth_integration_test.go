@@ -1,6 +1,6 @@
 //go:build integration
 
-package controller_test
+package controller
 
 import (
 	"fmt"
@@ -10,8 +10,6 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 
-	"github.com/animalet/sargantana-go/pkg/config"
-	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -73,7 +71,11 @@ var _ = Describe("Auth Controller Integration", func() {
 			},
 			SessionStore: store,
 		}
-		authCtrl, err = controller.NewAuthController(config.ModuleRawConfig(cfgBytes), ctx)
+		var authCfg AuthControllerConfig
+		err = yaml.Unmarshal(cfgBytes, &authCfg)
+		Expect(err).NotTo(HaveOccurred())
+
+		authCtrl, err = NewAuthController(&authCfg, ctx)
 		Expect(err).NotTo(HaveOccurred())
 
 		// 5. Setup Gin Engine
