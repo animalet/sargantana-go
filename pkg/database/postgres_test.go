@@ -101,6 +101,58 @@ var _ = Describe("PostgresConfig", func() {
 			Expect(cfg.Validate()).To(HaveOccurred())
 		})
 
+		It("should fail with negative MinConns", func() {
+			cfg := PostgresConfig{
+				Host:     "localhost",
+				Port:     5432,
+				Database: "testdb",
+				User:     "user",
+				Password: "password",
+				MinConns: -1,
+			}
+			Expect(cfg.Validate()).To(HaveOccurred())
+			Expect(cfg.Validate().Error()).To(ContainSubstring("min_conns must be non-negative"))
+		})
+
+		It("should fail with negative MaxConnLifetime", func() {
+			cfg := PostgresConfig{
+				Host:            "localhost",
+				Port:            5432,
+				Database:        "testdb",
+				User:            "user",
+				Password:        "password",
+				MaxConnLifetime: -1 * time.Hour,
+			}
+			Expect(cfg.Validate()).To(HaveOccurred())
+			Expect(cfg.Validate().Error()).To(ContainSubstring("max_conn_lifetime must be non-negative"))
+		})
+
+		It("should fail with negative MaxConnIdleTime", func() {
+			cfg := PostgresConfig{
+				Host:            "localhost",
+				Port:            5432,
+				Database:        "testdb",
+				User:            "user",
+				Password:        "password",
+				MaxConnIdleTime: -1 * time.Hour,
+			}
+			Expect(cfg.Validate()).To(HaveOccurred())
+			Expect(cfg.Validate().Error()).To(ContainSubstring("max_conn_idle_time must be non-negative"))
+		})
+
+		It("should fail with negative HealthCheckPeriod", func() {
+			cfg := PostgresConfig{
+				Host:              "localhost",
+				Port:              5432,
+				Database:          "testdb",
+				User:              "user",
+				Password:          "password",
+				HealthCheckPeriod: -1 * time.Hour,
+			}
+			Expect(cfg.Validate()).To(HaveOccurred())
+			Expect(cfg.Validate().Error()).To(ContainSubstring("health_check_period must be non-negative"))
+		})
+
 		It("should validate correct pool settings", func() {
 			cfg := PostgresConfig{
 				Host:            "localhost",
@@ -113,6 +165,33 @@ var _ = Describe("PostgresConfig", func() {
 				MaxConnLifetime: time.Hour,
 			}
 			Expect(cfg.Validate()).To(Succeed())
+		})
+	})
+
+	Context("Connection String Building", func() {
+		It("should build connection string with default SSL mode", func() {
+			cfg := PostgresConfig{
+				Host:     "localhost",
+				Port:     5432,
+				Database: "testdb",
+				User:     "user",
+				Password: "password",
+			}
+			connStr := cfg.buildConnectionString()
+			Expect(connStr).To(ContainSubstring("sslmode=prefer"))
+		})
+
+		It("should build connection string with specified SSL mode", func() {
+			cfg := PostgresConfig{
+				Host:     "localhost",
+				Port:     5432,
+				Database: "testdb",
+				User:     "user",
+				Password: "password",
+				SSLMode:  "require",
+			}
+			connStr := cfg.buildConnectionString()
+			Expect(connStr).To(ContainSubstring("sslmode=require"))
 		})
 	})
 })

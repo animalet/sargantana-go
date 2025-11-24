@@ -89,5 +89,16 @@ var _ = Describe("Expansion", func() {
 				expandVariables(reflect.ValueOf(&s).Elem())
 			}).NotTo(Panic())
 		})
+
+		It("should panic on resolution error", func() {
+			type TestStruct struct {
+				Value string
+			}
+			// Use an unregistered prefix to trigger an error
+			s := TestStruct{Value: "${unregistered:some-key}"}
+			Expect(func() {
+				expandVariables(reflect.ValueOf(&s).Elem())
+			}).To(Panic())
+		})
 	})
 })

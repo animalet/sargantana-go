@@ -59,6 +59,18 @@ var _ = Describe("Static Controller", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("statics directory not present"))
 		})
+
+		It("should pass validation with valid file", func() {
+			cfg := StaticControllerConfig{Path: "/file", File: "./testdata/test.txt"}
+			err := cfg.Validate()
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should pass validation with valid directory", func() {
+			cfg := StaticControllerConfig{Path: "/static", Dir: "./testdata"}
+			err := cfg.Validate()
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 
 	Context("NewStaticController", func() {

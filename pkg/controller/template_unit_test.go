@@ -63,6 +63,21 @@ var _ = Describe("TemplateController", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("templates directory not present"))
 		})
+
+		It("should fail if path is not a directory", func() {
+			// Create a file instead of a directory
+			tempFile := filepath.Join(tempDir, "notadir")
+			err := os.WriteFile(tempFile, []byte("test"), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			tmplCfg := TemplateControllerConfig{
+				Path: tempFile,
+			}
+
+			err = tmplCfg.Validate()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("templates path is not a directory"))
+		})
 	})
 
 	Context("Binding", func() {
@@ -90,6 +105,50 @@ var _ = Describe("TemplateController", func() {
 
 			// Verify if we can render (requires a route using it, but Bind just loads them)
 			// We can at least ensure Bind didn't panic
+		})
+
+		It("should handle empty templates directory", func() {
+			// Create an empty directory with no template files
+			emptyDir := filepath.Join(tempDir, "empty")
+			err := os.Mkdir(emptyDir, 0755)
+			Expect(err).NotTo(HaveOccurred())
+
+			tmplCfg := TemplateControllerConfig{
+				Path: emptyDir,
+			}
+
+			ctx := server.ControllerContext{}
+			ctrl, err := NewTemplateController(&tmplCfg, ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			engine := gin.New()
+			// Should log a warning but not panic
+			ctrl.Bind(engine)
+		})
+
+		It("should handle Close without error", func() {
+			tmplCfg := TemplateControllerConfig{
+				Path: tempDir,
+			}
+
+			ctx := server.ControllerContext{}
+			ctrl, _ := NewTemplateController(&tmplCfg, ctx)
+
+			err := ctrl.Close()
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should handle non-existent path in Bind gracefully", func() {
+			tmplCfg := TemplateControllerConfig{
+				Path: "/non/existent/path",
+			}
+
+			ctx := server.ControllerContext{}
+			ctrl, _ := NewTemplateController(&tmplCfg, ctx)
+
+			engine := gin.New()
+			// Should not panic even if path doesn't exist (Bind checks)
+			ctrl.Bind(engine)
 		})
 	})
 })

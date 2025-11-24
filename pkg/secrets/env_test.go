@@ -30,4 +30,8 @@ var _ = Describe("EnvLoader", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(val).To(Equal(""))
 	})
+
+	It("should return correct name", func() {
+		Expect(loader.Name()).To(Equal("Environment"))
+	})
 })

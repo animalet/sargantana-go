@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"time"
 
 	"github.com/animalet/sargantana-go/pkg/config"
@@ -34,6 +35,16 @@ var _ = Describe("Load Balancer Controller", func() {
 			err := cfg.Validate()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("at least one endpoint must be provided"))
+		})
+
+		It("should return error for invalid endpoint URL", func() {
+			cfg := LoadBalancerControllerConfig{
+				Path:      "/api",
+				Endpoints: []string{"http://%invalid"},
+			}
+			err := cfg.Validate()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid endpoint URL"))
 		})
 
 		It("should pass with valid config", func() {
@@ -157,6 +168,97 @@ endpoints:
 			// We mainly want to ensure it doesn't panic and covers the error handler path if possible.
 			// The error handler in load_balancer.go checks for context.Canceled.
 		})
+
+		It("should handle Bind with empty endpoints", func() {
+			lb := &loadBalancer{
+				endpoints: []url.URL{},
+				path:      "/api/*proxyPath",
+			}
+			lb.Bind(engine)
+		})
+
+		It("should bind with auth enabled", func() {
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer backend.Close()
+
+			cfgBytes := []byte("path: /api\nauth: true\nendpoints:\n  - " + backend.URL)
+			var lbCfg LoadBalancerControllerConfig
+			err := yaml.Unmarshal(cfgBytes, &lbCfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			ctrl, err := NewLoadBalancerController(&lbCfg, server.ControllerContext{})
+			Expect(err).NotTo(HaveOccurred())
+
+			ctrl.Bind(engine)
+		})
+
+		It("should filter sensitive headers", func() {
+			receivedHeaders := make(map[string]string)
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Store headers for verification after the request
+				receivedHeaders["Authorization"] = r.Header.Get("Authorization")
+				receivedHeaders["Cookie"] = r.Header.Get("Cookie")
+				receivedHeaders["Host"] = r.Header.Get("Host")
+				receivedHeaders["X-Forwarded-Proto"] = r.Header.Get("X-Forwarded-Proto")
+				receivedHeaders["X-Forwarded-For"] = r.Header.Get("X-Forwarded-For")
+				receivedHeaders["Custom-Header"] = r.Header.Get("Custom-Header")
+				w.Header().Set("Set-Cookie", "session=123")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("ok"))
+			}))
+			defer backend.Close()
+
+			cfgBytes := []byte("path: /api\nendpoints:\n  - " + backend.URL)
+			var lbCfg LoadBalancerControllerConfig
+			err := yaml.Unmarshal(cfgBytes, &lbCfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			ctrl, err := NewLoadBalancerController(&lbCfg, server.ControllerContext{})
+			Expect(err).NotTo(HaveOccurred())
+
+			ctrl.Bind(engine)
+
+			req, _ := http.NewRequest("GET", "/api/test", nil)
+			req.Header.Set("Authorization", "Bearer token")
+			req.Header.Set("Cookie", "session=456")
+			req.Header.Set("Host", "original-host")
+			req.Header.Set("X-Forwarded-Proto", "https")
+			req.Header.Set("Custom-Header", "test-value")
+
+			engine.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+			// Verify headers after the request completes
+			Expect(receivedHeaders["Authorization"]).To(BeEmpty())
+			Expect(receivedHeaders["Cookie"]).To(BeEmpty())
+			Expect(receivedHeaders["Host"]).To(BeEmpty())
+			Expect(receivedHeaders["X-Forwarded-Proto"]).To(BeEmpty())
+			// X-Forwarded-For will be set (could be empty in test environment)
+			_, xForwardedForExists := receivedHeaders["X-Forwarded-For"]
+			Expect(xForwardedForExists).To(BeTrue())
+			Expect(receivedHeaders["Custom-Header"]).To(Equal("test-value"))
+			// Check that Set-Cookie is not forwarded to client
+			Expect(w.Header().Get("Set-Cookie")).To(BeEmpty())
+		})
+
+		It("should handle unreachable backend", func() {
+			cfgBytes := []byte("path: /api\nendpoints:\n  - http://localhost:1")
+			var lbCfg LoadBalancerControllerConfig
+			err := yaml.Unmarshal(cfgBytes, &lbCfg)
+			Expect(err).NotTo(HaveOccurred())
+
+			ctrl, err := NewLoadBalancerController(&lbCfg, server.ControllerContext{})
+			Expect(err).NotTo(HaveOccurred())
+
+			ctrl.Bind(engine)
+
+			req, _ := http.NewRequest("GET", "/api/test", nil)
+			engine.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadGateway))
+		})
 	})
 
 	Context("LoadBalancerController Integration", func() {
@@ -271,6 +373,44 @@ endpoints:
 
 				// One should be backend1, other backend2
 				Expect([]string{body1, body2}).To(ConsistOf("backend1", "backend2"))
+			})
+
+			It("should forward POST, PUT, DELETE, PATCH, HEAD, OPTIONS methods", func() {
+				backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(r.Method))
+				}))
+				defer backend.Close()
+
+				rawConfigMap := map[string]interface{}{
+					"path": "/api",
+					"endpoints": []string{
+						backend.URL,
+					},
+				}
+				rawConfigBytes, _ := yaml.Marshal(rawConfigMap)
+				rawConfig := config.ModuleRawConfig(rawConfigBytes)
+
+				var lbCfg LoadBalancerControllerConfig
+				err := yaml.Unmarshal(rawConfig, &lbCfg)
+				Expect(err).NotTo(HaveOccurred())
+
+				ctx := server.ControllerContext{}
+				ctrl, _ := NewLoadBalancerController(&lbCfg, ctx)
+
+				engine := gin.New()
+				ctrl.Bind(engine)
+
+				methods := []string{"POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}
+				for _, method := range methods {
+					req, _ := http.NewRequest(method, "/api/test", nil)
+					w := httptest.NewRecorder()
+					engine.ServeHTTP(w, req)
+					Expect(w.Code).To(Equal(http.StatusOK))
+					if method != "HEAD" {
+						Expect(w.Body.String()).To(Equal(method))
+					}
+				}
 			})
 		})
 	})
