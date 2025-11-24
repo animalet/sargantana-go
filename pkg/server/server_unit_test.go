@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
 )
 
 // MockController implements IController
@@ -29,6 +30,18 @@ func (m *MockController) Bind(engine *gin.Engine) {
 func (m *MockController) Close() error {
 	if m.CloseFunc != nil {
 		return m.CloseFunc()
+	}
+	return nil
+}
+
+// TestConfig for testing RegisterController
+type TestConfig struct {
+	Field string `yaml:"field"`
+}
+
+func (c TestConfig) Validate() error {
+	if c.Field == "invalid" {
+		return errors.New("invalid config")
 	}
 	return nil
 }
@@ -430,6 +443,99 @@ var _ = Describe("Server", func() {
 				}
 				err := cbs.Validate()
 				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
+		Context("RegisterController", func() {
+			var (
+				sessionStore sessions.Store
+			)
+
+			BeforeEach(func() {
+				sessionStore = cookie.NewStore([]byte("secret"))
+				// Clear registry before each test to avoid conflicts?
+				// controllerRegistry is a global map. We should be careful.
+				// Since tests run in parallel or sequentially, modifying global state is risky.
+				// However, we can use unique names for each test.
+			})
+
+			It("should register and configure a controller successfully", func() {
+				typeName := "test-controller-success"
+				called := false
+
+				RegisterController(typeName, func(cfg *TestConfig, ctx ControllerContext) (IController, error) {
+					called = true
+					Expect(cfg.Field).To(Equal("value"))
+					return &MockController{}, nil
+				})
+
+				// Verify it's in the registry
+				factory, exists := controllerRegistry[typeName]
+				Expect(exists).To(BeTrue())
+				Expect(factory).NotTo(BeNil())
+
+				// Simulate configuration
+				rawCfgBytes, _ := yaml.Marshal(map[string]string{"field": "value"})
+				rawCfg := config.ModuleRawConfig(rawCfgBytes)
+
+				ctx := ControllerContext{SessionStore: sessionStore}
+				ctrl, err := factory(rawCfg, ctx)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ctrl).NotTo(BeNil())
+				Expect(called).To(BeTrue())
+			})
+
+			It("should return error if unmarshal fails", func() {
+				typeName := "test-controller-unmarshal-fail"
+				RegisterController(typeName, func(cfg *TestConfig, ctx ControllerContext) (IController, error) {
+					return &MockController{}, nil
+				})
+
+				factory := controllerRegistry[typeName]
+
+				// Invalid YAML
+				rawCfg := config.ModuleRawConfig([]byte("invalid: yaml: :"))
+				ctx := ControllerContext{SessionStore: sessionStore}
+
+				_, err := factory(rawCfg, ctx)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("failed to unmarshal configuration"))
+			})
+
+			It("should return error if validation fails", func() {
+				typeName := "test-controller-validation-fail"
+				RegisterController(typeName, func(cfg *TestConfig, ctx ControllerContext) (IController, error) {
+					return &MockController{}, nil
+				})
+
+				factory := controllerRegistry[typeName]
+
+				// Valid YAML but invalid config logic
+				rawCfgBytes, _ := yaml.Marshal(map[string]string{"field": "invalid"})
+				rawCfg := config.ModuleRawConfig(rawCfgBytes)
+				ctx := ControllerContext{SessionStore: sessionStore}
+
+				_, err := factory(rawCfg, ctx)
+				Expect(err).To(HaveOccurred())
+				// The error comes from config.Unmarshal calling Validate()
+				Expect(err.Error()).To(ContainSubstring("invalid config"))
+			})
+
+			It("should propagate error from factory", func() {
+				typeName := "test-controller-factory-fail"
+				RegisterController(typeName, func(cfg *TestConfig, ctx ControllerContext) (IController, error) {
+					return nil, errors.New("factory error")
+				})
+
+				factory := controllerRegistry[typeName]
+
+				rawCfgBytes, _ := yaml.Marshal(map[string]string{"field": "value"})
+				rawCfg := config.ModuleRawConfig(rawCfgBytes)
+				ctx := ControllerContext{SessionStore: sessionStore}
+
+				_, err := factory(rawCfg, ctx)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("factory error"))
 			})
 		})
 	})
