@@ -105,7 +105,7 @@ var _ = Describe("Server", func() {
 		BeforeEach(func() {
 			cfg = SargantanaConfig{
 				WebServerConfig: WebServerConfig{
-					Address:       "localhost:8081", // Use different port to avoid conflicts
+					Address:       "localhost:0", // Use dynamic port allocation
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
@@ -179,7 +179,7 @@ var _ = Describe("Server", func() {
 
 			cfg := SargantanaConfig{
 				WebServerConfig: WebServerConfig{
-					Address:       "localhost:8086",
+					Address:       "localhost:0",
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
@@ -216,7 +216,7 @@ var _ = Describe("Server", func() {
 		It("should handle auto-naming for multiple instances", func() {
 			cfg := SargantanaConfig{
 				WebServerConfig: WebServerConfig{
-					Address:       "localhost:8082",
+					Address:       "localhost:0",
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
@@ -240,7 +240,7 @@ var _ = Describe("Server", func() {
 		It("should handle factory error", func() {
 			cfg := SargantanaConfig{
 				WebServerConfig: WebServerConfig{
-					Address:       "localhost:8083",
+					Address:       "localhost:0",
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
@@ -268,7 +268,7 @@ var _ = Describe("Server", func() {
 		It("should handle factory panic", func() {
 			cfg := SargantanaConfig{
 				WebServerConfig: WebServerConfig{
-					Address:       "localhost:8084",
+					Address:       "localhost:0",
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
@@ -293,7 +293,7 @@ var _ = Describe("Server", func() {
 		It("should handle hook error", func() {
 			cfg := SargantanaConfig{
 				WebServerConfig: WebServerConfig{
-					Address:       "localhost:8085",
+					Address:       "localhost:0",
 					SessionName:   "test-session",
 					SessionSecret: "secret",
 				},
