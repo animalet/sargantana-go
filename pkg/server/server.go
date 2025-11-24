@@ -19,8 +19,6 @@ import (
 )
 
 // Server represents the main HTTP server instance for the Sargantana Go framework.
-// It encapsulates the server configuration, HTTP server instance, shutdown hooks,
-// and signal handling for graceful shutdown.
 type Server struct {
 	config          SargantanaConfig
 	httpServer      *http.Server
@@ -114,10 +112,6 @@ func newController(ctx ControllerContext, name string, binding ControllerBinding
 	return newController, err
 }
 
-// StartAndWaitForSignal starts the HTTP server and waits for an OS signal to gracefully shut it down.
-// It handles initialization, secret loading, and controller registration before starting the server.
-// Upon receiving a termination signal, it gracefully shuts down the server, allowing active connections
-// to complete and freeing up resources.
 func (s *Server) StartAndWaitForSignal() error {
 	err := s.Start()
 	if err != nil {
@@ -126,9 +120,6 @@ func (s *Server) StartAndWaitForSignal() error {
 	return s.waitForSignal()
 }
 
-// Start initializes the server components and starts listening for incoming HTTP requests.
-// It configures the server based on the provided flags, loads secrets, and sets up the router and middleware.
-// This function must be called before the server can handle requests.
 func (s *Server) Start() (err error) {
 	if debug {
 		log.Debug().Msg("Debug mode is enabled")
@@ -243,8 +234,6 @@ func (s *Server) addShutdownHook(f func() error) {
 	s.shutdownHooks = append(s.shutdownHooks, f)
 }
 
-// Shutdown gracefully shuts down the server, waiting for active connections to complete
-// and freeing up resources. It executes registered shutdown hooks in the process.
 func (s *Server) Shutdown() error {
 	log.Info().Msg("Shutting down server...")
 

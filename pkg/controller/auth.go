@@ -76,7 +76,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// ProviderConfig represents the configuration for an OAuth provider
 type ProviderConfig struct {
 	Key     string   `yaml:"key"`
 	Secret  string   `yaml:"secret"`
@@ -206,14 +205,11 @@ func providerToGin(str string) string {
 	return strings.ReplaceAll(str, "{provider}", ":provider")
 }
 
-// ProvidersFactory is an interface for creating OAuth providers
 type ProvidersFactory interface {
 	CreateProviders(callbackURLTemplate string) []goth.Provider
 }
 
 // auth is a controller that provides OAuth2 authentication functionality.
-// It supports 50+ OAuth2 providers through the Goth library and handles
-// the complete authentication flow including user session management.
 type auth struct {
 	server.IController
 	loginPath        string
@@ -224,22 +220,12 @@ type auth struct {
 	callbackPath     string
 }
 
-// UserObject represents an authenticated user stored in the session.
-// It contains both a unique identifier and the complete user information
-// received from the OAuth2 provider.
 type UserObject struct {
 	Id   string    `json:"id"`   // Unique identifier for the user session
 	User goth.User `json:"user"` // Complete user information from OAuth2 provider
 }
 
 // LoginFunc is a middleware function that protects routes requiring authentication.
-// It verifies that a user is logged in and their session has not expired.
-// If the user is not authenticated or their session has expired, the request is aborted
-// with an appropriate HTTP status code.
-//
-// Usage:
-//
-//	engine.GET("/protected", controller.LoginFunc, myProtectedHandler)
 func LoginFunc(c *gin.Context) {
 	userSession := sessions.Default(c)
 	userObject := userSession.Get("user")
@@ -346,17 +332,12 @@ func (a *auth) userFactory(user goth.User) *UserObject {
 	}
 }
 
-// ProviderFactory is the global provider factory instance.
-// Replace it at your convenience by assigning a new factory to it.
-// If it is nil, the default production provider factory will be used.
 var ProviderFactory ProvidersFactory
 
-// configProviderFactory creates OAuth providers based on configuration
 type configProviderFactory struct {
 	config map[string]ProviderConfig
 }
 
-// CreateProviders creates OAuth providers from configuration
 func (f *configProviderFactory) CreateProviders(callbackURLTemplate string) []goth.Provider {
 	callbackURLTemplate = strings.ReplaceAll(callbackURLTemplate, "{provider}", "%s")
 

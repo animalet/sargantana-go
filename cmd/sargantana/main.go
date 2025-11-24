@@ -105,7 +105,7 @@ func main() {
 }
 
 func readConfig(file string) *config.Config {
-	cfg, err := config.ReadModular(file)
+	cfg, err := config.NewConfig(file)
 	if err != nil {
 		panic(err)
 	}

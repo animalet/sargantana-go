@@ -46,7 +46,7 @@ func main() {
 
 func readConfig() *config.Config {
 	config.UseFormat(config.YamlFormat)
-	cfg, err := config.ReadModular("./config.yaml")
+	cfg, err := config.NewConfig("./config.yaml")
 	if err != nil {
 		panic(err)
 	}

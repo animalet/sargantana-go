@@ -84,7 +84,7 @@ test:
 `), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			cfg, err := config.ReadModular(path)
+			cfg, err := config.NewConfig(path)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cfg).NotTo(BeNil())
 
@@ -96,7 +96,7 @@ test:
 		})
 
 		It("should return error if file does not exist", func() {
-			_, err := config.ReadModular("non_existent_file.yaml")
+			_, err := config.NewConfig("non_existent_file.yaml")
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -105,7 +105,7 @@ test:
 			err := os.WriteFile(path, []byte("invalid yaml content: :"), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = config.ReadModular(path)
+			_, err = config.NewConfig(path)
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -120,7 +120,7 @@ server:
 `), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			cfg, err := config.ReadModular(path)
+			cfg, err := config.NewConfig(path)
 			Expect(err).NotTo(HaveOccurred())
 
 			val, err := config.Get[TestConfigStruct](cfg, "nonexistent")
@@ -136,38 +136,11 @@ test:
 `), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			cfg, err := config.ReadModular(path)
+			cfg, err := config.NewConfig(path)
 			Expect(err).NotTo(HaveOccurred())
 
 			_, err = config.Get[TestConfigStruct](cfg, "test")
 			Expect(err).To(HaveOccurred())
-		})
-	})
-
-	Context("ReadFull", func() {
-		It("should return error if file does not exist", func() {
-			_, err := config.ReadFull[TestConfigStruct]("non_existent_file.yaml")
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed to read configuration file"))
-		})
-
-		It("should return error if unmarshal fails", func() {
-			path := filepath.Join(tempDir, "invalid.yaml")
-			err := os.WriteFile(path, []byte("invalid: yaml: content: :"), 0644)
-			Expect(err).NotTo(HaveOccurred())
-
-			_, err = config.ReadFull[TestConfigStruct](path)
-			Expect(err).To(HaveOccurred())
-		})
-
-		It("should return error if validation fails", func() {
-			path := filepath.Join(tempDir, "invalid_val.yaml")
-			err := os.WriteFile(path, []byte("field: invalid"), 0644)
-			Expect(err).NotTo(HaveOccurred())
-
-			_, err = config.ReadFull[TestConfigStruct](path)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("configuration is invalid"))
 		})
 	})
 
@@ -326,7 +299,7 @@ server:
 `), 0644)
 				Expect(err).NotTo(HaveOccurred())
 
-				cfg, err := config.ReadModular(path)
+				cfg, err := config.NewConfig(path)
 				Expect(err).NotTo(HaveOccurred())
 
 				// We can't use ConfigTestStruct here because the yaml structure doesn't match
