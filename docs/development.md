@@ -36,7 +36,7 @@ make configure
 make build
 
 # Or build manually
-go build -o bin/sargantana-go ./main
+go build -o bin/sargantana-go ./cmd/sargantana
 ```
 
 ### Cross-Platform Compilation
@@ -49,16 +49,16 @@ make build-all
 
 # Manual cross-compilation examples (using actual ldflags from Makefile):
 # Linux AMD64
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-linux-amd64 ./main
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-linux-amd64 ./cmd/sargantana
 
 # macOS AMD64 (Intel)
-GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-macos-amd64 ./main
+GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-macos-amd64 ./cmd/sargantana
 
 # macOS ARM64 (Apple Silicon)
-GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-macos-arm64 ./main
+GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-macos-arm64 ./cmd/sargantana
 
 # Windows AMD64
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-windows-amd64.exe ./main
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=dev" -o sargantana-go-windows-amd64.exe ./cmd/sargantana
 ```
 
 The compiled binaries will be placed in the `dist/` directory when using `make build-all`, or in the `bin/` directory when using `make build`.
@@ -171,7 +171,7 @@ The project should work out of the box with GoLand. Make sure to:
 
 ```bash
 # Run the main application in debug mode (requires a valid config file)
-go run -race ./main -debug -config config.local.yaml
+go run -race ./cmd/sargantana -debug -config config.local.yaml
 
 # Or build and run with debug symbols
 make build

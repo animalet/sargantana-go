@@ -24,7 +24,7 @@ Secret loaders must be registered **before** calling `cfg.Load()`. Here's a typi
 ```go
 func main() {
     // Read the configuration file
-    cfg, err := config.ReadConfig("config.yaml")
+    cfg, err := config.ReadModular("config.yaml")
     if err != nil {
         log.Fatal(err)
     }
@@ -34,8 +34,8 @@ func main() {
     secrets.Register("env", secrets.NewEnvLoader())
 
     // File loader (if file_resolver is configured)
-    fileResolverCfg, err := config.LoadConfig[secrets.FileSecretConfig]("file_resolver", cfg)
-    if err == nil {
+    fileResolverCfg, err := config.Get[secrets.FileSecretConfig](cfg, "file_resolver")
+    if err == nil && fileResolverCfg != nil {
         fileLoader, err := fileResolverCfg.CreateClient()
         if err != nil {
             log.Fatal().Err(err).Msg("Failed to create file secret loader")
@@ -45,8 +45,8 @@ func main() {
     }
 
     // Vault loader (if vault is configured)
-    vaultCfg, err := config.LoadConfig[secrets.VaultConfig]("vault", cfg)
-    if err == nil {
+    vaultCfg, err := config.Get[secrets.VaultConfig](cfg, "vault")
+    if err == nil && vaultCfg != nil {
         vaultClient, err := vaultCfg.CreateClient()
         if err != nil {
             log.Fatal().Err(err).Msg("Failed to create Vault client")
@@ -56,8 +56,8 @@ func main() {
     }
 
     // AWS Secrets Manager loader (if aws is configured)
-    awsCfg, err := config.LoadConfig[secrets.AWSConfig]("aws", cfg)
-    if err == nil {
+    awsCfg, err := config.Get[secrets.AWSConfig](cfg, "aws")
+    if err == nil && awsCfg != nil {
         awsClient, err := awsCfg.CreateClient()
         if err != nil {
             log.Fatal().Err(err).Msg("Failed to create AWS client")
@@ -66,12 +66,11 @@ func main() {
         log.Info().Msg("AWS secret loader registered")
     }
 
-    // Now load and expand the configuration
-    err = cfg.Load()
-    if err != nil {
-        log.Fatal(err)
-    }
-
+    // Now that secrets are registered, you can use the expanded config values
+    // Note: In the new config system, expansion happens during Unmarshal/Get.
+    // However, since we need to register loaders based on config, we might need a two-pass approach
+    // or rely on the fact that secret config itself usually doesn't contain secrets that need expansion from other providers.
+    
     // Continue with server setup...
 }
 ```

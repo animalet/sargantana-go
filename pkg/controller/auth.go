@@ -149,7 +149,7 @@ func (a AuthControllerConfig) Validate() error {
 }
 
 func NewAuthController(configData config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
-	c, err := config.Load[AuthControllerConfig](configData)
+	c, err := config.Unmarshal[AuthControllerConfig](configData)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal auth controller config")
 	}

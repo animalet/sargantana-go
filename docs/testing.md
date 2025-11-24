@@ -243,10 +243,10 @@ go test -race ./...
 
 ```bash
 # Run the main application in debug mode
-go run -race ./main -debug
+go run -race ./cmd/sargantana -debug
 
 # Or build and run with debug symbols
-go build -o sargantana-go ./main
+go build -o sargantana-go ./cmd/sargantana
 ./sargantana-go -debug
 ```
 

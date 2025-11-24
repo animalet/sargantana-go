@@ -75,7 +75,7 @@ the [releases page](https://github.com/animalet/sargantana-go/releases/latest).
 - **macOS ARM64**: `sargantana-go-macos-arm64` (Apple Silicon Macs)
 - **Windows AMD64**: `sargantana-go-windows-amd64.exe`
 
-#### Quick Start with Binary
+### Quick Start with Binary
 
 1. Download the binary for your platform from the releases page
 2. Make it executable (Linux/macOS only):
@@ -106,8 +106,8 @@ go get github.com/animalet/sargantana-go
 package main
 
 import (
-    "github.com/animalet/sargantana-go/controller"
-    "github.com/animalet/sargantana-go/server"
+    "github.com/animalet/sargantana-go/pkg/controller"
+    "github.com/animalet/sargantana-go/pkg/server"
 )
 
 func main() {
@@ -135,47 +135,21 @@ func main() {
 package main
 
 import (
-    "github.com/animalet/sargantana-go/config"
-    "github.com/animalet/sargantana-go/controller"
-    "github.com/animalet/sargantana-go/server"
+    "github.com/animalet/sargantana-go/pkg/config"
+    "github.com/animalet/sargantana-go/pkg/controller"
+    "github.com/animalet/sargantana-go/pkg/server"
 )
 
 func main() {
     // Define configuration programmatically
-    cfg := &config.Config{
-        ServerConfig: config.ServerConfig{
-            Address:       "localhost:8080",
-            SessionName:   "myapp",
-            SessionSecret: "your-secret-key",
-        },
-        ControllerBindings: []config.ControllerBinding{
-            {
-                TypeName: "static",
-                Name:     "static-files",
-                ConfigData: []byte(`
-                    statics_dir: "./public"
-                    templates_dir: "./templates"
-                `),
-            },
-            {
-                TypeName: "auth",
-                Name:     "authentication",
-                ConfigData: []byte(`
-                    providers:
-                      github:
-                        key: "your-github-key"
-                        secret: "your-github-secret"
-                `),
-            },
-        },
-    }
-
+    // Note: Programmatic configuration is currently best supported by creating a temporary config file
+    // or by manually constructing the Server struct, as NewServer expects a file path.
+    // However, for advanced usage, you can use config.ReadModular to load from a file
+    // and then modify the returned *config.Config struct before passing it to components.
+    
     // Register controllers and create server
     server.AddControllerType("auth", controller.NewAuthController)
     server.AddControllerType("static", controller.NewStaticController)
-    
-    // Note: This approach would require extending the server package
-    // to accept programmatic configuration
 }
 ```
 
@@ -428,9 +402,9 @@ redis:
 
 ```go
 // In your application startup
-redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
+redisCfg, err := config.Get[database.RedisConfig](cfg, "redis")
 pool, err := redisCfg.CreateClient()
-store, err := session.NewRedisSessionStore(debugMode, []byte(cfg.ServerConfig.SessionSecret), pool)
+store, err := session.NewRedisSessionStore(debugMode, []byte(serverCfg.SessionSecret), pool)
 sargantana.SetSessionStore(&store)
 ```
 
@@ -440,16 +414,19 @@ Similarly, you can configure other session backends:
 
 ```go
 // PostgreSQL sessions
+postgresCfg, _ := config.Get[database.PostgresConfig](cfg, "postgres")
 pool, _ := postgresCfg.CreateClient()
 store, _ := session.NewPostgresSessionStore(debugMode, []byte(secret), pool, "sessions")
 sargantana.SetSessionStore(&store)
 
 // MongoDB sessions
+mongoCfg, _ := config.Get[database.MongoConfig](cfg, "mongodb")
 client, _ := mongoCfg.CreateClient()
 store, _ := session.NewMongoDBSessionStore(debugMode, []byte(secret), client, "myapp", "sessions")
 sargantana.SetSessionStore(&store)
 
 // Memcached sessions
+memcachedCfg, _ := config.Get[database.MemcachedConfig](cfg, "memcached")
 client, _ := memcachedCfg.CreateClient()
 store, _ := session.NewMemcachedSessionStore(debugMode, []byte(secret), client)
 sargantana.SetSessionStore(&store)
@@ -544,7 +521,7 @@ import "github.com/animalet/sargantana-go/pkg/database"
 import "github.com/animalet/sargantana-go/pkg/config"
 
 // Load Redis configuration from YAML
-redisCfg, err := config.LoadConfig[database.RedisConfig]("redis", cfg)
+redisCfg, err := config.Get[database.RedisConfig](cfg, "redis")
 if err != nil {
     log.Fatal(err)
 }
@@ -589,7 +566,7 @@ import "github.com/animalet/sargantana-go/pkg/database"
 import "github.com/animalet/sargantana-go/pkg/config"
 
 // Load PostgreSQL configuration from YAML
-postgresCfg, err := config.LoadConfig[database.PostgresConfig]("postgres", cfg)
+postgresCfg, err := config.Get[database.PostgresConfig](cfg, "postgres")
 if err != nil {
     log.Fatal(err)
 }
@@ -705,13 +682,13 @@ func main() {
     }
 
     // Load configuration
-    cfg, err := config.LoadYAMLConfig(*configFile)
+    cfg, err := config.ReadModular(*configFile)
     if err != nil {
         panic(err)
     }
 
     // Setup database connection
-    postgresCfg, err := config.LoadConfig[database.PostgresConfig]("postgres", cfg)
+    postgresCfg, err := config.Get[database.PostgresConfig](cfg, "postgres")
     if err != nil {
         panic(err)
     }
@@ -769,8 +746,8 @@ func (b *BlogController) Close() error {
 
 // Constructor pattern - returns a function that creates controller instances
 func NewBlogController(db *pgxpool.Pool) server.Constructor {
-    return func(configData config.ControllerConfig, ctx controller.ControllerContext) (controller.IController, error) {
-        cfg, err := config.UnmarshalTo[BlogConfig](configData)
+    return func(configData config.ModuleRawConfig, ctx server.ControllerContext) (server.IController, error) {
+        cfg, err := config.Unmarshal[BlogConfig](configData)
         if err != nil {
             return nil, err
         }

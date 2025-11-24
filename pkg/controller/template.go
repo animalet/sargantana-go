@@ -17,7 +17,7 @@ type TemplateControllerConfig struct {
 }
 
 func NewTemplateController(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
-	c, err := config.Load[TemplateControllerConfig](configData)
+	c, err := config.Unmarshal[TemplateControllerConfig](configData)
 	if err != nil {
 		return nil, err
 	}

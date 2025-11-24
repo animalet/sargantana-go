@@ -55,7 +55,7 @@ func (b *Controller) Close() error { return nil }
 
 func NewBlogController(db *pgxpool.Pool) server.ControllerFactory {
 	return func(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
-		cfg, err := config.Load[Config](configData)
+		cfg, err := config.Unmarshal[Config](configData)
 		if err != nil {
 			return nil, err
 		}

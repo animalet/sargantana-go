@@ -46,7 +46,7 @@ func (s StaticControllerConfig) Validate() error {
 }
 
 func NewStaticController(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
-	c, err := config.Load[StaticControllerConfig](configData)
+	c, err := config.Unmarshal[StaticControllerConfig](configData)
 	if err != nil {
 		return nil, err
 	}

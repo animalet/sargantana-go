@@ -39,7 +39,7 @@ func (l LoadBalancerControllerConfig) Validate() error {
 }
 
 func NewLoadBalancerController(configData config.ModuleRawConfig, _ server.ControllerContext) (server.IController, error) {
-	c, err := config.Load[LoadBalancerControllerConfig](configData)
+	c, err := config.Unmarshal[LoadBalancerControllerConfig](configData)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse load balancer controller config")
 	}
