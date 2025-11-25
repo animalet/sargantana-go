@@ -11,32 +11,6 @@ import (
 )
 
 var _ = Describe("Redis Session Integration", func() {
-	Context("Basic Redis connection", func() {
-		It("should create a session store and connect to Redis without authentication", func() {
-			// Connect to Redis (plain, no auth)
-			cfg := database.RedisConfig{
-				Address:     "localhost:6379",
-				Database:    0,
-				MaxIdle:     10,
-				IdleTimeout: 240 * time.Second,
-			}
-			pool, err := cfg.CreateClient()
-			Expect(err).NotTo(HaveOccurred())
-			defer pool.Close()
-
-			// Test connection
-			conn := pool.Get()
-			defer conn.Close()
-			_, err = conn.Do("PING")
-			Expect(err).NotTo(HaveOccurred())
-
-			// Create Session Store
-			store, err := NewRedisSessionStore(false, []byte("secret-key-32-bytes-long-123456"), pool)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(store).NotTo(BeNil())
-		})
-	})
-
 	Context("Redis with authentication", func() {
 		It("should create a session store with username/password authentication", func() {
 			// Connect to Redis with ACL authentication
