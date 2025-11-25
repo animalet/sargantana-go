@@ -20,7 +20,8 @@ var _ = Describe("FileSecretLoader", func() {
 		var err error
 		tempDir, err = os.MkdirTemp("", "secrets-test")
 		Expect(err).NotTo(HaveOccurred())
-		loader = NewFileSecretLoader(tempDir)
+		loader, err = NewFileSecretLoader(tempDir)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {

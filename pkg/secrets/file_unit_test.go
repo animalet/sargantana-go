@@ -73,22 +73,25 @@ var _ = Describe("FileSecretLoader", func() {
 
 	Context("Resolve", func() {
 		It("should return error if secrets_dir is not configured", func() {
-			loader := NewFileSecretLoader("")
-			_, err := loader.Resolve("key")
+			loader, err := NewFileSecretLoader("")
+			Expect(err).NotTo(HaveOccurred())
+			_, err = loader.Resolve("key")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("no secrets directory configured"))
 		})
 
 		It("should return error if key is empty", func() {
-			loader := NewFileSecretLoader(tempDir)
-			_, err := loader.Resolve("")
+			loader, err := NewFileSecretLoader(tempDir)
+			Expect(err).NotTo(HaveOccurred())
+			_, err = loader.Resolve("")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("no file specified"))
 		})
 
 		It("should return error if file reading fails", func() {
-			loader := NewFileSecretLoader(tempDir)
-			_, err := loader.Resolve("non_existent_file")
+			loader, err := NewFileSecretLoader(tempDir)
+			Expect(err).NotTo(HaveOccurred())
+			_, err = loader.Resolve("non_existent_file")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("secret not found"))
 		})
@@ -97,22 +100,25 @@ var _ = Describe("FileSecretLoader", func() {
 			err := os.WriteFile(filepath.Join(tempDir, "my_secret"), []byte("  secret_value  \n"), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			loader := NewFileSecretLoader(tempDir)
+			loader, err := NewFileSecretLoader(tempDir)
+			Expect(err).NotTo(HaveOccurred())
 			val, err := loader.Resolve("my_secret")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(val).To(Equal("secret_value"))
 		})
 
 		It("should prevent path traversal with ..", func() {
-			loader := NewFileSecretLoader(tempDir)
-			_, err := loader.Resolve("../../../etc/passwd")
+			loader, err := NewFileSecretLoader(tempDir)
+			Expect(err).NotTo(HaveOccurred())
+			_, err = loader.Resolve("../../../etc/passwd")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("path traversal detected"))
 		})
 
 		It("should prevent path traversal with absolute path", func() {
-			loader := NewFileSecretLoader(tempDir)
-			_, err := loader.Resolve("/etc/passwd")
+			loader, err := NewFileSecretLoader(tempDir)
+			Expect(err).NotTo(HaveOccurred())
+			_, err = loader.Resolve("/etc/passwd")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("absolute paths not allowed"))
 		})
@@ -125,7 +131,8 @@ var _ = Describe("FileSecretLoader", func() {
 			err = os.WriteFile(filepath.Join(subDir, "nested_secret"), []byte("nested_value"), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			loader := NewFileSecretLoader(tempDir)
+			loader, err := NewFileSecretLoader(tempDir)
+			Expect(err).NotTo(HaveOccurred())
 			val, err := loader.Resolve("subdir/nested_secret")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(val).To(Equal("nested_value"))
@@ -134,7 +141,8 @@ var _ = Describe("FileSecretLoader", func() {
 
 	Context("Name", func() {
 		It("should return File", func() {
-			loader := NewFileSecretLoader(tempDir)
+			loader, err := NewFileSecretLoader(tempDir)
+			Expect(err).NotTo(HaveOccurred())
 			Expect(loader.Name()).To(Equal("File"))
 		})
 	})

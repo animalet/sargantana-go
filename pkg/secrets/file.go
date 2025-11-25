@@ -41,7 +41,7 @@ func (f FileSecretConfig) CreateClient() (*FileSecretLoader, error) {
 	if err := f.Validate(); err != nil {
 		return nil, err
 	}
-	return NewFileSecretLoader(f.SecretsDir), nil
+	return NewFileSecretLoader(f.SecretsDir)
 }
 
 // FileSecretLoader reads secrets from files in a configured directory.
@@ -60,22 +60,23 @@ type FileSecretLoader struct {
 //
 // Parameters:
 //   - secretsDir: The directory containing secret files
-func NewFileSecretLoader(secretsDir string) *FileSecretLoader {
-	return &FileSecretLoader{
-		secretsDir: secretsDir,
+func NewFileSecretLoader(secretsDir string) (*FileSecretLoader, error) {
+	if secretsDir == "" {
+		return nil, errors.New("no secrets directory configured")
 	}
+
+	absSecretsDir, err := filepath.Abs(secretsDir)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to resolve absolute path for secrets directory")
+	}
+
+	return &FileSecretLoader{
+		secretsDir: absSecretsDir,
+	}, nil
 }
 
 // Resolve reads a secret from a file
 func (f *FileSecretLoader) Resolve(key string) (string, error) {
-	if f.secretsDir == "" {
-		return "", errors.New("no secrets directory configured")
-	}
-
-	if key == "" {
-		return "", errors.New("no file specified for file secret")
-	}
-
 	// Reject absolute paths
 	if filepath.IsAbs(key) {
 		return "", errors.New("invalid secret key: absolute paths not allowed")
@@ -87,20 +88,14 @@ func (f *FileSecretLoader) Resolve(key string) (string, error) {
 		return "", errors.New("invalid secret key: path traversal detected")
 	}
 
-	filePath := filepath.Join(f.secretsDir, cleanKey)
+	// Construct the full path using the cached absolute directory
+	absFilePath := filepath.Join(f.secretsDir, cleanKey)
 
 	// Verify the resolved path is within the secrets directory
-	absSecretsDir, err := filepath.Abs(f.secretsDir)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to resolve secrets directory")
-	}
-
-	absFilePath, err := filepath.Abs(filePath)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to resolve secret file path")
-	}
-
-	if !strings.HasPrefix(absFilePath, absSecretsDir+string(filepath.Separator)) {
+	// This check is still useful to ensure that even if cleanKey doesn't have ".."
+	// somehow we don't end up outside (though Join + Clean should prevent it).
+	// The main protection is the ".." check above and Join behavior.
+	if !strings.HasPrefix(absFilePath, f.secretsDir+string(filepath.Separator)) {
 		return "", errors.New("invalid secret key: outside secrets directory")
 	}
 
