@@ -92,4 +92,22 @@ var _ = Describe("Redis Integration", func() {
 		_, err = conn.Do("PING")
 		Expect(err).NotTo(HaveOccurred())
 	})
+
+	It("should handle connection errors gracefully", func() {
+		// Connect to invalid Redis address
+		cfg := RedisConfig{
+			Address:  "localhost:9999", // Invalid port
+			Database: 0,
+			MaxIdle:  10,
+		}
+		pool, err := cfg.CreateClient()
+		Expect(err).NotTo(HaveOccurred())
+		defer pool.Close()
+
+		// Test connection should fail
+		conn := pool.Get()
+		defer conn.Close()
+		_, err = conn.Do("PING")
+		Expect(err).To(HaveOccurred())
+	})
 })
