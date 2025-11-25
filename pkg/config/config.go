@@ -41,6 +41,7 @@ type ClientFactory[T any] interface {
 }
 
 func NewConfig(path string) (cfg *Config, err error) {
+	// #nosec G304 -- Config file path is provided by operator at startup, this is intentional
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read configuration file: %s", path)

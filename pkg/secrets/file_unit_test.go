@@ -90,7 +90,7 @@ var _ = Describe("FileSecretLoader", func() {
 			loader := NewFileSecretLoader(tempDir)
 			_, err := loader.Resolve("non_existent_file")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("error reading secret file"))
+			Expect(err.Error()).To(ContainSubstring("secret not found"))
 		})
 
 		It("should return secret content if file exists", func() {
@@ -101,6 +101,34 @@ var _ = Describe("FileSecretLoader", func() {
 			val, err := loader.Resolve("my_secret")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(val).To(Equal("secret_value"))
+		})
+
+		It("should prevent path traversal with ..", func() {
+			loader := NewFileSecretLoader(tempDir)
+			_, err := loader.Resolve("../../../etc/passwd")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("path traversal detected"))
+		})
+
+		It("should prevent path traversal with absolute path", func() {
+			loader := NewFileSecretLoader(tempDir)
+			_, err := loader.Resolve("/etc/passwd")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("absolute paths not allowed"))
+		})
+
+		It("should allow subdirectories", func() {
+			subDir := filepath.Join(tempDir, "subdir")
+			err := os.MkdirAll(subDir, 0755)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = os.WriteFile(filepath.Join(subDir, "nested_secret"), []byte("nested_value"), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			loader := NewFileSecretLoader(tempDir)
+			val, err := loader.Resolve("subdir/nested_secret")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(val).To(Equal("nested_value"))
 		})
 	})
 

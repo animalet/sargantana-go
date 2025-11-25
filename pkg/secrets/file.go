@@ -76,14 +76,45 @@ func (f *FileSecretLoader) Resolve(key string) (string, error) {
 		return "", errors.New("no file specified for file secret")
 	}
 
-	filePath := filepath.Join(f.secretsDir, key)
-	content, err := os.ReadFile(filePath)
+	// Reject absolute paths
+	if filepath.IsAbs(key) {
+		return "", errors.New("invalid secret key: absolute paths not allowed")
+	}
+
+	// Sanitize the key to prevent path traversal
+	cleanKey := filepath.Clean(key)
+	if strings.Contains(cleanKey, "..") {
+		return "", errors.New("invalid secret key: path traversal detected")
+	}
+
+	filePath := filepath.Join(f.secretsDir, cleanKey)
+
+	// Verify the resolved path is within the secrets directory
+	absSecretsDir, err := filepath.Abs(f.secretsDir)
 	if err != nil {
-		return "", errors.Wrapf(err, "error reading secret file %q", filePath)
+		return "", errors.Wrap(err, "failed to resolve secrets directory")
+	}
+
+	absFilePath, err := filepath.Abs(filePath)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to resolve secret file path")
+	}
+
+	if !strings.HasPrefix(absFilePath, absSecretsDir+string(filepath.Separator)) {
+		return "", errors.New("invalid secret key: outside secrets directory")
+	}
+
+	// #nosec G304 -- Path traversal is prevented by validation above
+	content, err := os.ReadFile(absFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", errors.New("secret not found")
+		}
+		return "", errors.New("failed to read secret")
 	}
 
 	secret := strings.TrimSpace(string(content))
-	log.Debug().Str("file", filePath).Msg("Retrieved secret from file")
+	log.Debug().Str("file", absFilePath).Msg("Retrieved secret from file")
 	return secret, nil
 }
 

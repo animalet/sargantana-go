@@ -193,6 +193,7 @@ func (m MongoDBConfig) buildTLSConfig() (*tls.Config, error) {
 		return nil, nil
 	}
 
+	// #nosec G402 -- InsecureSkipVerify is a configurable option for dev/test environments
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: m.TLS.InsecureSkipVerify,
 	}
