@@ -77,6 +77,10 @@ func NewFileSecretLoader(secretsDir string) (*FileSecretLoader, error) {
 
 // Resolve reads a secret from a file
 func (f *FileSecretLoader) Resolve(key string) (string, error) {
+	if key == "" {
+		return "", errors.New("no file specified for file secret")
+	}
+
 	// Reject absolute paths
 	if filepath.IsAbs(key) {
 		return "", errors.New("invalid secret key: absolute paths not allowed")

@@ -73,9 +73,7 @@ var _ = Describe("FileSecretLoader", func() {
 
 	Context("Resolve", func() {
 		It("should return error if secrets_dir is not configured", func() {
-			loader, err := NewFileSecretLoader("")
-			Expect(err).NotTo(HaveOccurred())
-			_, err = loader.Resolve("key")
+			_, err := NewFileSecretLoader("")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("no secrets directory configured"))
 		})
