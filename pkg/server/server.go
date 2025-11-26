@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/server/middleware"
 	"github.com/animalet/sargantana-go/pkg/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -18,6 +20,48 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
+
+type WebServerConfig struct {
+	Address       string `yaml:"address"`
+	SessionName   string `yaml:"session_name"`
+	SessionSecret string `yaml:"session_secret"`
+	CSP           string `yaml:"csp"` // Content-Security-Policy
+}
+
+func (c WebServerConfig) Validate() error {
+	if c.SessionSecret == "" {
+		return errors.New("session_secret must be set and non-empty")
+	}
+
+	if c.SessionName == "" {
+		return errors.New("session_name must be set and non-empty")
+	}
+
+	if c.Address == "" {
+		return errors.New("address must be set and non-empty")
+	}
+
+	_, err := net.ResolveTCPAddr("tcp", c.Address)
+	if err != nil {
+		return fmt.Errorf("invalid address: %w", err)
+	}
+
+	return nil
+}
+
+// SargantanaConfig holds the configuration settings for the Sargantana Go server.
+type SargantanaConfig struct {
+	WebServerConfig    WebServerConfig    `yaml:"server"`
+	ControllerBindings ControllerBindings `yaml:"controllers"`
+}
+
+func (c SargantanaConfig) Validate() error {
+	if err := c.WebServerConfig.Validate(); err != nil {
+		return errors.Wrap(err, "server configuration is invalid")
+	}
+
+	return c.ControllerBindings.Validate()
+}
 
 // Server represents the main HTTP server instance for the Sargantana Go framework.
 type Server struct {
@@ -160,6 +204,8 @@ func (s *Server) Start() (err error) {
 		return err
 	}
 
+	s.listenAndServe()
+
 	return nil
 }
 
@@ -192,6 +238,7 @@ func (s *Server) bootstrap() error {
 	engine.Use(
 		gin.Logger(),
 		gin.Recovery(),
+		middleware.SecurityHeaders(s.config.WebServerConfig.CSP),
 		sessions.Sessions(s.config.WebServerConfig.SessionName, s.sessionStore),
 	)
 
@@ -210,7 +257,7 @@ func (s *Server) bootstrap() error {
 	}
 
 	log.Info().Msgf("Starting server on %s", s.config.WebServerConfig.Address)
-	s.listenAndServe()
+	// listenAndServe is now called by Start()
 
 	return nil
 }

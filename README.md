@@ -208,6 +208,40 @@ controllers:
 | `-debug`   | Enable debug mode              | `false` | `-debug`                    |
 | `-version` | Show version information       | `false` | `-version`                  |
 
+### Security
+> [!WARNING]
+> **Debug Mode**: Running the server with `-debug` enables detailed logging, including request bodies and potentially sensitive information. **NEVER** use debug mode in a production environment.
+
+### Security Best Practices
+
+Sargantana Go includes several security features by default, but you should be aware of the following:
+
+**Security Headers**:
+The server includes a `SecurityHeaders` middleware that sets:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `X-XSS-Protection: 1; mode=block`
+- `Strict-Transport-Security` (HSTS)
+- `Content-Security-Policy` (CSP)
+- `Referrer-Policy`
+- `Permissions-Policy`
+
+**Content Security Policy (CSP)**:
+The default CSP is:
+```
+default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';
+```
+You can customize this in your `config.yaml`:
+```yaml
+server:
+  csp: "default-src 'self'; script-src 'https://trusted.cdn.com'"
+```
+
+> [!IMPORTANT]
+> **Missing Features**:
+> - **CSRF Protection**: The framework does NOT currently provide built-in CSRF protection. You should implement this in your application logic or use a separate middleware.
+> - **Rate Limiting**: There is no built-in rate limiting. It is recommended to run Sargantana Go behind a reverse proxy (like Nginx or AWS ALB) that handles rate limiting.
+
 ### Environment Variables
 
 Configuration values can reference environment variables using `${VAR_NAME}` syntax:
