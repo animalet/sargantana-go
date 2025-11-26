@@ -194,20 +194,17 @@ var _ = Describe("Server", func() {
 				return &MockController{}, nil
 			})
 
-			err := s.Start()
+			// Start server using bootstrap to avoid network listener
+			err := s.bootstrap()
 			Expect(err).NotTo(HaveOccurred())
 
-			// Make a request to trigger debug middleware
-			// We need to know the port. It's 8086.
-			// But we can't easily make a request because Start() starts listenAndServe in a goroutine,
-			// but we don't know when it's ready.
-			// We can wait a bit.
-			time.Sleep(100 * time.Millisecond)
+			// Verify debug mode was set on Gin
+			Expect(gin.IsDebugging()).To(BeTrue())
 
-			// We don't have any routes bound except what controllers bind.
-			// MockController binds nothing by default.
-			// But we can update MockController to bind something.
+			// We can also verify that the engine has the logger middleware if we could inspect it,
+			// but verifying gin.Mode() is sufficient for this test as SetDebug sets gin mode.
 
+			// Clean up
 			s.Shutdown()
 		})
 	})
@@ -232,7 +229,7 @@ var _ = Describe("Server", func() {
 				return &MockController{}, nil
 			})
 
-			err := s.Start()
+			err := s.bootstrap()
 			Expect(err).NotTo(HaveOccurred())
 			s.Shutdown()
 		})
@@ -260,7 +257,7 @@ var _ = Describe("Server", func() {
 			// Let's check go:167
 			// if len(configurationErrors) > 0 { log.Error... }
 			// It does NOT return error.
-			err := s.Start()
+			err := s.bootstrap()
 			Expect(err).NotTo(HaveOccurred())
 			s.Shutdown()
 		})
@@ -283,7 +280,7 @@ var _ = Describe("Server", func() {
 				panic("factory panic")
 			})
 
-			err := s.Start()
+			err := s.bootstrap()
 			Expect(err).NotTo(HaveOccurred())
 			s.Shutdown()
 		})
