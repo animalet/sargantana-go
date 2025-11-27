@@ -124,8 +124,24 @@ lint: format
 	@$(GOLANGCI_LINT) run ./...
 
 security:
-	@echo "Running security scan with gosec..."
-	@$(GOSEC) -fmt=json -out=gosec-report.json -stdout -verbose=text ./...
+	@echo "Running exhaustive security scan with gosec..."
+	@echo "  • Audit mode enabled (catches more potential issues)"
+	@echo "  • Test files included"
+	@echo "  • Suppression comments ignored"
+	@echo "  • All ignored issues shown"
+	@$(GOSEC) \
+		-enable-audit \
+		-tests \
+		-severity=low \
+		-confidence=low \
+		-show-ignored \
+		-track-suppressions \
+		-nosec \
+		-fmt=json \
+		-out=gosec-report.json \
+		-stdout \
+		-verbose=text \
+		./...
 
 # Building
 build:
@@ -156,7 +172,7 @@ ci: configure test-with-coverage lint security
 clean: clean-dist
 	@echo "Cleaning up..."
 	go clean
-	rm -rf bin/ dist/
+	rm -rf bin/
 	rm -f *.out gosec-report.json
 
 clean-dist:
