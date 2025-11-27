@@ -452,7 +452,7 @@ var _ = Describe("Auth Controller (Detailed)", func() {
 			var authCfg AuthControllerConfig
 			_ = yaml.Unmarshal(rawConfig, &authCfg)
 			ctrl, _ := NewAuthController(&authCfg, ctx)
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 		})
 
 		AfterEach(func() {

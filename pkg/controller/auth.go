@@ -245,7 +245,7 @@ func LoginFunc(c *gin.Context) {
 	c.Next()
 }
 
-func (a *auth) Bind(engine *gin.Engine) {
+func (a *auth) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 	hack := func(c *gin.Context) {
 		// Hack to make gothic work with gin
 		q := c.Request.URL.Query()
@@ -261,7 +261,7 @@ func (a *auth) Bind(engine *gin.Engine) {
 
 	engine.GET(a.loginPath, hack, a.login).GET(a.callbackPath, hack, a.callback)
 	engine.GET(a.logoutPath, a.logout)
-	engine.GET(a.userInfoPath, LoginFunc, a.userInfo)
+	engine.GET(a.userInfoPath, loginMiddleware, a.userInfo)
 }
 
 func (a *auth) Close() error {

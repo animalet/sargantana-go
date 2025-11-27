@@ -66,7 +66,7 @@ type static struct {
 
 // Bind registers the static controller with the provided Gin engine.
 // It sets up routes for serving static files or directories from the configured path.
-func (s *static) Bind(engine *gin.Engine) {
+func (s *static) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 	if s.config.File != "" {
 		log.Info().Str("path", s.config.Path).Str("file", s.config.File).Msg("Binding static file")
 		engine.StaticFile(s.config.Path, s.config.File)

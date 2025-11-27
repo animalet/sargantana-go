@@ -84,7 +84,7 @@ endpoints:
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ctrl).NotTo(BeNil())
 
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 			Expect(ctrl.Close()).To(Succeed())
 		})
 
@@ -118,7 +118,7 @@ endpoints:
 			ctrl, err := NewLoadBalancerController(&lbCfg, server.ControllerContext{})
 			Expect(err).NotTo(HaveOccurred())
 
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 
 			req, _ := http.NewRequest("GET", "/api/test", nil)
 			engine.ServeHTTP(w, req)
@@ -147,7 +147,7 @@ endpoints:
 			ctrl, err := NewLoadBalancerController(&lbCfg, server.ControllerContext{})
 			Expect(err).NotTo(HaveOccurred())
 
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 
 			// Create a request with a cancelled context
 			req, _ := http.NewRequest("GET", "/api/test", nil)
@@ -174,7 +174,7 @@ endpoints:
 				endpoints: []url.URL{},
 				path:      "/api/*proxyPath",
 			}
-			lb.Bind(engine)
+			lb.Bind(engine, nil)
 		})
 
 		It("should bind with auth enabled", func() {
@@ -191,7 +191,7 @@ endpoints:
 			ctrl, err := NewLoadBalancerController(&lbCfg, server.ControllerContext{})
 			Expect(err).NotTo(HaveOccurred())
 
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 		})
 
 		It("should filter sensitive headers", func() {
@@ -218,7 +218,7 @@ endpoints:
 			ctrl, err := NewLoadBalancerController(&lbCfg, server.ControllerContext{})
 			Expect(err).NotTo(HaveOccurred())
 
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 
 			req, _ := http.NewRequest("GET", "/api/test", nil)
 			req.Header.Set("Authorization", "Bearer token")
@@ -252,7 +252,7 @@ endpoints:
 			ctrl, err := NewLoadBalancerController(&lbCfg, server.ControllerContext{})
 			Expect(err).NotTo(HaveOccurred())
 
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 
 			req, _ := http.NewRequest("GET", "/api/test", nil)
 			engine.ServeHTTP(w, req)
@@ -352,7 +352,7 @@ endpoints:
 				ctrl, _ := NewLoadBalancerController(&lbCfg, ctx)
 
 				engine := gin.New()
-				ctrl.Bind(engine)
+				ctrl.Bind(engine, nil)
 
 				// First request -> backend1
 				req1, _ := http.NewRequest("GET", "/api/resource", nil)
@@ -399,7 +399,7 @@ endpoints:
 				ctrl, _ := NewLoadBalancerController(&lbCfg, ctx)
 
 				engine := gin.New()
-				ctrl.Bind(engine)
+				ctrl.Bind(engine, nil)
 
 				methods := []string{"POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}
 				for _, method := range methods {

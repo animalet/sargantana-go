@@ -17,13 +17,13 @@ import (
 
 // MockController implements IController
 type MockController struct {
-	BindFunc  func(*gin.Engine)
+	BindFunc  func(*gin.Engine, gin.HandlerFunc)
 	CloseFunc func() error
 }
 
-func (m *MockController) Bind(engine *gin.Engine) {
+func (m *MockController) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 	if m.BindFunc != nil {
-		m.BindFunc(engine)
+		m.BindFunc(engine, loginMiddleware)
 	}
 }
 

@@ -17,8 +17,9 @@ type IController interface {
 	//
 	// Parameters:
 	//   - engine: The Gin HTTP router engine to register routes with
-	//   - loginMiddleware: Pre-configured middleware function for protecting routes that require authentication
-	Bind(engine *gin.Engine)
+	//   - loginMiddleware: Pre-configured middleware function for protecting routes that require authentication.
+	//     This can be nil if no authentication middleware is configured.
+	Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc)
 
 	// Close performs cleanup operations when the controller is being shut down.
 	// This method should release any resources held by the controller such as

@@ -88,6 +88,8 @@ func newServer(cfg *config.Config) (sargantana *server.Server, redisPool *redis.
 		panic("server configuration is required")
 	}
 	sargantana = server.NewServer(*serverCfg)
+	// Configure authentication using goth (OAuth2)
+	sargantana.SetAuthenticator(controller.NewGothAuthenticator())
 
 	// Set up Redis session store if configured
 	redisCfg, err := config.Get[database.RedisConfig](cfg, "redis")

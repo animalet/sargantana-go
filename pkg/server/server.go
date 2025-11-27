@@ -103,6 +103,7 @@ type Server struct {
 	shutdownHooks   []func() error
 	shutdownChannel chan os.Signal
 	sessionStore    sessions.Store
+	authenticator   Authenticator
 }
 
 // controllerRegistry holds the mapping of controller type names to their factory functions.
@@ -122,12 +123,28 @@ func SetDebug(debugEnabled bool) {
 
 func NewServer(cfg SargantanaConfig) *Server {
 	return &Server{
-		config: cfg,
+		config:        cfg,
+		authenticator: NewUnauthorizedAuthenticator(),
 	}
 }
 
 func (s *Server) SetSessionStore(sessionStore sessions.Store) {
 	s.sessionStore = sessionStore
+}
+
+// SetAuthenticator configures the authentication provider for the server.
+// This allows developers to customize how authentication is handled throughout
+// the application. The provided authenticator will be passed to all controllers
+// that need authentication middleware.
+//
+// By default, the server uses UnauthorizedAuthenticator which rejects all
+// authenticated requests. To enable authentication, set a proper authenticator:
+//
+//	server.SetAuthenticator(controller.NewGothAuthenticator())
+//
+// or provide a custom implementation of the Authenticator interface.
+func (s *Server) SetAuthenticator(authenticator Authenticator) {
+	s.authenticator = authenticator
 }
 
 func addControllerType(typeName string, factory ControllerFactory) {
@@ -299,7 +316,7 @@ func (s *Server) bootstrap() error {
 	}
 
 	for _, c := range controllers {
-		c.Bind(engine)
+		c.Bind(engine, s.authenticator.Middleware())
 		s.addShutdownHook(c.Close)
 	}
 

@@ -85,7 +85,7 @@ dir: ./testdata`)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ctrl).NotTo(BeNil())
 
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 			Expect(ctrl.Close()).To(Succeed())
 		})
 
@@ -100,7 +100,7 @@ file: ./testdata/test.txt`)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ctrl).NotTo(BeNil())
 
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 			Expect(ctrl.Close()).To(Succeed())
 		})
 	})

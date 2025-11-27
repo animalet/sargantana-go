@@ -79,20 +79,20 @@ type loadBalancer struct {
 	auth          bool
 }
 
-func (l *loadBalancer) Bind(engine *gin.Engine) {
+func (l *loadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 	if len(l.endpoints) == 0 {
 		log.Warn().Msg("Load balancer not loaded: no endpoints configured")
 		return
 	}
 
 	if l.auth {
-		engine.GET(l.path, LoginFunc, l.forward).
-			POST(l.path, LoginFunc, l.forward).
-			PUT(l.path, LoginFunc, l.forward).
-			DELETE(l.path, LoginFunc, l.forward).
-			PATCH(l.path, LoginFunc, l.forward).
-			HEAD(l.path, LoginFunc, l.forward).
-			OPTIONS(l.path, LoginFunc, l.forward)
+		engine.GET(l.path, loginMiddleware, l.forward).
+			POST(l.path, loginMiddleware, l.forward).
+			PUT(l.path, loginMiddleware, l.forward).
+			DELETE(l.path, loginMiddleware, l.forward).
+			PATCH(l.path, loginMiddleware, l.forward).
+			HEAD(l.path, loginMiddleware, l.forward).
+			OPTIONS(l.path, loginMiddleware, l.forward)
 	} else {
 		engine.GET(l.path, l.forward).
 			POST(l.path, l.forward).

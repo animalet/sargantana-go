@@ -85,7 +85,7 @@ var _ = Describe("Auth Controller Integration", func() {
 		engine.Use(sessions.Sessions("mysession", store))
 
 		// Bind controller
-		authCtrl.Bind(engine)
+		authCtrl.Bind(engine, nil)
 
 		// Add dummy dashboard handler to verify redirect
 		engine.GET("/dashboard", func(c *gin.Context) {

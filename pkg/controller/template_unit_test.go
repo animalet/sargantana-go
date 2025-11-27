@@ -101,7 +101,7 @@ var _ = Describe("TemplateController", func() {
 
 			engine := gin.New()
 			// This might panic if templates are invalid or not found, but we expect it to work
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 
 			// Verify if we can render (requires a route using it, but Bind just loads them)
 			// We can at least ensure Bind didn't panic
@@ -123,7 +123,7 @@ var _ = Describe("TemplateController", func() {
 
 			engine := gin.New()
 			// Should log a warning but not panic
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 		})
 
 		It("should handle Close without error", func() {
@@ -148,7 +148,7 @@ var _ = Describe("TemplateController", func() {
 
 			engine := gin.New()
 			// Should not panic even if path doesn't exist (Bind checks)
-			ctrl.Bind(engine)
+			ctrl.Bind(engine, nil)
 		})
 	})
 })
