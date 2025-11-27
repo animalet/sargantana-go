@@ -5,11 +5,11 @@ import (
 
 	"github.com/animalet/sargantana-go/examples/blog_example/blog"
 	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/config/secrets"
 	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/database"
-	"github.com/animalet/sargantana-go/pkg/secrets"
 	"github.com/animalet/sargantana-go/pkg/server"
-	"github.com/animalet/sargantana-go/pkg/session"
+	"github.com/animalet/sargantana-go/pkg/server/session"
 	"github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"

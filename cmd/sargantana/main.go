@@ -6,11 +6,11 @@ import (
 	"os"
 
 	"github.com/animalet/sargantana-go/pkg/config"
+	"github.com/animalet/sargantana-go/pkg/config/secrets"
 	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/database"
-	"github.com/animalet/sargantana-go/pkg/secrets"
 	"github.com/animalet/sargantana-go/pkg/server"
-	"github.com/animalet/sargantana-go/pkg/session"
+	"github.com/animalet/sargantana-go/pkg/server/session"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"

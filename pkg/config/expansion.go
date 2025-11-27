@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/animalet/sargantana-go/pkg/secrets"
+	"github.com/animalet/sargantana-go/pkg/config/secrets"
 	"github.com/pkg/errors"
 )
 

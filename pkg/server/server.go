@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/animalet/sargantana-go/pkg/config"
-	"github.com/animalet/sargantana-go/pkg/session"
+	"github.com/animalet/sargantana-go/pkg/server/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
