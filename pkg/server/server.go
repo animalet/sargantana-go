@@ -13,6 +13,7 @@ import (
 
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/server/session"
+	"github.com/gin-contrib/secure"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -21,9 +22,10 @@ import (
 )
 
 type WebServerConfig struct {
-	Address       string `yaml:"address"`
-	SessionName   string `yaml:"session_name"`
-	SessionSecret string `yaml:"session_secret"`
+	Address       string          `yaml:"address"`
+	SessionName   string          `yaml:"session_name"`
+	SessionSecret string          `yaml:"session_secret"`
+	Security      *SecurityConfig `yaml:"security,omitempty"`
 }
 
 func (c WebServerConfig) Validate() error {
@@ -44,6 +46,39 @@ func (c WebServerConfig) Validate() error {
 		return fmt.Errorf("invalid address: %w", err)
 	}
 
+	if c.Security != nil {
+		if err := c.Security.Validate(); err != nil {
+			return fmt.Errorf("invalid security configuration: %w", err)
+		}
+	}
+
+	return nil
+}
+
+type SecurityConfig struct {
+	SSLRedirect               bool              `yaml:"ssl_redirect"`
+	SSLTemporaryRedirect      bool              `yaml:"ssl_temporary_redirect"`
+	SSLHost                   string            `yaml:"ssl_host"`
+	SSLProxyHeaders           map[string]string `yaml:"ssl_proxy_headers"`
+	STSSeconds                int64             `yaml:"sts_seconds"`
+	STSIncludeSubdomains      bool              `yaml:"sts_include_subdomains"`
+	FrameDeny                 bool              `yaml:"frame_deny"`
+	CustomFrameOptionsValue   string            `yaml:"custom_frame_options_value"`
+	ContentTypeNosniff        bool              `yaml:"content_type_nosniff"`
+	BrowserXssFilter          bool              `yaml:"browser_xss_filter"`
+	ContentSecurityPolicy     string            `yaml:"content_security_policy"`
+	ReferrerPolicy            string            `yaml:"referrer_policy"`
+	FeaturePolicy             string            `yaml:"feature_policy"`
+	PermissionsPolicy         string            `yaml:"permissions_policy"` // Deprecates FeaturePolicy
+	IENoOpen                  bool              `yaml:"ie_no_open"`
+	IsDevelopment             bool              `yaml:"is_development"`
+	DontRedirectIPV4Hostnames bool              `yaml:"dont_redirect_ipv4_hostnames"`
+}
+
+func (c SecurityConfig) Validate() error {
+	// Most fields are optional booleans or strings, so basic validation might be minimal.
+	// We can add specific checks if needed, e.g., if SSLRedirect is true, maybe check SSLHost?
+	// For now, we'll assume gin-contrib/secure handles empty values gracefully (which it does).
 	return nil
 }
 
@@ -239,6 +274,29 @@ func (s *Server) bootstrap() error {
 		gin.Recovery(),
 		sessions.Sessions(s.config.WebServerConfig.SessionName, s.sessionStore),
 	)
+
+	if s.config.WebServerConfig.Security != nil {
+		log.Info().Msg("Applying security middleware")
+		secConfig := secure.Config{
+			SSLRedirect:               s.config.WebServerConfig.Security.SSLRedirect,
+			SSLTemporaryRedirect:      s.config.WebServerConfig.Security.SSLTemporaryRedirect,
+			SSLHost:                   s.config.WebServerConfig.Security.SSLHost,
+			SSLProxyHeaders:           s.config.WebServerConfig.Security.SSLProxyHeaders,
+			STSSeconds:                s.config.WebServerConfig.Security.STSSeconds,
+			STSIncludeSubdomains:      s.config.WebServerConfig.Security.STSIncludeSubdomains,
+			FrameDeny:                 s.config.WebServerConfig.Security.FrameDeny,
+			CustomFrameOptionsValue:   s.config.WebServerConfig.Security.CustomFrameOptionsValue,
+			ContentTypeNosniff:        s.config.WebServerConfig.Security.ContentTypeNosniff,
+			BrowserXssFilter:          s.config.WebServerConfig.Security.BrowserXssFilter,
+			ContentSecurityPolicy:     s.config.WebServerConfig.Security.ContentSecurityPolicy,
+			ReferrerPolicy:            s.config.WebServerConfig.Security.ReferrerPolicy,
+			FeaturePolicy:             s.config.WebServerConfig.Security.FeaturePolicy,
+			IENoOpen:                  s.config.WebServerConfig.Security.IENoOpen,
+			IsDevelopment:             s.config.WebServerConfig.Security.IsDevelopment,
+			DontRedirectIPV4Hostnames: s.config.WebServerConfig.Security.DontRedirectIPV4Hostnames,
+		}
+		engine.Use(secure.New(secConfig))
+	}
 
 	for _, c := range controllers {
 		c.Bind(engine)

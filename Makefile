@@ -156,7 +156,7 @@ ci: configure test-with-coverage lint security
 clean: clean-dist
 	@echo "Cleaning up..."
 	go clean
-	rm -rf bin/ certs/
+	rm -rf bin/ certs/ dist/
 	rm -f *.out gosec-report.json
 
 clean-dist:
