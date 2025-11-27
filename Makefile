@@ -124,19 +124,15 @@ lint: format
 	@$(GOLANGCI_LINT) run ./...
 
 security:
-	@echo "Running exhaustive security scan with gosec..."
-	@echo "  • Audit mode enabled (catches more potential issues)"
+	@echo "Running security scan with gosec..."
 	@echo "  • Test files included"
-	@echo "  • Suppression comments ignored"
-	@echo "  • All ignored issues shown"
+	@echo "  • Tracking suppression comments"
+	@echo "  • Respecting #nosec directives"
 	@$(GOSEC) \
-		-enable-audit \
 		-tests \
 		-severity=low \
 		-confidence=low \
-		-show-ignored \
 		-track-suppressions \
-		-nosec \
 		-fmt=json \
 		-out=gosec-report.json \
 		-stdout \

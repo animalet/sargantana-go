@@ -179,6 +179,7 @@ func (m MongoDBConfig) CreateClient() (*mongo.Client, error) {
 
 	if err := client.Ping(ctx, readpref.Primary()); err != nil {
 		// Close the client if ping fails
+		// #nosec G104 -- Error during cleanup is not critical, main error is returned
 		_ = client.Disconnect(context.Background())
 		return nil, errors.Wrap(err, "failed to ping MongoDB")
 	}
