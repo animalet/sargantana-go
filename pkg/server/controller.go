@@ -22,7 +22,7 @@ type IController interface {
 
 	// Close performs cleanup operations when the controller is being shut down.
 	// This method should release any resources held by the controller such as
-	// database connections, file handles, or background goroutines.
+	// database connections, file handles, or background goroutines not managed externally.
 	//
 	// Returns an error if cleanup fails, nil otherwise.
 	Close() error

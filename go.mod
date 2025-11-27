@@ -19,7 +19,6 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.34.0
-	github.com/stretchr/testify v1.11.1
 	go.mongodb.org/mongo-driver v1.17.3
 	golang.org/x/oauth2 v0.32.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -46,7 +45,6 @@ require (
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.10 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
@@ -100,7 +98,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/mrjones/oauth v0.0.0-20190623134757-126b35219450 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.55.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/animalet/sargantana-go/pkg/config"
-	"github.com/animalet/sargantana-go/pkg/server/middleware"
 	"github.com/animalet/sargantana-go/pkg/session"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -25,7 +24,6 @@ type WebServerConfig struct {
 	Address       string `yaml:"address"`
 	SessionName   string `yaml:"session_name"`
 	SessionSecret string `yaml:"session_secret"`
-	CSP           string `yaml:"csp"` // Content-Security-Policy
 }
 
 func (c WebServerConfig) Validate() error {
@@ -239,7 +237,6 @@ func (s *Server) bootstrap() error {
 	engine.Use(
 		gin.Logger(),
 		gin.Recovery(),
-		middleware.SecurityHeaders(s.config.WebServerConfig.CSP),
 		sessions.Sessions(s.config.WebServerConfig.SessionName, s.sessionStore),
 	)
 
@@ -309,7 +306,6 @@ func (s *Server) Shutdown() error {
 		return fmt.Errorf("forced shutdown: %s", err)
 	}
 
-	// Free up resources used by controllers
 	log.Info().Msg("Executing shutdown hooks...")
 	for _, hook := range s.shutdownHooks {
 		if err := hook(); err != nil {
