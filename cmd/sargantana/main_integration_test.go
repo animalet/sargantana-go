@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"github.com/animalet/sargantana-go/pkg/config/secrets"
@@ -17,11 +16,6 @@ import (
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
 )
-
-func TestMainIntegration(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Main Integration Suite")
-}
 
 var _ = Describe("Sargantana Binary Integration Tests", func() {
 	var (
