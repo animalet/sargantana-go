@@ -1,0 +1,28 @@
+# Ignore unnecessary files during Docker build
+.git
+.gitignore
+*.md
+.DS_Store
+
+# Ignore test files
+*_test.go
+testdata/
+
+# Ignore build artifacts
+bin/
+dist/
+*.out
+coverage.out
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore secrets (should be mounted at runtime)
+secrets/
+
+# Ignore local configs (should be mounted at runtime)
+config.local.yaml
+config.dev.yaml

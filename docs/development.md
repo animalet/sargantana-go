@@ -4,190 +4,93 @@ This guide covers local development setup, compilation, and development workflow
 
 ## Prerequisites
 
-- Go 1.25 or later
-- Make
-- Git (to clone the repository)
-- Docker and Docker Compose (required for running tests locally)
+- **Go 1.25** or later
+- **Make**
+- **Docker & Docker Compose** (for local testing)
 
-## Installation
-
-```bash
-git clone https://github.com/animalet/sargantana-go.git
-cd sargantana-go
-make all
-```
-
-## Compilation Instructions
-
-If you prefer to compile from source or need to build for a different platform, you can compile the binaries yourself.
-
-### Clone and Build
+## Quick Start
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone https://github.com/animalet/sargantana-go.git
 cd sargantana-go
 
-# Build for your current platform
-go build -o sargantana-go ./main
+# 2. Setup development environment (installs tools)
+make configure
 
-# Or use the Makefile
-make build
-```
+# 3. Start dependency services (Redis, DBs, etc.)
+docker-compose up -d
 
-### Cross-Platform Compilation
-
-Build binaries for all supported platforms:
-
-```bash
-# Using the Makefile (recommended)
-make build-all
-
-# Manual cross-compilation examples:
-# Linux AMD64
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-linux-amd64 ./main
-
-# macOS AMD64 (Intel)
-GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-macos-amd64 ./main
-
-# macOS ARM64 (Apple Silicon)
-GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-macos-arm64 ./main
-
-# Windows AMD64
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sargantana-go-windows-amd64.exe ./main
-```
-
-The compiled binaries will be placed in the `dist/` directory when using `make build-all`, or in the current directory when building manually.
-
-### Build Flags Explained
-
-- `CGO_ENABLED=0`: Disables CGO for static linking (creates standalone binaries)
-- `-ldflags="-s -w"`: Strips debug information to reduce binary size
-  - `-s`: Omit symbol table and debug information
-  - `-w`: Omit DWARF debug information
-
-## Development Commands
-
-```bash
-# Run tests (requires docker-compose services)
+# 4. Run tests to verify everything is working
 make test
 
-# Run tests with coverage
-make test-coverage
-
-# Run linting
-make lint
-
-# Format code
-make format
-
-# Run all CI checks locally (requires docker-compose)
-make ci
-
-# Clean build artifacts
-make clean
-
-# Build the basic server binary
+# 5. Build the binary
 make build
 ```
 
-## Project Structure
+## Build Commands
 
-```
-sargantana-go/
-├── main/           # Main application entry point
-├── server/         # Core server implementation
-├── controller/     # Built-in controllers (auth, static, load balancer)
-├── config/         # Configuration management
-├── session/        # Session storage implementations
-├── database/       # Database integrations (Redis, Neo4j, etc.)
-├── docs/           # Documentation files
-└── Makefile        # Development commands
-```
+The project uses a `Makefile` to simplify common tasks.
+
+| Command | Description |
+|---------|-------------|
+| `make build` | Build the binary for the current platform (outputs to `bin/`) |
+| `make build-all` | Cross-compile for Linux, macOS (Intel/Apple Silicon), and Windows (outputs to `dist/`) |
+| `make clean` | Remove build artifacts |
+
+### Cross-Compilation Details
+
+`make build-all` generates binaries for:
+- Linux AMD64
+- macOS AMD64 (Intel)
+- macOS ARM64 (Apple Silicon)
+- Windows AMD64
+
+The binaries are built with `CGO_ENABLED=0` for static linking and include version information (git tag/commit).
 
 ## Development Workflow
 
-### 1. Setting up your development environment
+### 1. Code Quality Tools
 
-1. Clone the repository and install dependencies
-2. Start the required services using docker-compose (see [Testing Guide](testing.md))
-3. Run tests to ensure everything is working
-4. Start coding!
+We use several tools to maintain code quality, which are installed via `make configure`:
+- **goimports**: Formats code and manages imports.
+- **golangci-lint**: A fast, parallel linter runner.
+- **gosec**: Security scanner for Go code.
+- **go-test-coverage**: Enforces test coverage thresholds.
 
-### 2. Making changes
-
-1. Create a feature branch: `git checkout -b feature/amazing-feature`
-2. Make your changes
-3. Run tests: `make test`
-4. Run linting: `make lint`
-5. Format code: `make format`
-
-### 3. Before committing
-
-1. Run all CI checks locally: `make ci`
-2. Ensure all tests pass
-3. Commit your changes with a descriptive message
-4. Push to your feature branch
-
-### 4. Submitting changes
-
-1. Open a Pull Request against the main branch
-2. Ensure CI passes
-3. Wait for code review
-
-## IDE Setup
-
-### VS Code
-
-Recommended extensions:
-- Go extension by Google
-- Docker extension
-- GitLens
-
-### GoLand/IntelliJ
-
-The project should work out of the box with GoLand. Make sure to:
-1. Enable Go modules support
-2. Set up the test configuration to use docker-compose services
-
-## Debugging
-
-### Running with debugger
+### 2. Common Tasks
 
 ```bash
-# Run the main application in debug mode
-go run -race ./main -debug
+# Format code
+make format
 
-# Or build and run with debug symbols
-go build -o sargantana-go ./main
-./sargantana-go -debug
+# Lint code
+make lint
+
+# Run security scan
+make security
+
+# Run all CI checks locally (Lint + Test + Coverage + Security)
+make ci
 ```
 
-### Common debugging scenarios
+### 3. Running the Server Locally
 
-1. **Authentication issues**: Check the authentication providers documentation
-2. **Database connection issues**: Ensure docker-compose services are running
-3. **Session issues**: Verify Redis is running if using Redis sessions
-4. **Static file serving**: Check file paths and permissions
-
-## Performance Profiling
-
-Sargantana Go includes built-in profiling support when running in debug mode:
+To run the server locally during development:
 
 ```bash
-# Run with profiling enabled
-./sargantana-go -debug
+# 1. Ensure services are running
+docker-compose up -d
 
-# Access profiling endpoints
-curl http://localhost:8080/debug/pprof/
+# 2. Run with a config file
+go run ./cmd/sargantana -config config.yaml -debug
 ```
 
-## Contributing Guidelines
+**Note**: You need a valid `config.yaml`. You can copy `examples/blog_example/config.yaml` as a starting point.
 
-1. Follow Go best practices and idioms
-2. Write tests for new functionality
-3. Update documentation when adding features
-4. Use meaningful commit messages
-5. Keep pull requests focused and small
+## Contributing
 
-See the main [Contributing](../README.md#contributing) section for more details.
+1.  Create a feature branch.
+2.  Make your changes.
+3.  Run `make ci` to ensure all checks pass.
+4.  Submit a Pull Request.
