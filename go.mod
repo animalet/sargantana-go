@@ -1,6 +1,6 @@
 module github.com/animalet/sargantana-go
 
-go 1.25.0
+go 1.25.4
 
 tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint

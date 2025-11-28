@@ -7,5 +7,4 @@ threshold:
   total: 85
 exclude:
   paths:
-    - main\.go$
     - ^examples/
