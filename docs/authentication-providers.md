@@ -121,85 +121,67 @@ The following table lists the supported providers and their unique configuration
 | **Yandex**           | `yandex`          | -                                            | Russian search engine                           |
 | **Zoom**             | `zoom`            | -                                            | Includes read:user scope                        |
 
-## Special Configuration Notes
 
-### Yahoo
+## Custom Authentication Strategies
 
-Yahoo has special requirements and uses a hardcoded callback URL of `https://localhost.com`. You need to configure your
-Yahoo app to use this specific callback URL.
+While Goth is the primary implementation for OAuth2, Sargantana-Go uses an interface-based approach for authentication. This allows you to implement any authentication strategy (JWT, API Keys, LDAP, etc.) by implementing the `server.Authenticator` interface.
 
-### Auth0
+### The Authenticator Interface
 
-Auth0 requires a domain configuration. Make sure to set the `domain` field to your Auth0 domain.
+The `Authenticator` interface is defined in `pkg/server/authenticator.go`:
 
-```yaml
-controllers:
-  - type: "auth"
-    config:
-      providers:
-        auth0:
-          key: "${AUTH0_KEY}"
-          secret: "${AUTH0_SECRET}"
-          domain: "yourdomain.auth0.com"
+```go
+type Authenticator interface {
+    // Middleware returns a Gin middleware function that performs authentication.
+    // This middleware will be called for routes that require authentication.
+    Middleware() gin.HandlerFunc
+}
 ```
 
-### Okta
+### Using a Custom Authenticator
 
-Okta requires the organization URL (`org_url`).
+To use a custom authenticator, you need to:
 
-```yaml
-controllers:
-  - type: "auth"
-    config:
-      providers:
-        okta:
-          key: "${OKTA_KEY}"
-          secret: "${OKTA_SECRET}"
-          org_url: "https://yourorg.okta.com"
+1.  Implement the `Authenticator` interface.
+2.  Set your authenticator using `server.SetAuthenticator()` before starting the server.
+
+```go
+// 1. Implement the interface
+type MyCustomAuth struct {}
+
+func (a *MyCustomAuth) Middleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        // Your custom authentication logic here
+        token := c.GetHeader("Authorization")
+        if validate(token) {
+            c.Next()
+        } else {
+            c.AbortWithStatus(http.StatusUnauthorized)
+        }
+    }
+}
+
+// 2. Set it in your main.go
+func main() {
+    // ... load config ...
+    
+    srv := server.NewServer(cfg)
+    
+    // Replace the default Goth authenticator with your custom one
+    srv.SetAuthenticator(&MyCustomAuth{})
+    
+    // ... start server ...
+}
 ```
 
-### Nextcloud
+### Default Behavior
 
-Nextcloud requires the `url` to specify your Nextcloud instance URL.
+By default, if no authenticator is set, the server uses `UnauthorizedAuthenticator`, which rejects **all** requests to protected routes with a 401 Unauthorized status. This is a security-by-default measure to ensure you explicitly configure authentication.
 
-```yaml
-controllers:
-  - type: "auth"
-    config:
-      providers:
-        nextcloud:
-          key: "${NEXTCLOUD_KEY}"
-          secret: "${NEXTCLOUD_SECRET}"
-          url: "https://nextcloud.example.com"
+To use the standard Goth-based OAuth2 authentication (as configured in YAML), you must explicitly set it:
+
+```go
+// Use the built-in Goth authenticator
+srv.SetAuthenticator(controller.NewGothAuthenticator())
 ```
 
-### OpenID Connect
-
-OpenID Connect requires the `url` to specify the OpenID Connect provider URL.
-
-```yaml
-controllers:
-  - type: "auth"
-    config:
-      providers:
-        openid-connect:
-          key: "${OIDC_KEY}"
-          secret: "${OIDC_SECRET}"
-          url: "https://oidc.example.com"
-```
-
-### WeCom (WeChat Work)
-
-WeCom requires three fields: `corp_id`, `secret`, and `agent_id`.
-
-```yaml
-controllers:
-  - type: "auth"
-    config:
-      providers:
-        wecom:
-          key: "${WECOM_KEY}"
-          secret: "${WECOM_SECRET}"
-          corp_id: "${WECOM_CORP_ID}"
-          agent_id: "${WECOM_AGENT_ID}"
-```
