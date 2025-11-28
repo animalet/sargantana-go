@@ -230,17 +230,13 @@ func (s *Server) StartAndWaitForSignal() error {
 }
 
 func (s *Server) Start() (err error) {
-	if debug {
-		log.Debug().Msg("Debug mode is enabled")
-		log.Debug().Msgf("Listen address: %q", s.config.WebServerConfig.Address)
-		log.Debug().Msgf("Session cookie name: %q", s.config.WebServerConfig.SessionName)
-		log.Debug().Msg("Expected controllers:")
-		for _, binding := range s.config.ControllerBindings {
-			log.Debug().Msgf(" - Type: %s, Name: %s\n%s", binding.TypeName, binding.Name, binding.Config)
-		}
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
+	log.Debug().
+		Str("address", s.config.WebServerConfig.Address).
+		Str("session_name", s.config.WebServerConfig.SessionName).
+		Int("controller_count", len(s.config.ControllerBindings)).
+		Msg("Debug mode is enabled")
+	for _, binding := range s.config.ControllerBindings {
+		log.Debug().Str("type", binding.TypeName).Str("name", binding.Name).RawJSON("config", binding.Config).Msg("Expected controller")
 	}
 
 	if s.sessionStore == nil {
