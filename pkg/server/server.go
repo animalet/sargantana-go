@@ -112,6 +112,7 @@ var controllerRegistry = make(map[string]ControllerFactory)
 var debug = false
 
 func SetDebug(debugEnabled bool) {
+	debug = debugEnabled
 	if debugEnabled {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 		gin.SetMode(gin.DebugMode)
