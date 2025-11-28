@@ -5,8 +5,8 @@ A complete blog application demonstrating the Sargantana Go framework with authe
 ## Features
 
 - **Authentication**: Keycloak OAuth2/OIDC for local development
-- **Database**: PostgreSQL with connection pooling
-- **Sessions**: Redis-backed session storage (unlimited size for OAuth tokens)
+- **Database**: PostgreSQL with connection pooling (pgx)
+- **Sessions**: Redis-backed session storage
 - **Secrets Management**: Hybrid approach using file-based secrets and HashiCorp Vault
 - **Template Rendering**: Server-side HTML templates
 - **Static Assets**: CSS and favicon serving
@@ -35,7 +35,7 @@ A complete blog application demonstrating the Sargantana Go framework with authe
 
 ### Authentication
 
-** Keycloak Login**
+**Keycloak Login**
 - Pre-configured test user: `test` / `test`
 - Click "Login with OAuth" on the blog
 - Redirects to Keycloak at http://localhost:8081
@@ -56,22 +56,44 @@ A complete blog application demonstrating the Sargantana Go framework with authe
 
 ### Configuration
 
-The example demonstrates **modular configuration** with multiple secret sources:
+The example demonstrates **modular configuration** with multiple secret sources.
+
+**`config.yaml` Structure:**
 
 ```yaml
-# Hybrid secret sources (file and Vault)
-session_secret: "${vault:SESSION_SECRET}"        # From Vault
-user: "${vault:DB_USER}"                         # From Vault
-password: "${vault:DB_PASSWORD}"                 # From Vault
-key: "${file:OPENID_CONNECT_KEY}"                # From secrets/OPENID_CONNECT_KEY
-secret: "${vault:OPENID_CONNECT_SECRET}"         # From Vault
-```
+# Server configuration
+sargantana:
+  server:
+    address: "0.0.0.0:8080"
+    session_secret: "${vault:SESSION_SECRET}" # From Vault
+  controllers:
+    - type: "blog"
+      config:
+        # ...
+    - type: "auth"
+      config:
+        providers:
+          openid-connect:
+            key: "${file:OPENID_CONNECT_KEY}" # From file
+            secret: "${vault:OPENID_CONNECT_SECRET}" # From Vault
 
-**Key files:**
-- `config.docker.yaml` - Docker-specific configuration
-- `main.go` - Application entry point showing resolver setup
-- `blog/blog.go` - Blog controller implementation
-- `content/templates/` - HTML templates
+# Secret Provider Configurations
+file_resolver:
+  secrets_dir: "/app/secrets"
+
+vault:
+  address: "http://vault:8200"
+  token: "dev-root-token"
+  path: "secret/data/blog"
+
+redis:
+  address: "redis:6379"
+  # ...
+
+database:
+  host: "postgres"
+  # ...
+```
 
 ## Technical Details
 
@@ -87,15 +109,6 @@ secret: "${vault:OPENID_CONNECT_SECRET}"         # From Vault
 
 **File Secrets** (`secrets/` directory):
 - `OPENID_CONNECT_KEY` - OAuth client ID (value: `sargantana`)
-
-**Vault Commands:**
-```bash
-# View secrets
-docker exec blog-vault vault kv get secret/blog
-
-# Update secrets
-docker exec blog-vault vault kv put secret/blog KEY=value
-```
 
 ### Database Schema
 
@@ -123,18 +136,32 @@ CREATE TABLE IF NOT EXISTS posts (
 
 ### Controller Registration
 
-The example demonstrates modular controller setup:
+The example demonstrates how to wire everything together in `main.go`:
 
 ```go
-// Register resolvers
-resolver.Register("env", resolver.NewEnvLoader())
-resolver.Register("file", fileResolver)
-resolver.Register("vault", vaultResolver)
+func main() {
+    // 1. Load Config
+    cfg, _ := config.NewConfig("./config.yaml")
 
-// Register controllers
-server.AddControllerType("blog", blog.NewBlogController(pool))
-server.AddControllerType("auth", controller.NewAuthController)
-server.AddControllerType("template", controller.NewTemplateController)
+    // 2. Register Secret Loaders
+    vaultCfg, _ := config.Get[secrets.VaultConfig](cfg, "vault")
+    vaultClient, _ := vaultCfg.CreateClient()
+    secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
+
+    // 3. Register Controllers
+    server.RegisterController("auth", controller.NewAuthController)
+    server.RegisterController("static", controller.NewStaticController)
+    
+    // 4. Register Custom Controller with Dependencies
+    pool := newPgPool(cfg)
+    server.RegisterController("blog", blog.NewBlogController(pool))
+
+    // 5. Create and Start Server
+    serverCfg, _ := config.Get[server.SargantanaConfig](cfg, "sargantana")
+    sargantana := server.NewServer(*serverCfg)
+    
+    sargantana.StartAndWaitForSignal()
+}
 ```
 
 ## Development
@@ -152,26 +179,25 @@ mkdir -p secrets
 echo "dev-secret" > secrets/SESSION_SECRET
 
 # Run application
-go run main.go
+go run cmd/main.go
 ```
 
 ### Project Structure
 
 ```
 blog_example/
-├── blog/                 # Blog controller
+├── blog/                 # Blog controller implementation
 │   └── blog.go
+├── cmd/                  # Application entry point
+│   └── main.go
 ├── content/              # Static assets
 │   ├── templates/        # HTML templates
-│   │   ├── articles.html
-│   │   └── admin.html
-│   ├── css/             # Stylesheets
+│   ├── css/              # Stylesheets
 │   └── favicon.ico
-├── secrets/             # Secret files (gitignored)
-├── main.go              # Application entry point
-├── config.docker.yaml   # Docker configuration
-├── docker-compose.yml   # Service orchestration
-└── Dockerfile           # Multi-stage build
+├── secrets/              # Secret files (gitignored)
+├── config.yaml           # Main configuration
+├── docker-compose.yml    # Service orchestration
+└── Dockerfile            # Multi-stage build
 ```
 
 ## Troubleshooting

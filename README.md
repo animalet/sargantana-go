@@ -105,10 +105,13 @@ func main() {
     server.RegisterController("static", controller.NewStaticController)
 
     // 3. Create server
-    sargantana, err := server.NewServer(cfg)
+    // Note: You need to extract the server config from the modular config
+    serverCfg, err := config.Get[server.SargantanaConfig](cfg, "server")
     if err != nil {
         log.Fatal(err)
     }
+    
+    sargantana := server.NewServer(*serverCfg)
 
     // 4. Start server
     if err := sargantana.StartAndWaitForSignal(); err != nil {
@@ -117,50 +120,13 @@ func main() {
 }
 ```
 
-### Configuration
+### Examples
 
-Sargantana Go uses YAML configuration files. See [Secret Providers](docs/secret_providers.md) for advanced configuration with secrets.
-
-```yaml
-server:
-  address: "localhost:8080"
-  session_name: "myapp"
-  session_secret: "${SESSION_SECRET}"
-
-controllers:
-  - type: "static"
-    config:
-      statics_dir: "./public"
-      templates_dir: "./templates"
-  - type: "auth"
-    config:
-      providers:
-        github:
-          key: "${GITHUB_KEY}"
-          secret: "${GITHUB_SECRET}"
-```
-
-## Running the Application
-
-```bash
-# Basic server with configuration file
-./sargantana-go -config config.yaml
-
-# With debug mode enabled
-./sargantana-go -config config.yaml -debug
-```
-
-## Contributing
-
-Please see the [Development Guide](docs/development.md) for details on how to set up your development environment and contribute to the project.
-
-func (b *BlogController) deletePost(c *gin.Context) {
-    // Delete from database using b.db
-    // Implementation here
-}
-```
-
-See `examples/blog_example/` for a complete working blog application with PostgreSQL integration and Keycloak authentication.
+Check out the [Blog Example](examples/blog_example/README.md) for a complete, production-ready application demonstrating:
+- **Authentication** with Keycloak (OAuth2/OIDC)
+- **Database** integration with PostgreSQL
+- **Secrets Management** with Vault and Files
+- **Session Management** with Redis
 
 ### API Gateway with Load Balancing
 
