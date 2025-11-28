@@ -10,12 +10,18 @@ server:
   # Note: Server now defaults to cookie-based sessions
   # For Redis sessions, configure redis section below and use SetSessionStore() in your code
 
-# Redis configuration (optional - for Redis session store or general Redis usage)
-# To use Redis for sessions, create a Redis session store in your application code:
-#   redisConfig, _ := config.LoadConfig[database.RedisConfig]("redis", cfg)
-#   pool, _ := redisConfig.CreateClient()
-#   redisStore, _ := session.NewRedisSessionStore(isRelease, secret, pool)
-#   server.SetSessionStore(&redisStore)
+# Session Store Configuration
+# Sargantana supports multiple session store backends. Configure ONE of the following:
+# - redis: High-performance, distributed sessions
+# - mongodb: Document-based session storage
+# - postgres: SQL-based session storage with strong consistency
+# - memcached: Fast, distributed in-memory cache
+# - cookie: Default, no configuration needed (sessions stored in encrypted cookies)
+#
+# The session store is automatically selected based on which database is configured.
+# Priority: Redis > MongoDB > PostgreSQL > Memcached > Cookie (default)
+
+# Redis configuration (for Redis session store or general Redis usage)
 redis:
   address: "localhost:6380"  # TLS Redis server address
   username: "redisuser"      # Redis username (if using ACL)
@@ -29,11 +35,74 @@ redis:
     key_file: "./certs/client.key"    # Client private key file
     ca_file: "./certs/ca.crt"         # CA certificate file
 
+# MongoDB configuration (for MongoDB session store or general MongoDB usage)
+# Uncomment to use MongoDB sessions
+# mongodb:
+#   uri: "mongodb://localhost:27017"  # MongoDB connection string
+#   database: "sargantana"             # Database name
+#   username: "mongouser"              # Optional: username for authentication
+#   password: "mongopass"              # Optional: password for authentication
+#   auth_source: "admin"               # Optional: authentication database (default: admin)
+#   connect_timeout: "10s"             # Optional: connection timeout
+#   max_pool_size: 100                 # Optional: max connections (default: 100)
+#   min_pool_size: 0                   # Optional: min connections (default: 0)
+#   tls:                               # Optional: TLS configuration
+#     insecure_skip_verify: false
+#     cert_file: "./certs/client.crt"
+#     key_file: "./certs/client.key"
+#     ca_file: "./certs/ca.crt"
+
+# PostgreSQL configuration (for PostgreSQL session store or general PostgreSQL usage)
+# Uncomment to use PostgreSQL sessions
+# postgres:
+#   host: "localhost"
+#   port: 5432
+#   database: "sargantana"
+#   user: "postgres"
+#   password: "postgrespass"
+#   ssl_mode: "disable"                # Optional: disable, allow, prefer, require, verify-ca, verify-full
+#   max_conns: 25                      # Optional: maximum connections in pool
+#   min_conns: 5                       # Optional: minimum connections in pool
+#   max_conn_lifetime: "1h"            # Optional: maximum connection lifetime
+#   max_conn_idle_time: "30m"          # Optional: maximum idle time
+#   health_check_period: "1m"          # Optional: health check interval
+
+# Memcached configuration (for Memcached session store or general Memcached usage)
+# Uncomment to use Memcached sessions
+# memcached:
+#   servers:                           # List of memcached servers
+#     - "localhost:11211"
+#     - "localhost:11212"
+#   timeout: "100ms"                   # Optional: connection timeout (default: 100ms)
+#   max_idle_conns: 2                  # Optional: max idle connections per server (default: 2)
+
+# Secret Provider Configuration
+# Sargantana supports multiple secret providers for resolving ${prefix:key} placeholders:
+# - env: Environment variables (default, always available)
+# - file: File-based secrets (Docker/Kubernetes secrets, local files)
+# - vault: HashiCorp Vault KV secrets
+# - aws: AWS Secrets Manager
+
+# HashiCorp Vault configuration
 vault:
   address: "http://localhost:8200"  # Vault server address
-  token: "${VAULT_TOKEN}"                     # Vault authentication token (can use env var)
-  path: "secret/data/sargantana"              # Path to secrets in Vault (for KV v2 engine)
-  namespace: ""                               # Optional: Vault namespace for Enterprise (leave empty for OSS)
+  token: "${VAULT_TOKEN}"            # Vault authentication token (can use env var)
+  path: "secret/data/sargantana"     # Path to secrets in Vault (for KV v2 engine)
+  namespace: ""                      # Optional: Vault namespace for Enterprise (leave empty for OSS)
+
+# File-based secret resolver configuration
+# Uncomment to enable ${file:secret_name} resolution
+# file_resolver:
+#   secrets_dir: "/run/secrets"      # Directory containing secret files (e.g., Docker/K8s secrets)
+
+# AWS Secrets Manager configuration
+# Uncomment to enable ${aws:secret_key} resolution
+# aws:
+#   region: "us-east-1"                               # AWS region
+#   secret_name: "sargantana/prod"                    # Secret name in AWS Secrets Manager
+#   access_key_id: "${AWS_ACCESS_KEY_ID}"             # Optional: uses IAM role if not provided
+#   secret_access_key: "${AWS_SECRET_ACCESS_KEY}"     # Optional: uses IAM role if not provided
+#   endpoint: ""                                      # Optional: custom endpoint (for LocalStack)
 
 # Controller configurations
 controllers:

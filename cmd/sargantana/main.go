@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -77,6 +78,10 @@ func main() {
 	// Configure authentication using goth (OAuth2)
 	sargantana.SetAuthenticator(controller.NewGothAuthenticator())
 
+	// Configure session store based on available database configuration
+	// Priority: Redis > MongoDB > PostgreSQL > Memcached
+	// Only the first configured store will be used
+
 	redisCfg, err := config.Get[database.RedisConfig](cfg, "redis")
 	if err != nil {
 		panic(errors.Wrap(err, "failed to load Redis configuration"))
@@ -95,6 +100,68 @@ func main() {
 		store, err := session.NewRedisSessionStore(*debugMode, []byte(serverCfg.WebServerConfig.SessionSecret), redisPool)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Unable to create Redis session store")
+			os.Exit(1)
+		}
+		sargantana.SetSessionStore(store)
+	}
+
+	mongoCfg, err := config.Get[database.MongoDBConfig](cfg, "mongodb")
+	if err != nil {
+		panic(errors.Wrap(err, "failed to load MongoDB configuration"))
+	}
+
+	if mongoCfg != nil {
+		mongoClient, err := mongoCfg.CreateClient()
+		if err != nil {
+			panic(errors.Wrap(err, "failed to create MongoDB client"))
+		}
+		defer func() {
+			if err := mongoClient.Disconnect(context.Background()); err != nil {
+				log.Error().Err(err).Msg("Failed to disconnect MongoDB client")
+			}
+		}()
+		store, err := session.NewMongoDBSessionStore(!*debugMode, []byte(serverCfg.WebServerConfig.SessionSecret), mongoClient, mongoCfg.Database, "sessions")
+		if err != nil {
+			log.Fatal().Err(err).Msg("Unable to create MongoDB session store")
+			os.Exit(1)
+		}
+		sargantana.SetSessionStore(store)
+	}
+
+	postgresCfg, err := config.Get[database.PostgresConfig](cfg, "postgres")
+	if err != nil {
+		panic(errors.Wrap(err, "failed to load PostgreSQL configuration"))
+	}
+
+	if postgresCfg != nil {
+		pgPool, err := postgresCfg.CreateClient()
+		if err != nil {
+			panic(errors.Wrap(err, "failed to create PostgreSQL client"))
+		}
+		defer func() {
+			pgPool.Close()
+		}()
+		store, err := session.NewPostgresSessionStore(!*debugMode, []byte(serverCfg.WebServerConfig.SessionSecret), pgPool, "sessions")
+		if err != nil {
+			log.Fatal().Err(err).Msg("Unable to create PostgreSQL session store")
+			os.Exit(1)
+		}
+		sargantana.SetSessionStore(store)
+	}
+
+	memcachedCfg, err := config.Get[database.MemcachedConfig](cfg, "memcached")
+	if err != nil {
+		panic(errors.Wrap(err, "failed to load Memcached configuration"))
+	}
+
+	if memcachedCfg != nil {
+		memcachedClient, err := memcachedCfg.CreateClient()
+		if err != nil {
+			panic(errors.Wrap(err, "failed to create Memcached client"))
+		}
+		store, err := session.NewMemcachedSessionStore(!*debugMode, []byte(serverCfg.WebServerConfig.SessionSecret), memcachedClient)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Unable to create Memcached session store")
 			os.Exit(1)
 		}
 		sargantana.SetSessionStore(store)
@@ -137,5 +204,19 @@ func readConfig(file string) *config.Config {
 		}
 		secrets.Register("file", fileResolver)
 	}
+
+	// Register AWS Secrets Manager provider if configured
+	awsCfg, err := config.Get[secrets.AWSConfig](cfg, "aws")
+	if err != nil {
+		panic(errors.Wrap(err, "failed to load AWS Secrets Manager configuration"))
+	}
+	if awsCfg != nil {
+		awsClient, err := awsCfg.CreateClient()
+		if err != nil {
+			panic(errors.Wrap(err, "failed to create AWS Secrets Manager client"))
+		}
+		secrets.Register("aws", secrets.NewAWSSecretLoader(awsClient, awsCfg.SecretName))
+	}
+
 	return cfg
 }

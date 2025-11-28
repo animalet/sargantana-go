@@ -22,7 +22,7 @@ type AWSConfig struct {
 }
 
 // Validate checks if the AWSConfig has all required fields set
-func (a *AWSConfig) Validate() error {
+func (a AWSConfig) Validate() error {
 	if a.Region == "" {
 		return errors.New("AWS region is required")
 	}
@@ -36,26 +36,8 @@ func (a *AWSConfig) Validate() error {
 // CreateClient creates and configures an AWS Secrets Manager client from this config.
 // Implements the config.ClientFactory[*secretsmanager.Client] interface.
 // Returns *secretsmanager.Client on success, or an error if client creation fails.
-func (a *AWSConfig) CreateClient() (*secretsmanager.Client, error) {
-	return createAWSClient(a)
-}
-
-// createAWSClient is a helper function to create and configure an AWS Secrets Manager client
-// from an AWSConfig. This is used internally by CreateClient().
-//
-// Applications should use the ClientFactory pattern:
-//
-//	client, err := cfg.AWS.CreateClient()
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	secrets.Register("aws", secrets.NewAWSSecretLoader(client, cfg.AWS.SecretName))
-func createAWSClient(awsCfg *AWSConfig) (*secretsmanager.Client, error) {
-	if awsCfg == nil {
-		return nil, errors.New("AWS configuration is nil")
-	}
-
-	if err := awsCfg.Validate(); err != nil {
+func (a AWSConfig) CreateClient() (*secretsmanager.Client, error) {
+	if err := a.Validate(); err != nil {
 		return nil, errors.Wrap(err, "invalid AWS configuration")
 	}
 
@@ -66,20 +48,20 @@ func createAWSClient(awsCfg *AWSConfig) (*secretsmanager.Client, error) {
 
 	// Build config options
 	configOpts := []func(*config.LoadOptions) error{
-		config.WithRegion(awsCfg.Region),
+		config.WithRegion(a.Region),
 	}
 
 	// Add custom endpoint if provided (for LocalStack or custom endpoints)
-	if awsCfg.Endpoint != "" {
-		configOpts = append(configOpts, config.WithBaseEndpoint(awsCfg.Endpoint))
+	if a.Endpoint != "" {
+		configOpts = append(configOpts, config.WithBaseEndpoint(a.Endpoint))
 	}
 
 	// Add credentials if provided; otherwise use default credential chain (IAM role, env vars, etc.)
-	if awsCfg.AccessKeyID != "" && awsCfg.SecretAccessKey != "" {
+	if a.AccessKeyID != "" && a.SecretAccessKey != "" {
 		configOpts = append(configOpts, config.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(
-				awsCfg.AccessKeyID,
-				awsCfg.SecretAccessKey,
+				a.AccessKeyID,
+				a.SecretAccessKey,
 				"",
 			),
 		))

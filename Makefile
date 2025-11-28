@@ -1,15 +1,18 @@
 # Makefile
 
-# Variables
-TOOLS_BIN_DIR := $(shell go env GOPATH)/bin
-TOOL_DIR := tools
-GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
-GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
-GO_TEST_COVERAGE := $(TOOLS_BIN_DIR)/go-test-coverage
-GOSEC := $(TOOLS_BIN_DIR)/gosec
+# Variables for development tools
+# Tools are managed via go.mod and can be run using 'go run <package>'
+GOIMPORTS := go run golang.org/x/tools/cmd/goimports
+GOLANGCI_LINT := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+GO_TEST_COVERAGE := go run github.com/vladopajic/go-test-coverage/v2
+GOSEC := go run github.com/securego/gosec/v2/cmd/gosec
 
-# Development tools (automatically extracted from tools/main.go with versions from tools/go.mod)
-TOOLS := $(shell cd $(TOOL_DIR) && go list -e -f '{{join .Imports "\n"}}' -tags tools | while read pkg; do echo "$$pkg@$$(go list -m -f '{{.Version}}' $$pkg 2>/dev/null || echo latest)"; done)
+# Development tools list (extracted from tools.go)
+TOOL_PACKAGES := \
+	github.com/golangci/golangci-lint/v2/cmd/golangci-lint \
+	github.com/securego/gosec/v2/cmd/gosec \
+	github.com/vladopajic/go-test-coverage/v2 \
+	golang.org/x/tools/cmd/goimports
 
 # Build variables
 BINARY_NAME := sargantana-go
@@ -51,8 +54,9 @@ INSTALL := install
 # Standard targets
 all: configure build
 
-configure: deps install-tools
+configure: deps
 	@echo "Configuring development environment..."
+	@echo "Tools are managed via go.mod and will be downloaded on first use."
 
 install: build
 	@echo "Installing $(BINARY_NAME) to $(BINDIR)..."
@@ -65,21 +69,25 @@ uninstall:
 	rm -f $(BINDIR)/$(BINARY_NAME)
 	@echo "Uninstallation complete."
 
-# Development tools installation
-# Tools are automatically discovered from tools/main.go and installed with versions from tools/go.mod
+# Development tools installation (optional - installs to GOPATH/bin for faster execution)
+# By default, tools are run via 'go run' which uses the module cache
 install-tools:
-	@echo "Installing development tools from $(TOOL_DIR)/go.mod..."
-	@cd $(TOOL_DIR) && for tool in $(TOOLS); do \
+	@echo "Installing development tools to GOPATH/bin..."
+	@for tool in $(TOOL_PACKAGES); do \
 		echo "  → Installing $$tool"; \
 		go install $$tool; \
 	done
-	@echo "Development tools installed."
+	@echo "Development tools installed to $(shell go env GOPATH)/bin"
+	@echo "Note: 'make' targets use 'go run' by default, which doesn't require installation"
 
 list-tools:
-	@echo "Development tools (auto-discovered from $(TOOL_DIR)/main.go):"
-	@for tool in $(TOOLS); do \
+	@echo "Development tools (from tools.go):"
+	@for tool in $(TOOL_PACKAGES); do \
 		echo "  • $$tool"; \
 	done
+	@echo ""
+	@echo "Tools are run via 'go run' and don't require separate installation."
+	@echo "Run 'make install-tools' to optionally install them to GOPATH/bin for faster execution."
 
 # Dependency management
 deps:

@@ -59,30 +59,35 @@ var _ = Describe("AWS Secrets", func() {
 		})
 	})
 
-	Context("createAWSClient", func() {
-		It("should return error for nil config", func() {
-			_, err := createAWSClient(nil)
+	Context("CreateClient", func() {
+		It("should return error for invalid config (missing region)", func() {
+			cfg := AWSConfig{
+				Region:     "", // Missing region
+				SecretName: "test-secret",
+			}
+			_, err := cfg.CreateClient()
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("AWS configuration is nil"))
+			Expect(err.Error()).To(ContainSubstring("invalid AWS configuration"))
 		})
 
-		It("should return error for invalid config", func() {
-			cfg := &AWSConfig{
-				Region: "", // Missing region
+		It("should return error for invalid config (missing secret name)", func() {
+			cfg := AWSConfig{
+				Region:     "us-east-1",
+				SecretName: "", // Missing secret name
 			}
-			_, err := createAWSClient(cfg)
+			_, err := cfg.CreateClient()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid AWS configuration"))
 		})
 
 		It("should create client with credentials", func() {
-			cfg := &AWSConfig{
+			cfg := AWSConfig{
 				Region:          "us-east-1",
 				AccessKeyID:     "test-key",
 				SecretAccessKey: "test-secret",
 				SecretName:      "test-secret",
 			}
-			client, err := createAWSClient(cfg)
+			client, err := cfg.CreateClient()
 			// We expect this to succeed locally even without AWS credentials
 			// because we're just creating the client, not calling AWS
 			Expect(err).NotTo(HaveOccurred())
@@ -90,22 +95,22 @@ var _ = Describe("AWS Secrets", func() {
 		})
 
 		It("should create client without credentials", func() {
-			cfg := &AWSConfig{
+			cfg := AWSConfig{
 				Region:     "us-east-1",
 				SecretName: "test-secret",
 			}
-			client, err := createAWSClient(cfg)
+			client, err := cfg.CreateClient()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(client).NotTo(BeNil())
 		})
 
 		It("should create client with endpoint", func() {
-			cfg := &AWSConfig{
+			cfg := AWSConfig{
 				Region:     "us-east-1",
 				SecretName: "test-secret",
 				Endpoint:   "http://localhost:4566",
 			}
-			client, err := createAWSClient(cfg)
+			client, err := cfg.CreateClient()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(client).NotTo(BeNil())
 		})
@@ -113,11 +118,11 @@ var _ = Describe("AWS Secrets", func() {
 
 	Context("AWSSecretLoader", func() {
 		It("should return Name", func() {
-			cfg := &AWSConfig{
+			cfg := AWSConfig{
 				Region:     "us-east-1",
 				SecretName: "test-secret",
 			}
-			client, _ := createAWSClient(cfg)
+			client, _ := cfg.CreateClient()
 			loader := NewAWSSecretLoader(client, cfg.SecretName)
 			Expect(loader.Name()).To(Equal("AWS Secrets Manager"))
 		})
