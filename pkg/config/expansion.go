@@ -19,34 +19,55 @@ import (
 // expand is a custom expansion function that uses the secrets resolution system
 // It retrieves the corresponding value based on the prefix and returns it.
 // If no known prefix is found, it returns the original string unchanged.
-func expand(s string) string {
+func expand(s string) (string, error) {
 	// Use the secrets resolution system to resolve the property
 	value, err := secrets.Resolve(s)
 	if err != nil {
-		panic(errors.Wrap(err, "error resolving property"))
+		return "", errors.Wrap(err, "error resolving property")
 	}
-	return value
+	return value, nil
 }
 
 // expandVariables recursively traverses the fields of a struct and expands environment variables in string fields.
 // It handles nested structs, pointers to structs, slices, and maps.
-func expandVariables(val reflect.Value) {
+func expandVariables(val reflect.Value) error {
 	switch val.Kind() {
 	case reflect.String:
 		if val.CanSet() {
-			val.SetString(os.Expand(strings.TrimSpace(val.String()), expand))
+			var expandErr error
+			expanded := os.Expand(strings.TrimSpace(val.String()), func(s string) string {
+				if expandErr != nil {
+					return ""
+				}
+				res, err := expand(s)
+				if err != nil {
+					expandErr = err
+					return ""
+				}
+				return res
+			})
+			if expandErr != nil {
+				return expandErr
+			}
+			val.SetString(expanded)
 		}
 	case reflect.Struct:
 		for i := 0; i < val.NumField(); i++ {
-			expandVariables(val.Field(i))
+			if err := expandVariables(val.Field(i)); err != nil {
+				return err
+			}
 		}
 	case reflect.Ptr:
 		if !val.IsNil() {
-			expandVariables(val.Elem())
+			if err := expandVariables(val.Elem()); err != nil {
+				return err
+			}
 		}
 	case reflect.Slice:
 		for j := 0; j < val.Len(); j++ {
-			expandVariables(val.Index(j))
+			if err := expandVariables(val.Index(j)); err != nil {
+				return err
+			}
 		}
 	case reflect.Map:
 		for _, key := range val.MapKeys() {
@@ -55,11 +76,14 @@ func expandVariables(val reflect.Value) {
 			newVal := reflect.New(mapVal.Type()).Elem()
 			newVal.Set(mapVal)
 			// Expand variables in the new value
-			expandVariables(newVal)
+			if err := expandVariables(newVal); err != nil {
+				return err
+			}
 			// Set the expanded value back into the map
 			val.SetMapIndex(key, newVal)
 		}
 	default:
-		return
+		return nil
 	}
+	return nil
 }

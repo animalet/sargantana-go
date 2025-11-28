@@ -35,7 +35,8 @@ var _ = Describe("Expansion", func() {
 				Value string
 			}
 			s := TestStruct{Value: "${mock:test-secret}"}
-			expandVariables(reflect.ValueOf(&s).Elem())
+			err := expandVariables(reflect.ValueOf(&s).Elem())
+			Expect(err).NotTo(HaveOccurred())
 			Expect(s.Value).To(Equal("resolved-secret"))
 		})
 
@@ -47,7 +48,8 @@ var _ = Describe("Expansion", func() {
 				Nested Nested
 			}
 			s := TestStruct{Nested: Nested{Value: "${mock:test-secret}"}}
-			expandVariables(reflect.ValueOf(&s).Elem())
+			err := expandVariables(reflect.ValueOf(&s).Elem())
+			Expect(err).NotTo(HaveOccurred())
 			Expect(s.Nested.Value).To(Equal("resolved-secret"))
 		})
 
@@ -57,7 +59,8 @@ var _ = Describe("Expansion", func() {
 			}
 			val := "${mock:test-secret}"
 			s := TestStruct{Value: &val}
-			expandVariables(reflect.ValueOf(&s).Elem())
+			err := expandVariables(reflect.ValueOf(&s).Elem())
+			Expect(err).NotTo(HaveOccurred())
 			Expect(*s.Value).To(Equal("resolved-secret"))
 		})
 
@@ -66,7 +69,8 @@ var _ = Describe("Expansion", func() {
 				Values []string
 			}
 			s := TestStruct{Values: []string{"${mock:test-secret}", "normal"}}
-			expandVariables(reflect.ValueOf(&s).Elem())
+			err := expandVariables(reflect.ValueOf(&s).Elem())
+			Expect(err).NotTo(HaveOccurred())
 			Expect(s.Values[0]).To(Equal("resolved-secret"))
 			Expect(s.Values[1]).To(Equal("normal"))
 		})
@@ -76,7 +80,8 @@ var _ = Describe("Expansion", func() {
 				Values map[string]string
 			}
 			s := TestStruct{Values: map[string]string{"key": "${mock:test-secret}"}}
-			expandVariables(reflect.ValueOf(&s).Elem())
+			err := expandVariables(reflect.ValueOf(&s).Elem())
+			Expect(err).NotTo(HaveOccurred())
 			Expect(s.Values["key"]).To(Equal("resolved-secret"))
 		})
 
@@ -85,20 +90,19 @@ var _ = Describe("Expansion", func() {
 				Value *string
 			}
 			s := TestStruct{Value: nil}
-			Expect(func() {
-				expandVariables(reflect.ValueOf(&s).Elem())
-			}).NotTo(Panic())
+			err := expandVariables(reflect.ValueOf(&s).Elem())
+			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should panic on resolution error", func() {
+		It("should return error on resolution error", func() {
 			type TestStruct struct {
 				Value string
 			}
 			// Use an unregistered prefix to trigger an error
 			s := TestStruct{Value: "${unregistered:some-key}"}
-			Expect(func() {
-				expandVariables(reflect.ValueOf(&s).Elem())
-			}).To(Panic())
+			err := expandVariables(reflect.ValueOf(&s).Elem())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("error resolving property"))
 		})
 	})
 })

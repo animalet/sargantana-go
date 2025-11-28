@@ -47,7 +47,7 @@ type template struct {
 
 // Bind registers the template controller with the provided Gin engine.
 // It sets up the HTML template rendering by loading templates from the configured directory.
-func (t *template) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
+func (t *template) Bind(engine *gin.Engine, _ gin.HandlerFunc) error {
 	if stat, err := os.Stat(t.path); err == nil && stat.IsDir() {
 		var found bool
 		err = filepath.WalkDir(t.path, func(path string, d fs.DirEntry, err error) error {
@@ -61,7 +61,7 @@ func (t *template) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
 		})
 
 		if err != nil {
-			panic(errors.Wrap(err, "error walking through templates directory"))
+			return errors.Wrap(err, "error walking through templates directory")
 		}
 
 		if found {
@@ -70,6 +70,7 @@ func (t *template) Bind(engine *gin.Engine, _ gin.HandlerFunc) {
 			log.Warn().Msg("Templates directory present but no files found, skipping templates.")
 		}
 	}
+	return nil
 }
 
 // Close performs cleanup for the static controller.

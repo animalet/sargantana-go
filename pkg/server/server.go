@@ -313,7 +313,9 @@ func (s *Server) bootstrap() error {
 	}
 
 	for _, c := range controllers {
-		c.Bind(engine, s.authenticator.Middleware())
+		if err := c.Bind(engine, s.authenticator.Middleware()); err != nil {
+			return errors.Wrap(err, "failed to bind controller")
+		}
 		s.addShutdownHook(c.Close)
 	}
 

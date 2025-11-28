@@ -79,10 +79,10 @@ type loadBalancer struct {
 	auth          bool
 }
 
-func (l *loadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+func (l *loadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) error {
 	if len(l.endpoints) == 0 {
 		log.Warn().Msg("Load balancer not loaded: no endpoints configured")
-		return
+		return nil
 	}
 
 	if l.auth {
@@ -102,6 +102,7 @@ func (l *loadBalancer) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc)
 			HEAD(l.path, l.forward).
 			OPTIONS(l.path, l.forward)
 	}
+	return nil
 }
 
 func (l *loadBalancer) Close() error {

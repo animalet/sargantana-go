@@ -76,7 +76,7 @@ type static struct {
 // Bind registers the static controller with the provided Gin engine.
 // It sets up routes for serving static files or directories from the configured path.
 // If authentication is enabled, the loginMiddleware is applied to protect the static content.
-func (s *static) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+func (s *static) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) error {
 	isFile := s.file != ""
 
 	log.Info().
@@ -102,6 +102,7 @@ func (s *static) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
 			engine.Static(s.path, s.dir)
 		}
 	}
+	return nil
 }
 
 // Close performs cleanup for the static controller.

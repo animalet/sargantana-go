@@ -22,10 +22,11 @@ type MockController struct {
 	CloseFunc func() error
 }
 
-func (m *MockController) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+func (m *MockController) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) error {
 	if m.BindFunc != nil {
 		m.BindFunc(engine, loginMiddleware)
 	}
+	return nil
 }
 
 func (m *MockController) Close() error {

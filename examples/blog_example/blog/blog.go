@@ -42,12 +42,13 @@ func (b Config) Validate() error {
 	return nil
 }
 
-func (b *Controller) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) {
+func (b *Controller) Bind(engine *gin.Engine, loginMiddleware gin.HandlerFunc) error {
 	engine.GET(b.config.FeedPath, b.getFeed)
 	engine.POST(b.config.PostPath, b.createPost)
 	engine.GET(b.config.PostPath+"/:id", b.getPost)
 	engine.DELETE(b.config.PostPath+"/:id", b.deletePost)
 	engine.GET(b.config.AdminAreaPath, loginMiddleware, b.adminArea)
+	return nil
 }
 
 func (b *Controller) Close() error { return nil }

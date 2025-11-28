@@ -71,7 +71,9 @@ func Get[T Validatable](c *Config, name string) (*T, error) {
 }
 
 func doExpand[T Validatable](toExpand *T) (*T, error) {
-	expandVariables(reflect.ValueOf(toExpand).Elem())
+	if err := expandVariables(reflect.ValueOf(toExpand).Elem()); err != nil {
+		return nil, err
+	}
 	if err := (*toExpand).Validate(); err != nil {
 		return nil, errors.Wrap(err, "configuration is invalid")
 	}
