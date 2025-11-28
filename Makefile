@@ -163,7 +163,7 @@ build-all: clean-dist
 	@ls -la dist/
 
 # CI pipeline
-ci: configure test-with-coverage lint security
+ci: configure lint test-with-coverage check-coverage security
 
 # Cleanup
 clean: clean-dist

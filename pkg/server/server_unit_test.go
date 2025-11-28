@@ -168,9 +168,9 @@ var _ = Describe("Server", func() {
 	Context("SetDebug", func() {
 		It("should set debug mode", func() {
 			SetDebug(true)
-			Expect(true).To(BeTrue())
+			Expect(debug).To(BeTrue())
 			SetDebug(false)
-			Expect(true).To(BeTrue())
+			Expect(debug).To(BeFalse())
 		})
 
 		It("should start in debug mode", func() {
@@ -354,7 +354,7 @@ var _ = Describe("Server", func() {
 				return nil, nil
 			}
 			addControllerType("custom", factory)
-			Expect(true).To(BeTrue())
+			Expect(controllerRegistry).To(HaveKey("custom"))
 		})
 	})
 
