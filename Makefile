@@ -2,17 +2,10 @@
 
 # Variables for development tools
 # Tools are managed via go.mod and can be run using 'go run <package>'
-GOIMPORTS := go run golang.org/x/tools/cmd/goimports
-GOLANGCI_LINT := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint
-GO_TEST_COVERAGE := go run github.com/vladopajic/go-test-coverage/v2
-GOSEC := go run github.com/securego/gosec/v2/cmd/gosec
-
-# Development tools list (extracted from tools.go)
-TOOL_PACKAGES := \
-	github.com/golangci/golangci-lint/v2/cmd/golangci-lint \
-	github.com/securego/gosec/v2/cmd/gosec \
-	github.com/vladopajic/go-test-coverage/v2 \
-	golang.org/x/tools/cmd/goimports
+GOIMPORTS := go tool goimports
+GOLANGCI_LINT := go tool golangci-lint
+GO_TEST_COVERAGE := go tool go-test-coverage
+GOSEC := go tool gosec
 
 # Build variables
 BINARY_NAME := sargantana-go
@@ -49,113 +42,79 @@ BINDIR := $(PREFIX)/bin
 INSTALL := install
 
 # Tasks
-.PHONY: all configure install uninstall format test clean lint deps test bench build build-all test-with-coverage check-coverage security ci clean-dist list-tools
+.PHONY: all help install uninstall format test test-unit test-integration test-with-coverage \
+	check-coverage bench lint security build build-all clean clean-dist deps ci
 
 # Standard targets
-all: configure build
+.DEFAULT_GOAL := help
 
-configure: deps
-	@echo "Configuring development environment..."
-	@echo "Tools are managed via go.mod and will be downloaded on first use."
+all: deps build ## Build the project with dependencies
 
-install: build
-	@echo "Installing $(BINARY_NAME) to $(BINDIR)..."
-	$(INSTALL) -d $(BINDIR)
-	$(INSTALL) -m 755 bin/$(BINARY_NAME) $(BINDIR)/$(BINARY_NAME)
-	@echo "Installation complete. Run '$(BINARY_NAME)' to start the server."
-
-uninstall:
-	@echo "Uninstalling $(BINARY_NAME) from $(BINDIR)..."
-	rm -f $(BINDIR)/$(BINARY_NAME)
-	@echo "Uninstallation complete."
-
-# Development tools installation (optional - installs to GOPATH/bin for faster execution)
-# By default, tools are run via 'go run' which uses the module cache
-install-tools:
-	@echo "Installing development tools to GOPATH/bin..."
-	@for tool in $(TOOL_PACKAGES); do \
-		echo "  → Installing $$tool"; \
-		go install $$tool; \
-	done
-	@echo "Development tools installed to $(shell go env GOPATH)/bin"
-	@echo "Note: 'make' targets use 'go run' by default, which doesn't require installation"
-
-list-tools:
-	@echo "Development tools (from tools.go):"
-	@for tool in $(TOOL_PACKAGES); do \
-		echo "  • $$tool"; \
-	done
+help: ## Show this help message
+	@echo "Sargantana Go - Available targets:"
 	@echo ""
-	@echo "Tools are run via 'go run' and don't require separate installation."
-	@echo "Run 'make install-tools' to optionally install them to GOPATH/bin for faster execution."
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+
+install: build ## Install binary to system (default: /usr/local/bin)
+	@echo "Installing $(BINARY_NAME) to $(BINDIR)..."
+	@$(INSTALL) -d $(BINDIR)
+	@$(INSTALL) -m 755 bin/$(BINARY_NAME) $(BINDIR)/$(BINARY_NAME)
+	@echo "Installation complete"
+
+uninstall: ## Remove installed binary from system
+	@echo "Uninstalling $(BINARY_NAME)..."
+	@rm -f $(BINDIR)/$(BINARY_NAME)
 
 # Dependency management
-deps:
-	@echo "Tidying go.mod and go.sum..."
-	go mod tidy
-	go mod verify
-	go mod download
+deps: ## Download and verify Go module dependencies
+	@echo "Managing dependencies..."
+	@go mod tidy
+	@go mod verify
+	@go mod download
 
 # Testing
-test:
-	@echo "Running tests..."
+test: ## Run all tests
 	go test ./...
 
-test-with-coverage:
-	@echo "Running tests with coverage..."
-	go test -tags=unit,integration $(shell go list ./... | grep -v '/examples/') -covermode=atomic -coverprofile=coverage.out
-
-test-unit:
-	@echo "Running unit tests..."
+test-unit: ## Run unit tests only
 	go test -tags=unit ./...
 
-test-integration:
-	@echo "Running integration tests..."
+test-integration: ## Run integration tests only
 	go test -tags=integration ./...
 
-check-coverage: test-with-coverage
+test-with-coverage: ## Run tests with coverage report
+	@echo "Running tests with coverage..."
+	@go test -tags=unit,integration $(shell go list ./... | grep -v '/examples/') -covermode=atomic -coverprofile=coverage.out
+
+check-coverage: test-with-coverage ## Verify coverage meets threshold requirements
 	@$(GO_TEST_COVERAGE) --config=./.testcoverage.yml
 
-bench:
-	@echo "Running benchmarks..."
+bench: ## Run performance benchmarks
 	go test -bench=. ./... -benchmem
 
 # Code quality
-format:
+format: ## Format code with go fmt and goimports
 	@echo "Formatting code..."
 	@go fmt ./...
 	@$(GOIMPORTS) -w .
 
-lint: format
+lint: format ## Run code quality checks (format, vet, golangci-lint)
 	@echo "Linting code..."
 	@go vet ./...
 	@$(GOLANGCI_LINT) run ./...
 
-security:
-	@echo "Running security scan with gosec..."
-	@echo "  • Test files included"
-	@echo "  • Tracking suppression comments"
-	@echo "  • Respecting #nosec directives"
-	@$(GOSEC) \
-		-tests \
-		-enable-audit \
-		-severity=low \
-		-confidence=low \
-		-track-suppressions \
-		-fmt=json \
-		-out=gosec-report.json \
-		-stdout \
-		-verbose=text \
-		./...
+security: ## Run security vulnerability scan with gosec
+	@echo "Running security scan..."
+	@$(GOSEC) -tests -severity=low -confidence=low -track-suppressions \
+		-fmt=json -out=gosec-report.json -stdout -verbose=text ./...
 
 # Building
-build:
-	@echo "Building application..."
+build: ## Build the binary for current platform
 	@mkdir -p bin
-	go build -v -ldflags="$(LDFLAGS)" -o bin/$(BINARY_NAME) ./cmd/sargantana
+	@go build -v -ldflags="$(LDFLAGS)" -o bin/$(BINARY_NAME) ./cmd/sargantana
 
-# Build for all platforms
-build-all: clean-dist
+build-all: clean-dist ## Build binaries for all supported platforms
 	@echo "Building for all platforms..."
 	@mkdir -p dist
 	@for platform in $(PLATFORMS); do \
@@ -167,19 +126,16 @@ build-all: clean-dist
 			-o dist/$(BINARY_NAME)-$$GOOS-$$GOARCH$$EXT \
 			./cmd/sargantana || exit 1; \
 	done
-	@echo "All builds completed successfully!"
 	@ls -la dist/
 
 # CI pipeline
-ci: configure lint test-with-coverage check-coverage security
+ci: deps lint test-with-coverage check-coverage security ## Run complete CI pipeline
 
 # Cleanup
-clean: clean-dist
-	@echo "Cleaning up..."
-	go clean
-	rm -rf bin/
-	rm -f *.out gosec-report.json
+clean: clean-dist ## Remove all build artifacts and generated files
+	@go clean
+	@rm -rf bin/
+	@rm -f *.out gosec-report.json
 
-clean-dist:
-	@echo "Cleaning dist directory..."
-	rm -rf dist/
+clean-dist: ## Remove distribution builds
+	@rm -rf dist/
