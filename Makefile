@@ -130,6 +130,7 @@ security:
 	@echo "  • Respecting #nosec directives"
 	@$(GOSEC) \
 		-tests \
+		-enable-audit \
 		-severity=low \
 		-confidence=low \
 		-track-suppressions \
