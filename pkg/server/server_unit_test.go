@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -166,11 +167,16 @@ var _ = Describe("Server", func() {
 	})
 
 	Context("SetDebug", func() {
-		It("should set debug mode", func() {
+		It("should set debug mode and configure logging/gin accordingly", func() {
+			// Test enabling debug mode
 			SetDebug(true)
-			Expect(debug).To(BeTrue())
+			Expect(gin.Mode()).To(Equal(gin.DebugMode))
+			Expect(zerolog.GlobalLevel()).To(Equal(zerolog.DebugLevel))
+
+			// Test disabling debug mode
 			SetDebug(false)
-			Expect(debug).To(BeFalse())
+			Expect(gin.Mode()).To(Equal(gin.ReleaseMode))
+			Expect(zerolog.GlobalLevel()).To(Equal(zerolog.InfoLevel))
 		})
 
 		It("should start in debug mode", func() {
