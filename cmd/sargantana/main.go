@@ -157,7 +157,6 @@ func initServer(opts *options) (*server.Server, func() error, error) {
 	}
 
 	// Get server configuration
-	log.Debug().Msg("Loading server configuration from config object")
 	serverCfg, err := config.Get[server.SargantanaConfig](cfg, "sargantana")
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to load server configuration")
@@ -166,18 +165,14 @@ func initServer(opts *options) (*server.Server, func() error, error) {
 		return nil, nil, errors.New("server configuration is required")
 	}
 
-	// Debug output
-	log.Debug().
-		Str("address", serverCfg.WebServerConfig.Address).
-		Str("session_name", serverCfg.WebServerConfig.SessionName).
-		Str("session_secret", serverCfg.WebServerConfig.SessionSecret).
-		Msg("Loaded server config")
-
 	// Set debug mode
 	server.SetDebug(opts.debug)
 
 	// Register all controllers
-	registerControllers()
+	server.RegisterController("auth", controller.NewAuthController)
+	server.RegisterController("load_balancer", controller.NewLoadBalancerController)
+	server.RegisterController("static", controller.NewStaticController)
+	server.RegisterController("template", controller.NewTemplateController)
 
 	// Create server
 	srv := server.NewServer(*serverCfg)
@@ -222,12 +217,4 @@ func runServer(opts *options) error {
 	}
 
 	return nil
-}
-
-// registerControllers registers all available controllers
-func registerControllers() {
-	server.RegisterController("auth", controller.NewAuthController)
-	server.RegisterController("load_balancer", controller.NewLoadBalancerController)
-	server.RegisterController("static", controller.NewStaticController)
-	server.RegisterController("template", controller.NewTemplateController)
 }

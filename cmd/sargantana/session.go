@@ -15,7 +15,7 @@ import (
 type sessionStoreCloser func() error
 
 // configureSessionStore sets up the session store based on available database configuration.
-// Priority: Redis > MongoDB > PostgreSQL > Memcached > Cookie (default)
+// Priority: Redis > Memcached > PostgreSQL > MongoDB > Cookie (default)
 // Returns a closer function that should be deferred to clean up resources
 func configureSessionStore(cfg *config.Config, srv *server.Server, sessionSecret []byte, debugMode bool) (sessionStoreCloser, error) {
 	// Try Redis first
@@ -23,8 +23,8 @@ func configureSessionStore(cfg *config.Config, srv *server.Server, sessionSecret
 		return closer, err
 	}
 
-	// Try MongoDB second
-	if closer, err := configureMongoDBStore(cfg, srv, sessionSecret, debugMode); closer != nil || err != nil {
+	// Try Memcached second
+	if closer, err := configureMemcachedStore(cfg, srv, sessionSecret, debugMode); closer != nil || err != nil {
 		return closer, err
 	}
 
@@ -33,8 +33,8 @@ func configureSessionStore(cfg *config.Config, srv *server.Server, sessionSecret
 		return closer, err
 	}
 
-	// Try Memcached fourth
-	if closer, err := configureMemcachedStore(cfg, srv, sessionSecret, debugMode); closer != nil || err != nil {
+	// Try MongoDB fourth
+	if closer, err := configureMongoDBStore(cfg, srv, sessionSecret, debugMode); closer != nil || err != nil {
 		return closer, err
 	}
 

@@ -253,9 +253,3 @@ var _ = Describe("runServer", func() {
 		Expect(err).To(HaveOccurred())
 	})
 })
-
-var _ = Describe("registerControllers", func() {
-	It("should not panic", func() {
-		Expect(func() { registerControllers() }).NotTo(Panic())
-	})
-})
