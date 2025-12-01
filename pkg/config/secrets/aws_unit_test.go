@@ -95,16 +95,4 @@ var _ = Describe("AWS Secrets", func() {
 			Expect(client).NotTo(BeNil())
 		})
 	})
-
-	Context("AWSSecretLoader", func() {
-		It("should return Name", func() {
-			cfg := AWSConfig{
-				Region:     "us-east-1",
-				SecretName: "test-secret",
-			}
-			client, _ := cfg.CreateClient()
-			loader := NewAWSSecretLoader(client, cfg.SecretName)
-			Expect(loader.Name()).To(Equal("AWS Secrets Manager"))
-		})
-	})
 })

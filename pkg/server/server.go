@@ -307,9 +307,11 @@ func (s *Server) bootstrap() error {
 			DontRedirectIPV4Hostnames: s.config.WebServerConfig.Security.DontRedirectIPV4Hostnames,
 		}
 		engine.Use(secure.New(secConfig))
+		log.Debug().Msg("Security middleware configured")
 	}
 
 	for _, c := range controllers {
+		log.Debug().Msgf("Binding controller: %T", c)
 		if err := c.Bind(engine, s.authenticator.Middleware()); err != nil {
 			return errors.Wrap(err, "failed to bind controller")
 		}
@@ -402,4 +404,10 @@ func bodyLogMiddleware(c *gin.Context) {
 	blw := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
 	c.Writer = blw
 	c.Next()
+	log.Debug().
+		Str("method", c.Request.Method).
+		Str("path", c.Request.URL.Path).
+		Int("status", c.Writer.Status()).
+		Str("body", blw.body.String()).
+		Msg("Request processed")
 }

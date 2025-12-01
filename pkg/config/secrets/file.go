@@ -112,8 +112,3 @@ func (f *FileSecretLoader) Resolve(key string) (string, error) {
 	secret := strings.TrimSpace(string(content))
 	return secret, nil
 }
-
-// Name returns the resolver name
-func (f *FileSecretLoader) Name() string {
-	return "File"
-}

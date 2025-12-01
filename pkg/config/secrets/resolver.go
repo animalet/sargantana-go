@@ -24,9 +24,6 @@ type SecretLoader interface {
 	//   - string: The resolved secret value
 	//   - error: An error if the secret cannot be resolved
 	Resolve(key string) (string, error)
-
-	// Name returns a human-readable name for this provider (for logging/debugging)
-	Name() string
 }
 
 // providers manages the registration and lookup of secret providers.
@@ -79,11 +76,14 @@ func Resolve(property string) (string, error) {
 	}
 
 	// Resolve the secret
+	log.Debug().Str("prefix", prefix).Str("key", key).Msg("Resolving secret")
 	value, err := provider.Resolve(key)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to resolve secret %q using %s provider", property, provider.Name())
+		log.Debug().Err(err).Str("prefix", prefix).Str("key", key).Msg("Failed to resolve secret")
+		return "", errors.Wrapf(err, "failed to resolve secret %q using %s provider", property, prefix)
 	}
 
+	log.Debug().Str("prefix", prefix).Str("key", key).Msg("Successfully resolved secret")
 	return value, nil
 }
 

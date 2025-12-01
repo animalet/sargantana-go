@@ -113,8 +113,3 @@ func (v *VaultSecretLoader) Resolve(key string) (string, error) {
 
 	return "", errors.Errorf("secret %q not found in Vault at path %q", key, v.path)
 }
-
-// Name returns the resolver name
-func (v *VaultSecretLoader) Name() string {
-	return "Vault"
-}

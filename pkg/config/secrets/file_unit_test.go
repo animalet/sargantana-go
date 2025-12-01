@@ -136,12 +136,4 @@ var _ = Describe("FileSecretLoader", func() {
 			Expect(val).To(Equal("nested_value"))
 		})
 	})
-
-	Context("Name", func() {
-		It("should return File", func() {
-			loader, err := NewFileSecretLoader(tempDir)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(loader.Name()).To(Equal("File"))
-		})
-	})
 })

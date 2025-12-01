@@ -11,6 +11,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -21,6 +22,7 @@ type Config struct {
 type ModuleRawConfig []byte
 
 func Unmarshal[T Validatable](r ModuleRawConfig) (config *T, err error) {
+	log.Debug().Msgf("Unmarshalling configuration of type %T", config)
 	err = unmarshal(r, &config)
 	if err != nil {
 		return nil, err
@@ -47,6 +49,7 @@ type ClientFactory[T any] interface {
 }
 
 func NewConfig(path string) (cfg *Config, err error) {
+	log.Debug().Str("path", path).Msg("Loading configuration file")
 	// #nosec G304 -- Config file path is provided by operator at startup, this is intentional
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -65,10 +68,12 @@ func NewConfig(path string) (cfg *Config, err error) {
 // Returns a pointer to the configuration T, or nil if the configuration is not present.
 // Note: Validation is automatically performed by doExpand before this method returns.
 func Get[T Validatable](c *Config, name string) (*T, error) {
+	log.Debug().Str("config_name", name).Msg("Getting configuration")
 	raw, ok := c.modules[name]
 	if !ok {
 		// If the module is missing, we might want to return nil, nil or an error.
 		// Returning nil, nil allows checking for optional configs.
+		log.Debug().Str("config_name", name).Msg("Configuration not found")
 		return nil, nil
 	}
 
@@ -93,6 +98,7 @@ func GetClient[T ClientFactory[F], F any](c *Config, name string) (*F, error) {
 		return nil, nil
 	}
 
+	log.Debug().Str("config_name", name).Msg("Creating client from configuration")
 	client, err := (*cfg).CreateClient()
 	if err != nil {
 		return nil, err
@@ -113,6 +119,7 @@ func GetClientAndConfig[T ClientFactory[F], F any](c *Config, name string) (*F, 
 		return nil, nil, nil
 	}
 
+	log.Debug().Str("config_name", name).Msg("Creating client from configuration")
 	client, err := (*cfg).CreateClient()
 	if err != nil {
 		return nil, nil, err
@@ -121,9 +128,11 @@ func GetClientAndConfig[T ClientFactory[F], F any](c *Config, name string) (*F, 
 }
 
 func doExpand[T Validatable](toExpand *T) (*T, error) {
+	log.Debug().Msgf("Expanding variables for config type %T", toExpand)
 	if err := expandVariables(reflect.ValueOf(toExpand).Elem()); err != nil {
 		return nil, err
 	}
+	log.Debug().Msgf("Validating config type %T", toExpand)
 	if err := (*toExpand).Validate(); err != nil {
 		return nil, errors.Wrap(err, "configuration is invalid")
 	}

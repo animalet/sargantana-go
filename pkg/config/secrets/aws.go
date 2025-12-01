@@ -139,8 +139,3 @@ func (a *AWSSecretLoader) Resolve(key string) (string, error) {
 		Msg("Retrieved secret from AWS Secrets Manager (plain text)")
 	return secretString, nil
 }
-
-// Name returns the resolver name
-func (a *AWSSecretLoader) Name() string {
-	return "AWS Secrets Manager"
-}

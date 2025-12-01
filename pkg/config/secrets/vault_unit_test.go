@@ -86,17 +86,4 @@ var _ = Describe("Vault Secrets", func() {
 			Expect(client).NotTo(BeNil())
 		})
 	})
-
-	Context("VaultSecretLoader", func() {
-		It("should return resolver name", func() {
-			cfg := VaultConfig{
-				Address: "http://localhost:8200",
-				Token:   "token",
-				Path:    "secret/data/myapp",
-			}
-			client, _ := cfg.CreateClient()
-			loader := NewVaultSecretLoader(client, cfg.Path)
-			Expect(loader.Name()).To(Equal("Vault"))
-		})
-	})
 })
