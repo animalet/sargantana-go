@@ -235,9 +235,6 @@ func (s *Server) Start() (err error) {
 		Str("session_name", s.config.WebServerConfig.SessionName).
 		Int("controller_count", len(s.config.ControllerBindings)).
 		Msg("Debug mode is enabled")
-	for _, binding := range s.config.ControllerBindings {
-		log.Debug().Str("type", binding.TypeName).Str("name", binding.Name).RawJSON("config", binding.Config).Msg("Expected controller")
-	}
 
 	if s.sessionStore == nil {
 		log.Debug().Msg("No session store provided, creating one based on configuration")
@@ -405,5 +402,4 @@ func bodyLogMiddleware(c *gin.Context) {
 	blw := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
 	c.Writer = blw
 	c.Next()
-	log.Debug().Msgf("Response body: %s", blw.body.String())
 }

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog/log"
 )
 
 // FileSecretConfig holds configuration for the file-based resolver
@@ -111,7 +110,6 @@ func (f *FileSecretLoader) Resolve(key string) (string, error) {
 	}
 
 	secret := strings.TrimSpace(string(content))
-	log.Debug().Str("file", absFilePath).Msg("Retrieved secret from file")
 	return secret, nil
 }
 
