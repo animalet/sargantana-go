@@ -147,7 +147,6 @@ func (a AuthControllerConfig) Validate() error {
 }
 
 func NewAuthController(c *AuthControllerConfig, ctx server.ControllerContext) (server.IController, error) {
-
 	var callbackEndpoint string
 	if c.CallbackHost != "" {
 		callbackEndpoint = c.CallbackHost

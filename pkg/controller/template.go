@@ -16,7 +16,6 @@ type TemplateControllerConfig struct {
 }
 
 func NewTemplateController(c *TemplateControllerConfig, _ server.ControllerContext) (server.IController, error) {
-
 	log.Info().
 		Str("path", c.Path).
 		Msg("Templates directory configured")

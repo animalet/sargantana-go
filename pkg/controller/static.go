@@ -46,7 +46,6 @@ func (s StaticControllerConfig) Validate() error {
 }
 
 func NewStaticController(c *StaticControllerConfig, _ server.ControllerContext) (server.IController, error) {
-
 	log.Info().
 		Str("path", c.Path).
 		Str("dir", c.Dir).

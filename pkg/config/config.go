@@ -29,6 +29,12 @@ func Unmarshal[T Validatable](r ModuleRawConfig) (config *T, err error) {
 }
 
 type Validatable interface {
+	// Validate checks if the configuration is valid.
+	// Returns an error if validation fails, nil otherwise.
+	// Ideally, validation shouldn't be executed externally, but rather automatically during the loading/unmarshalling
+	// process, so user code should only worry about providing a solid implementation of this method.
+	// An exception to this is Validate methods of nested structs, where explicit validation
+	// calls might be necessary for child structs.
 	Validate() error
 }
 
@@ -92,6 +98,26 @@ func GetClient[T ClientFactory[F], F any](c *Config, name string) (*F, error) {
 		return nil, err
 	}
 	return &client, nil
+}
+
+// GetClientAndConfig loads a configuration by name and creates the corresponding client.
+// T must be a type that implements ClientFactory[F].
+// Returns pointers to both the client F and the config T, or nil for both if the configuration is not present.
+// Note: Validation is automatically performed by Get before this method is called.
+func GetClientAndConfig[T ClientFactory[F], F any](c *Config, name string) (*F, *T, error) {
+	cfg, err := Get[T](c, name)
+	if err != nil {
+		return nil, nil, err
+	}
+	if cfg == nil {
+		return nil, nil, nil
+	}
+
+	client, err := (*cfg).CreateClient()
+	if err != nil {
+		return nil, nil, err
+	}
+	return &client, cfg, nil
 }
 
 func doExpand[T Validatable](toExpand *T) (*T, error) {

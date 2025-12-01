@@ -70,18 +70,12 @@ func configureRedisStore(cfg *config.Config, srv *server.Server, sessionSecret [
 }
 
 func configureMongoDBStore(cfg *config.Config, srv *server.Server, sessionSecret []byte, debugMode bool) (sessionStoreCloser, error) {
-	mongoClient, err := config.GetClient[database.MongoDBConfig](cfg, "mongodb")
+	mongoClient, mongoCfg, err := config.GetClientAndConfig[database.MongoDBConfig](cfg, "mongodb")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load or create MongoDB client")
 	}
 	if mongoClient == nil {
 		return nil, nil
-	}
-
-	// We still need the config to get the database name
-	mongoCfg, err := config.Get[database.MongoDBConfig](cfg, "mongodb")
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to load MongoDB configuration")
 	}
 
 	store, err := session.NewMongoDBSessionStore(!debugMode, sessionSecret, *mongoClient, mongoCfg.Database, "sessions")
