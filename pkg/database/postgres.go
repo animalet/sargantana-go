@@ -81,7 +81,7 @@ func (p PostgresConfig) Validate() error {
 
 // CreateClient creates and configures a PostgreSQL connection pool from this config.
 // Implements the config.ClientFactory[*pgxpool.Pool] interface.
-// Returns *pgxpool.Pool on success.
+// Returns *pgxpool.Pool on success, or an error if client creation fails.
 
 func (p PostgresConfig) CreateClient() (*pgxpool.Pool, error) {
 	// Build connection string

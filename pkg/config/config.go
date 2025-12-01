@@ -55,7 +55,7 @@ func NewConfig(path string) (cfg *Config, err error) {
 	var modules map[string]ModuleRawConfig
 	err = unmarshal(data, &modules)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error marshalling to %s", format)
+		return nil, errors.Wrapf(err, "error unmarshalling to %s", format)
 	}
 	return &Config{modules: modules}, nil
 }
@@ -63,7 +63,7 @@ func NewConfig(path string) (cfg *Config, err error) {
 // Get loads a configuration by name and unmarshals it into the specified type T.
 // T must implement the Validatable interface.
 // Returns a pointer to the configuration T, or nil if the configuration is not present.
-// Note: Validation is automatically performed by doExpand before this method is called.
+// Note: Validation is automatically performed by doExpand before this method returns.
 func Get[T Validatable](c *Config, name string) (*T, error) {
 	raw, ok := c.modules[name]
 	if !ok {
@@ -83,7 +83,7 @@ func Get[T Validatable](c *Config, name string) (*T, error) {
 // GetClient loads a configuration by name and creates the corresponding client.
 // T must be a type that implements ClientFactory[F].
 // Returns a pointer to the client F, or nil if the configuration is not present.
-// Note: Validation is automatically performed by Get before this method is called.
+// Note: Validation is automatically performed by Get before this method returns.
 func GetClient[T ClientFactory[F], F any](c *Config, name string) (*F, error) {
 	cfg, err := Get[T](c, name)
 	if err != nil {
@@ -103,7 +103,7 @@ func GetClient[T ClientFactory[F], F any](c *Config, name string) (*F, error) {
 // GetClientAndConfig loads a configuration by name and creates the corresponding client.
 // T must be a type that implements ClientFactory[F].
 // Returns pointers to both the client F and the config T, or nil for both if the configuration is not present.
-// Note: Validation is automatically performed by Get before this method is called.
+// Note: Validation is automatically performed by Get before this method returns.
 func GetClientAndConfig[T ClientFactory[F], F any](c *Config, name string) (*F, *T, error) {
 	cfg, err := Get[T](c, name)
 	if err != nil {
