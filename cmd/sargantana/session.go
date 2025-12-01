@@ -43,22 +43,17 @@ func configureSessionStore(cfg *config.Config, srv *server.Server, sessionSecret
 }
 
 func configureRedisStore(cfg *config.Config, srv *server.Server, sessionSecret []byte, debugMode bool) (sessionStoreCloser, error) {
-	redisCfg, err := config.Get[database.RedisConfig](cfg, "redis")
+	redisPool, err := config.GetClient[database.RedisConfig](cfg, "redis")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load Redis configuration")
+		return nil, errors.Wrap(err, "failed to load or create Redis client")
 	}
-	if redisCfg == nil {
+	if redisPool == nil {
 		return nil, nil
 	}
 
-	redisPool, err := redisCfg.CreateClient()
+	store, err := session.NewRedisSessionStore(debugMode, sessionSecret, *redisPool)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create Redis client")
-	}
-
-	store, err := session.NewRedisSessionStore(debugMode, sessionSecret, redisPool)
-	if err != nil {
-		_ = redisPool.Close()
+		_ = (*redisPool).Close()
 		return nil, errors.Wrap(err, "failed to create Redis session store")
 	}
 
@@ -66,7 +61,7 @@ func configureRedisStore(cfg *config.Config, srv *server.Server, sessionSecret [
 	log.Info().Msg("Using Redis session store")
 
 	return func() error {
-		if err := redisPool.Close(); err != nil {
+		if err := (*redisPool).Close(); err != nil {
 			log.Error().Err(err).Msg("Failed to close Redis pool")
 			return err
 		}
@@ -75,22 +70,23 @@ func configureRedisStore(cfg *config.Config, srv *server.Server, sessionSecret [
 }
 
 func configureMongoDBStore(cfg *config.Config, srv *server.Server, sessionSecret []byte, debugMode bool) (sessionStoreCloser, error) {
+	mongoClient, err := config.GetClient[database.MongoDBConfig](cfg, "mongodb")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load or create MongoDB client")
+	}
+	if mongoClient == nil {
+		return nil, nil
+	}
+
+	// We still need the config to get the database name
 	mongoCfg, err := config.Get[database.MongoDBConfig](cfg, "mongodb")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load MongoDB configuration")
 	}
-	if mongoCfg == nil {
-		return nil, nil
-	}
 
-	mongoClient, err := mongoCfg.CreateClient()
+	store, err := session.NewMongoDBSessionStore(!debugMode, sessionSecret, *mongoClient, mongoCfg.Database, "sessions")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create MongoDB client")
-	}
-
-	store, err := session.NewMongoDBSessionStore(!debugMode, sessionSecret, mongoClient, mongoCfg.Database, "sessions")
-	if err != nil {
-		_ = mongoClient.Disconnect(context.Background())
+		_ = (*mongoClient).Disconnect(context.Background())
 		return nil, errors.Wrap(err, "failed to create MongoDB session store")
 	}
 
@@ -98,7 +94,7 @@ func configureMongoDBStore(cfg *config.Config, srv *server.Server, sessionSecret
 	log.Info().Msg("Using MongoDB session store")
 
 	return func() error {
-		if err := mongoClient.Disconnect(context.Background()); err != nil {
+		if err := (*mongoClient).Disconnect(context.Background()); err != nil {
 			log.Error().Err(err).Msg("Failed to disconnect MongoDB client")
 			return err
 		}
@@ -107,22 +103,17 @@ func configureMongoDBStore(cfg *config.Config, srv *server.Server, sessionSecret
 }
 
 func configurePostgresStore(cfg *config.Config, srv *server.Server, sessionSecret []byte, debugMode bool) (sessionStoreCloser, error) {
-	postgresCfg, err := config.Get[database.PostgresConfig](cfg, "postgres")
+	pgPool, err := config.GetClient[database.PostgresConfig](cfg, "postgres")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load PostgreSQL configuration")
+		return nil, errors.Wrap(err, "failed to load or create PostgreSQL client")
 	}
-	if postgresCfg == nil {
+	if pgPool == nil {
 		return nil, nil
 	}
 
-	pgPool, err := postgresCfg.CreateClient()
+	store, err := session.NewPostgresSessionStore(!debugMode, sessionSecret, *pgPool, "sessions")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create PostgreSQL client")
-	}
-
-	store, err := session.NewPostgresSessionStore(!debugMode, sessionSecret, pgPool, "sessions")
-	if err != nil {
-		pgPool.Close()
+		(*pgPool).Close()
 		return nil, errors.Wrap(err, "failed to create PostgreSQL session store")
 	}
 
@@ -130,26 +121,21 @@ func configurePostgresStore(cfg *config.Config, srv *server.Server, sessionSecre
 	log.Info().Msg("Using PostgreSQL session store")
 
 	return func() error {
-		pgPool.Close()
+		(*pgPool).Close()
 		return nil
 	}, nil
 }
 
 func configureMemcachedStore(cfg *config.Config, srv *server.Server, sessionSecret []byte, debugMode bool) (sessionStoreCloser, error) {
-	memcachedCfg, err := config.Get[database.MemcachedConfig](cfg, "memcached")
+	memcachedClient, err := config.GetClient[database.MemcachedConfig](cfg, "memcached")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load Memcached configuration")
+		return nil, errors.Wrap(err, "failed to load or create Memcached client")
 	}
-	if memcachedCfg == nil {
+	if memcachedClient == nil {
 		return nil, nil
 	}
 
-	memcachedClient, err := memcachedCfg.CreateClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create Memcached client")
-	}
-
-	store, err := session.NewMemcachedSessionStore(!debugMode, sessionSecret, memcachedClient)
+	store, err := session.NewMemcachedSessionStore(!debugMode, sessionSecret, *memcachedClient)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create Memcached session store")
 	}

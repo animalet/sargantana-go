@@ -33,11 +33,8 @@ func (v VaultConfig) Validate() error {
 // CreateClient creates and configures a Vault client from this config.
 // Implements the config.ClientFactory[*api.Client] interface.
 // Returns *api.Client on success, or an error if client creation fails.
-func (v VaultConfig) CreateClient() (*api.Client, error) {
-	if err := v.Validate(); err != nil {
-		return nil, errors.Wrap(err, "invalid Vault configuration")
-	}
 
+func (v VaultConfig) CreateClient() (*api.Client, error) {
 	config := api.DefaultConfig()
 	config.Address = v.Address
 

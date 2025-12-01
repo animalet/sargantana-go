@@ -36,11 +36,8 @@ func (a AWSConfig) Validate() error {
 // CreateClient creates and configures an AWS Secrets Manager client from this config.
 // Implements the config.ClientFactory[*secretsmanager.Client] interface.
 // Returns *secretsmanager.Client on success, or an error if client creation fails.
-func (a AWSConfig) CreateClient() (*secretsmanager.Client, error) {
-	if err := a.Validate(); err != nil {
-		return nil, errors.Wrap(err, "invalid AWS configuration")
-	}
 
+func (a AWSConfig) CreateClient() (*secretsmanager.Client, error) {
 	ctx := context.Background()
 
 	var cfg aws.Config

@@ -46,6 +46,31 @@ func (c ConfigTestStruct) Validate() error {
 	return nil
 }
 
+// TestClient is a mock client for testing GetClient
+type TestClient struct {
+	Name string
+}
+
+// TestClientConfig implements ClientFactory
+type TestClientConfig struct {
+	Name       string `yaml:"name"`
+	FailCreate bool   `yaml:"fail_create"`
+}
+
+func (t TestClientConfig) Validate() error {
+	if t.Name == "" {
+		return errors.New("name is required")
+	}
+	return nil
+}
+
+func (t TestClientConfig) CreateClient() (TestClient, error) {
+	if t.FailCreate {
+		return TestClient{}, errors.New("failed to create client")
+	}
+	return TestClient{Name: t.Name}, nil
+}
+
 type MockSecretLoader struct {
 	Secrets map[string]string
 }
@@ -315,6 +340,92 @@ server:
 				Expect(val.Host).To(Equal("localhost"))
 				Expect(val.Port).To(Equal(8080))
 			})
+		})
+	})
+
+	Describe("GetClient", func() {
+		It("should return nil if module does not exist", func() {
+			path := filepath.Join(tempDir, "yaml")
+			err := os.WriteFile(path, []byte(`
+server:
+  host: localhost
+  port: 8080
+`), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			cfg, err := NewConfig(path)
+			Expect(err).NotTo(HaveOccurred())
+
+			client, err := GetClient[TestClientConfig](cfg, "nonexistent")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(client).To(BeNil())
+		})
+
+		It("should successfully create client from valid config", func() {
+			path := filepath.Join(tempDir, "yaml")
+			err := os.WriteFile(path, []byte(`
+test_client:
+  name: test-client-1
+`), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			cfg, err := NewConfig(path)
+			Expect(err).NotTo(HaveOccurred())
+
+			client, err := GetClient[TestClientConfig](cfg, "test_client")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(client).NotTo(BeNil())
+			Expect(client.Name).To(Equal("test-client-1"))
+		})
+
+		It("should return error if validation fails", func() {
+			path := filepath.Join(tempDir, "yaml")
+			err := os.WriteFile(path, []byte(`
+test_client:
+  name: ""
+`), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			cfg, err := NewConfig(path)
+			Expect(err).NotTo(HaveOccurred())
+
+			client, err := GetClient[TestClientConfig](cfg, "test_client")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("name is required"))
+			Expect(client).To(BeNil())
+		})
+
+		It("should return error if CreateClient fails", func() {
+			path := filepath.Join(tempDir, "yaml")
+			err := os.WriteFile(path, []byte(`
+test_client:
+  name: test-client
+  fail_create: true
+`), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			cfg, err := NewConfig(path)
+			Expect(err).NotTo(HaveOccurred())
+
+			client, err := GetClient[TestClientConfig](cfg, "test_client")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to create client"))
+			Expect(client).To(BeNil())
+		})
+
+		It("should return error if config is malformed", func() {
+			path := filepath.Join(tempDir, "yaml")
+			err := os.WriteFile(path, []byte(`
+test_client: "this should be an object"
+`), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			cfg, err := NewConfig(path)
+			Expect(err).NotTo(HaveOccurred())
+
+			client, err := GetClient[TestClientConfig](cfg, "test_client")
+			Expect(err).To(HaveOccurred())
+			Expect(client).To(BeNil())
 		})
 	})
 })

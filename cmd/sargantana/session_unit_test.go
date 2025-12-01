@@ -59,7 +59,7 @@ redis: "this should be an object"
 			opts := &options{configPath: configPath}
 			_, _, err := initServer(opts)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed to load Redis configuration"))
+			Expect(err.Error()).To(ContainSubstring("failed to load or create Redis client"))
 		})
 
 		It("should fail with invalid mongodb config structure", func() {
@@ -83,7 +83,7 @@ mongodb: "this should be an object"
 			opts := &options{configPath: configPath}
 			_, _, err := initServer(opts)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed to load MongoDB configuration"))
+			Expect(err.Error()).To(ContainSubstring("failed to load or create MongoDB client"))
 		})
 
 		It("should fail with invalid postgres config structure", func() {
@@ -107,7 +107,7 @@ postgres: "this should be an object"
 			opts := &options{configPath: configPath}
 			_, _, err := initServer(opts)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed to load PostgreSQL configuration"))
+			Expect(err.Error()).To(ContainSubstring("failed to load or create PostgreSQL client"))
 		})
 
 		It("should fail with invalid memcached config structure", func() {
@@ -131,7 +131,7 @@ memcached: "this should be an object"
 			opts := &options{configPath: configPath}
 			_, _, err := initServer(opts)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed to load Memcached configuration"))
+			Expect(err.Error()).To(ContainSubstring("failed to load or create Memcached client"))
 		})
 
 		It("should fail when Redis client creation fails", func() {
@@ -187,7 +187,7 @@ mongodb:
 			opts := &options{configPath: configPath}
 			_, _, err := initServer(opts)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed to create MongoDB"))
+			Expect(err.Error()).To(ContainSubstring("failed to load or create MongoDB client"))
 		})
 
 		It("should fail when PostgreSQL client creation fails", func() {
@@ -218,7 +218,7 @@ postgres:
 			opts := &options{configPath: configPath}
 			_, _, err := initServer(opts)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed to load PostgreSQL configuration"))
+			Expect(err.Error()).To(ContainSubstring("failed to load or create PostgreSQL client"))
 		})
 
 		It("should succeed with valid Memcached config", func() {

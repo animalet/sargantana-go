@@ -35,12 +35,10 @@ func (f FileSecretConfig) Validate() error {
 }
 
 // CreateClient creates a FileSecretLoader from this config.
-// Implements a factory pattern similar to other configs.
+// Implements the config.ClientFactory[*FileSecretLoader] interface.
 // Returns *FileSecretLoader on success, or an error if creation fails.
+
 func (f FileSecretConfig) CreateClient() (*FileSecretLoader, error) {
-	if err := f.Validate(); err != nil {
-		return nil, err
-	}
 	return NewFileSecretLoader(f.SecretsDir)
 }
 

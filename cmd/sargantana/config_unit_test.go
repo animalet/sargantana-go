@@ -72,7 +72,7 @@ vault: "this should be an object"
 			cfg, err := loadConfig(configPath)
 			Expect(err).To(HaveOccurred())
 			Expect(cfg).To(BeNil())
-			Expect(err.Error()).To(ContainSubstring("failed to load Vault configuration"))
+			Expect(err.Error()).To(ContainSubstring("failed to load or create Vault client"))
 		})
 
 		It("should fail with invalid file resolver config", func() {
@@ -96,7 +96,7 @@ file_resolver: "this should be an object"
 			cfg, err := loadConfig(configPath)
 			Expect(err).To(HaveOccurred())
 			Expect(cfg).To(BeNil())
-			Expect(err.Error()).To(ContainSubstring("failed to load file secret resolver configuration"))
+			Expect(err.Error()).To(ContainSubstring("failed to load or create file secret provider"))
 		})
 
 		It("should fail with invalid AWS config", func() {
@@ -120,7 +120,7 @@ aws: "this should be an object"
 			cfg, err := loadConfig(configPath)
 			Expect(err).To(HaveOccurred())
 			Expect(cfg).To(BeNil())
-			Expect(err.Error()).To(ContainSubstring("failed to load AWS Secrets Manager configuration"))
+			Expect(err.Error()).To(ContainSubstring("failed to load or create AWS Secrets Manager client"))
 		})
 	})
 })

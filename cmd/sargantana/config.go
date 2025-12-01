@@ -24,42 +24,40 @@ func loadConfig(configPath string) (*config.Config, error) {
 // registerSecretProviders registers all configured secret providers
 func registerSecretProviders(cfg *config.Config) error {
 	// Register Vault provider if configured
-	vaultCfg, err := config.Get[secrets.VaultConfig](cfg, "vault")
+	vaultClient, err := config.GetClient[secrets.VaultConfig](cfg, "vault")
 	if err != nil {
-		return errors.Wrap(err, "failed to load Vault configuration")
+		return errors.Wrap(err, "failed to load or create Vault client")
 	}
-	if vaultCfg != nil {
-		vaultClient, err := vaultCfg.CreateClient()
+	if vaultClient != nil {
+		// Still need to get config for the Path field
+		vaultCfg, err := config.Get[secrets.VaultConfig](cfg, "vault")
 		if err != nil {
-			return errors.Wrap(err, "failed to create Vault client")
+			return errors.Wrap(err, "failed to load Vault configuration")
 		}
-		secrets.Register("vault", secrets.NewVaultSecretLoader(vaultClient, vaultCfg.Path))
+		secrets.Register("vault", secrets.NewVaultSecretLoader(*vaultClient, vaultCfg.Path))
 	}
 
 	// Register file provider if configured
-	fileResolverCfg, err := config.Get[secrets.FileSecretConfig](cfg, "file_resolver")
+	fileResolver, err := config.GetClient[secrets.FileSecretConfig](cfg, "file_resolver")
 	if err != nil {
-		return errors.Wrap(err, "failed to load file secret resolver configuration")
+		return errors.Wrap(err, "failed to load or create file secret provider")
 	}
-	if fileResolverCfg != nil {
-		fileResolver, err := fileResolverCfg.CreateClient()
-		if err != nil {
-			return errors.Wrap(err, "failed to create file secret provider")
-		}
-		secrets.Register("file", fileResolver)
+	if fileResolver != nil {
+		secrets.Register("file", *fileResolver)
 	}
 
 	// Register AWS Secrets Manager provider if configured
-	awsCfg, err := config.Get[secrets.AWSConfig](cfg, "aws")
+	awsClient, err := config.GetClient[secrets.AWSConfig](cfg, "aws")
 	if err != nil {
-		return errors.Wrap(err, "failed to load AWS Secrets Manager configuration")
+		return errors.Wrap(err, "failed to load or create AWS Secrets Manager client")
 	}
-	if awsCfg != nil {
-		awsClient, err := awsCfg.CreateClient()
+	if awsClient != nil {
+		// Still need to get config for the SecretName field
+		awsCfg, err := config.Get[secrets.AWSConfig](cfg, "aws")
 		if err != nil {
-			return errors.Wrap(err, "failed to create AWS Secrets Manager client")
+			return errors.Wrap(err, "failed to load AWS Secrets Manager configuration")
 		}
-		secrets.Register("aws", secrets.NewAWSSecretLoader(awsClient, awsCfg.SecretName))
+		secrets.Register("aws", secrets.NewAWSSecretLoader(*awsClient, awsCfg.SecretName))
 	}
 
 	return nil

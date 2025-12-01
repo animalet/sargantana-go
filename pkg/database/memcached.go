@@ -48,11 +48,8 @@ func (m MemcachedConfig) Validate() error {
 // CreateClient creates and configures a Memcached client from this config.
 // Implements the config.ClientFactory[*memcache.Client] interface.
 // Returns *memcache.Client on success, or an error if creation fails.
-func (m MemcachedConfig) CreateClient() (*memcache.Client, error) {
-	if err := m.Validate(); err != nil {
-		return nil, errors.Wrap(err, "invalid Memcached configuration")
-	}
 
+func (m MemcachedConfig) CreateClient() (*memcache.Client, error) {
 	client := memcache.New(m.Servers...)
 
 	// Set timeout (default to 100ms if not specified)

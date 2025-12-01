@@ -54,6 +54,10 @@ func NewConfig(path string) (cfg *Config, err error) {
 	return &Config{modules: modules}, nil
 }
 
+// Get loads a configuration by name and unmarshals it into the specified type T.
+// T must implement the Validatable interface.
+// Returns a pointer to the configuration T, or nil if the configuration is not present.
+// Note: Validation is automatically performed by doExpand before this method is called.
 func Get[T Validatable](c *Config, name string) (*T, error) {
 	raw, ok := c.modules[name]
 	if !ok {
@@ -68,6 +72,26 @@ func Get[T Validatable](c *Config, name string) (*T, error) {
 		return nil, err
 	}
 	return doExpand(partial)
+}
+
+// GetClient loads a configuration by name and creates the corresponding client.
+// T must be a type that implements ClientFactory[F].
+// Returns a pointer to the client F, or nil if the configuration is not present.
+// Note: Validation is automatically performed by Get before this method is called.
+func GetClient[T ClientFactory[F], F any](c *Config, name string) (*F, error) {
+	cfg, err := Get[T](c, name)
+	if err != nil {
+		return nil, err
+	}
+	if cfg == nil {
+		return nil, nil
+	}
+
+	client, err := (*cfg).CreateClient()
+	if err != nil {
+		return nil, err
+	}
+	return &client, nil
 }
 
 func doExpand[T Validatable](toExpand *T) (*T, error) {

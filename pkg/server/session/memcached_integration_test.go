@@ -99,17 +99,6 @@ var _ = Describe("Memcached Session Integration", func() {
 			Expect(err.Error()).To(ContainSubstring("failed to connect to Memcached"))
 		})
 
-		It("should fail with empty server list", func() {
-			// Try to create client with no servers
-			cfg := database.MemcachedConfig{
-				Servers:      []string{},
-				Timeout:      500 * time.Millisecond,
-				MaxIdleConns: 5,
-			}
-			_, err := cfg.CreateClient()
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("at least one Memcached server address is required"))
-		})
 	})
 
 	Context("Memcached timeout configuration", func() {

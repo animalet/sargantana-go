@@ -82,11 +82,8 @@ func (p PostgresConfig) Validate() error {
 // CreateClient creates and configures a PostgreSQL connection pool from this config.
 // Implements the config.ClientFactory[*pgxpool.Pool] interface.
 // Returns *pgxpool.Pool on success.
-func (p PostgresConfig) CreateClient() (*pgxpool.Pool, error) {
-	if err := p.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid PostgreSQL configuration: %w", err)
-	}
 
+func (p PostgresConfig) CreateClient() (*pgxpool.Pool, error) {
 	// Build connection string
 	connString := p.buildConnectionString()
 

@@ -116,11 +116,8 @@ func (m MongoDBConfig) Validate() error {
 // CreateClient creates and configures a MongoDB client from this config.
 // Implements the config.ClientFactory[*mongo.Client] interface.
 // Returns *mongo.Client on success, or an error if creation fails.
-func (m MongoDBConfig) CreateClient() (*mongo.Client, error) {
-	if err := m.Validate(); err != nil {
-		return nil, errors.Wrap(err, "invalid MongoDB configuration")
-	}
 
+func (m MongoDBConfig) CreateClient() (*mongo.Client, error) {
 	clientOpts := options.Client().ApplyURI(m.URI)
 
 	// Set authentication if provided

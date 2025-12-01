@@ -60,26 +60,6 @@ var _ = Describe("AWS Secrets", func() {
 	})
 
 	Context("CreateClient", func() {
-		It("should return error for invalid config (missing region)", func() {
-			cfg := AWSConfig{
-				Region:     "", // Missing region
-				SecretName: "test-secret",
-			}
-			_, err := cfg.CreateClient()
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid AWS configuration"))
-		})
-
-		It("should return error for invalid config (missing secret name)", func() {
-			cfg := AWSConfig{
-				Region:     "us-east-1",
-				SecretName: "", // Missing secret name
-			}
-			_, err := cfg.CreateClient()
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid AWS configuration"))
-		})
-
 		It("should create client with credentials", func() {
 			cfg := AWSConfig{
 				Region:          "us-east-1",
