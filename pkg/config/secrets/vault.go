@@ -1,0 +1,115 @@
+package secrets
+
+import (
+	"fmt"
+
+	"github.com/hashicorp/vault/api"
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
+)
+
+// VaultConfig holds configuration for connecting to HashiCorp Vault
+type VaultConfig struct {
+	Address   string `yaml:"address"`
+	Token     string `yaml:"token"`
+	Path      string `yaml:"path"`
+	Namespace string `yaml:"namespace"`
+}
+
+// Validate checks if the VaultConfig has all required fields set
+func (v VaultConfig) Validate() error {
+	if v.Address == "" {
+		return errors.New("Vault address is required")
+	}
+	if v.Token == "" {
+		return errors.New("Vault token is required")
+	}
+	if v.Path == "" {
+		return errors.New("Vault path is required")
+	}
+	return nil
+}
+
+// CreateClient creates and configures a Vault client from this config.
+// Implements the config.ClientFactory[*api.Client] interface.
+// Returns *api.Client on success, or an error if client creation fails.
+
+func (v VaultConfig) CreateClient() (*api.Client, error) {
+	config := api.DefaultConfig()
+	config.Address = v.Address
+
+	client, err := api.NewClient(config)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create Vault client")
+	}
+
+	client.SetToken(v.Token)
+
+	if v.Namespace != "" {
+		client.SetNamespace(v.Namespace)
+	}
+
+	return client, nil
+}
+
+// VaultSecretLoader retrieves secrets from HashiCorp Vault.
+// Supports both KV v1 and KV v2 secret engines.
+//
+// Example usage in config:
+//
+//	password: ${vault:DATABASE_PASSWORD}  # Reads from configured Vault path
+//
+// The Vault path is configured when creating the resolver.
+type VaultSecretLoader struct {
+	logical *api.Logical
+	path    string
+}
+
+// NewVaultSecretLoader creates a new Vault-based resolver
+//
+// Parameters:
+//   - client: Configured Vault API client
+//   - path: The Vault path to read secrets from (e.g., "secret/data/myapp")
+func NewVaultSecretLoader(client *api.Client, path string) *VaultSecretLoader {
+	return &VaultSecretLoader{
+		logical: client.Logical(),
+		path:    path,
+	}
+}
+
+// Resolve retrieves a secret from Vault
+func (v *VaultSecretLoader) Resolve(key string) (string, error) {
+	secret, err := v.logical.Read(v.path)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to read secret from Vault path %q", v.path)
+	}
+
+	if secret == nil || secret.Data == nil {
+		return "", errors.Errorf("no secret found at Vault path %q", v.path)
+	}
+
+	// Handle both KV v1 and KV v2 formats
+	var data map[string]interface{}
+	if secret.Data["data"] != nil {
+		// KV v2 format
+		if dataMap, ok := secret.Data["data"].(map[string]interface{}); ok {
+			data = dataMap
+		} else {
+			return "", fmt.Errorf("unexpected data format in KV v2 secret")
+		}
+	} else {
+		// KV v1 format
+		data = secret.Data
+	}
+
+	// Extract the requested key
+	if strValue, ok := data[key].(string); ok {
+		log.Debug().
+			Str("secret_name", key).
+			Str("vault_path", v.path).
+			Msg("Retrieved secret from Vault")
+		return strValue, nil
+	}
+
+	return "", errors.Errorf("secret %q not found in Vault at path %q", key, v.path)
+}

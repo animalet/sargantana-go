@@ -1,0 +1,83 @@
+# Docker-specific configuration for blog example
+# Uses Docker service names for networking
+
+sargantana:
+  server:
+    address: "0.0.0.0:8080"  # Listen on all interfaces inside container
+    session_secret: "${vault:SESSION_SECRET}"
+    session_name: "sargantana_session"
+  controllers:
+    # Template controller must be registered first to load templates
+    - type: "template"
+      config:
+        path: "/app/content/templates"
+
+    # Static file serving for CSS
+    - type: "static"
+      name: "css"
+      config:
+        path: "/css"
+        dir: "/app/content/css"
+
+    # Static file serving for favicon
+    - type: "static"
+      name: "favicon"
+      config:
+        path: "/favicon.ico"
+        file: "/app/content/favicon.ico"
+
+    - type: "blog"
+      name: "my_blog"
+      config:
+        feed_path: "/"
+        post_path: "/post"
+        admin_area_path: "/admin"
+
+    - type: "auth"
+      config:
+        callback_host: "http://localhost:8080"
+        login_path: "/auth/{provider}"
+        logout_path: "/logout"
+        callback_path: "/auth/{provider}/callback"
+        user_info_path: "/user"
+        redirect_on_login: "/"
+        redirect_on_logout: "/"
+        providers:
+          # Uses Keycloak - accesses via host network using extra_hosts mapping
+          openid-connect:
+            key: "${file:OPENID_CONNECT_KEY}"
+            secret: "${vault:OPENID_CONNECT_SECRET}"
+            url: "http://localhost:8081/realms/blog-realm/.well-known/openid-configuration"
+            scopes:
+              - "openid"
+              - "profile"
+              - "email"
+
+file_resolver:
+  secrets_dir: "/app/secrets"
+
+vault:
+  address: "http://vault:8200"
+  token: "dev-root-token"
+  path: "secret/data/blog"  # KV v2 format (note: /data/ is included)
+
+redis:
+  address: "redis:6379"  # Docker service name
+  password: "redispass"
+  database: 0
+  max_idle: 10
+  idle_timeout: "2m"
+
+database:
+  host: "postgres"  # Docker service name
+  port: 5432
+  database: my_blog_db
+  user: "${vault:DB_USER}"
+  password: "${vault:DB_PASSWORD}"  # From Vault secret
+  ssl_mode: "disable"  # Disable SSL for local Docker development
+  max_conns: 10
+  min_conns: 2
+  max_conn_lifetime: "1h"
+  max_conn_idle_time: "30m"
+  health_check_period: "1m"
+

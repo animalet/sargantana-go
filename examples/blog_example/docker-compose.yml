@@ -1,0 +1,161 @@
+version: '3.8'
+
+# Blog Example Docker Compose Configuration
+#
+# Services included:
+# - postgres: PostgreSQL 16 database
+# - redis: Redis 7 for session storage
+# - vault: HashiCorp Vault for secrets management
+# - keycloak: Keycloak OAuth2/OIDC server for authentication
+# - blog: The blog application
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: my_blog_db
+      POSTGRES_USER: bloguser
+      POSTGRES_PASSWORD: blogpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bloguser -d my_blog_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass redispass
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  blog:
+    build:
+      context: ../..
+      dockerfile: examples/blog_example/Dockerfile
+    image: sargantana-blog:latest
+    pull_policy: build
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount configuration file
+      - ./config.yaml:/app/config.yaml:ro
+      # Mount secrets directory
+      - ./secrets:/app/secrets:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "localhost:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    restart: no
+
+  vault:
+    image: hashicorp/vault:1.17
+    container_name: blog-vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    command: >
+      sh -c "
+        vault server -dev -dev-root-token-id=dev-root-token -dev-listen-address=0.0.0.0:8200 &
+        sleep 10 &&
+        export VAULT_ADDR=http://0.0.0.0:8200 VAULT_TOKEN=dev-root-token &&
+        vault kv put secret/blog DB_PASSWORD=blogpass DB_USER=bloguser SESSION_SECRET=supersecret OPENID_CONNECT_SECRET=mock-client-secret &&
+        echo 'Vault initialized with blog secrets' &&
+        tail -f /dev/null
+      "
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: blog-keycloak
+    ports:
+      - "8081:8080"
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      # Admin credentials for managing Keycloak UI
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      # Hostname configuration - use proxy mode to respect X-Forwarded headers
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: true
+      KC_HEALTH_ENABLED: true
+      KC_METRICS_ENABLED: true
+    configs:
+      - source: keycloak_realm_config
+        target: /opt/keycloak/data/import/blog-realm.json
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /realms/blog-realm HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+volumes:
+  postgres_data:
+  redis_data:
+
+configs:
+  keycloak_realm_config:
+    content: |
+      {
+        "realm": "blog-realm",
+        "enabled": true,
+        "users": [
+          {
+            "username": "test",
+            "enabled": true,
+            "email": "test@example.com",
+            "emailVerified": true,
+            "firstName": "Test",
+            "lastName": "User",
+            "credentials": [
+              {
+                "type": "password",
+                "value": "test",
+                "temporary": false
+              }
+            ]
+          }
+        ],
+        "clients": [
+          {
+            "clientId": "sargantana",
+            "secret": "mock-client-secret",
+            "enabled": true,
+            "standardFlowEnabled": true,
+            "redirectUris": [
+              "http://localhost:8080/*"
+            ]
+          }
+        ]
+      }

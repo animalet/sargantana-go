@@ -25,3 +25,6 @@ dist-ssr
 bin/
 vendor/
 .secrets
+/*.out
+/certs/
+gosec-report.json
