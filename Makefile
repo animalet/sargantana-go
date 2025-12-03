@@ -43,7 +43,7 @@ INSTALL := install
 
 # Tasks
 .PHONY: all help install uninstall format test test-unit test-integration test-with-coverage \
-	check-coverage bench lint security build build-all clean clean-dist deps ci
+	check-coverage bench bench-demanding lint security build build-all clean clean-dist deps ci
 
 # Standard targets
 .DEFAULT_GOAL := help
@@ -93,6 +93,40 @@ check-coverage: test-with-coverage ## Verify coverage meets threshold requiremen
 bench: ## Run performance benchmarks
 	go test -bench=. ./... -benchmem
 
+bench-demanding: ## Run demanding benchmarks with extended runtime and profiling
+	@echo "Running demanding benchmarks..."
+	@echo "This will take several minutes to complete."
+	@mkdir -p bench-results
+	@echo "Running benchmarks on all packages (10 seconds per benchmark)..."
+	@go test -bench=. ./... \
+		-benchmem \
+		-benchtime=10s \
+		| tee bench-results/bench.txt
+	@echo ""
+	@echo "Running detailed profiling on internal/deepcopy (30 seconds per benchmark)..."
+	@go test -bench=. ./internal/deepcopy \
+		-benchmem \
+		-benchtime=30s \
+		-memprofile=bench-results/mem.prof \
+		-cpuprofile=bench-results/cpu.prof \
+		| tee -a bench-results/bench.txt
+	@echo ""
+	@echo "==================================================="
+	@echo "Benchmark results saved to bench-results/"
+	@echo "==================================================="
+	@echo "  bench.txt      - Detailed benchmark results"
+	@echo "  mem.prof       - Memory profile for deepcopy"
+	@echo "  cpu.prof       - CPU profile for deepcopy"
+	@echo ""
+	@echo "To analyze CPU bottlenecks:"
+	@echo "  go tool pprof -http=:8080 bench-results/cpu.prof"
+	@echo ""
+	@echo "To analyze memory allocations:"
+	@echo "  go tool pprof -http=:8080 bench-results/mem.prof"
+	@echo ""
+	@echo "To compare benchmark runs:"
+	@echo "  benchstat bench-results/bench.txt"
+
 # Code quality
 format: ## Format code with go fmt and goimports
 	@echo "Formatting code..."
@@ -134,7 +168,7 @@ ci: deps lint test-with-coverage check-coverage security ## Run complete CI pipe
 # Cleanup
 clean: clean-dist ## Remove all build artifacts and generated files
 	@go clean
-	@rm -rf bin/
+	@rm -rf bin/ bench-results/
 	@rm -f *.out gosec-report.json
 
 clean-dist: ## Remove distribution builds

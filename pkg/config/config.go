@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 
+	"github.com/animalet/sargantana-go/internal/deepcopy"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -63,10 +64,16 @@ func NewConfig(path string) (cfg *Config, err error) {
 	return &Config{modules: modules}, nil
 }
 
-// Get loads a configuration by name and unmarshals it into the specified type T.
+// Get loads a configuration by name and returns a deep copy.
 // T must implement the Validatable interface.
-// Returns a pointer to the configuration T, or nil if the configuration is not present.
-// Note: Validation is automatically performed by doExpand before this method returns.
+// Returns a pointer to an immutable configuration T, or nil if the configuration is not present.
+//
+// Immutability Guarantee:
+// The returned configuration is a deep copy of the original. Any modifications to the
+// returned config (including nested slices, maps, and pointer fields) will not affect
+// the original configuration or subsequent Get calls.
+//
+// Note: Validation is automatically performed before returning.
 func Get[T Validatable](c *Config, name string) (*T, error) {
 	log.Debug().Str("config_name", name).Msg("Getting configuration")
 	raw, ok := c.modules[name]
@@ -82,7 +89,15 @@ func Get[T Validatable](c *Config, name string) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
-	return doExpand(partial)
+
+	expanded, err := doExpand(partial)
+	if err != nil {
+		return nil, err
+	}
+
+	// Deep copy to ensure immutability
+	log.Debug().Str("config_name", name).Msg("Creating deep copy for immutability")
+	return deepcopy.Copy(expanded)
 }
 
 // GetClient loads a configuration by name and creates the corresponding client.
@@ -106,10 +121,17 @@ func GetClient[T ClientFactory[F], F any](c *Config, name string) (*F, error) {
 	return &client, nil
 }
 
-// GetClientAndConfig loads a configuration by name and creates the corresponding client.
+// GetClientAndConfig loads a configuration by name, creates the corresponding client,
+// and returns both the client and a deep copy of the configuration.
 // T must be a type that implements ClientFactory[F].
-// Returns pointers to both the client F and the config T, or nil for both if the configuration is not present.
-// Note: Validation is automatically performed by Get before this method returns.
+// Returns pointers to both the client F and an immutable copy of config T,
+// or nil for both if the configuration is not present.
+//
+// Immutability Guarantee:
+// The returned configuration is a deep copy. Modifications to the returned config
+// will not affect the original or subsequent calls.
+//
+// Note: Validation is automatically performed before returning.
 func GetClientAndConfig[T ClientFactory[F], F any](c *Config, name string) (*F, *T, error) {
 	cfg, err := Get[T](c, name)
 	if err != nil {

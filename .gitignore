@@ -28,3 +28,4 @@ vendor/
 /*.out
 /certs/
 gosec-report.json
+bench-results/

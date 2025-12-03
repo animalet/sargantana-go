@@ -21,6 +21,7 @@ require (
 	github.com/gomodule/redigo v1.9.3
 	github.com/hashicorp/vault/api v1.22.0
 	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jinzhu/copier v0.4.0
 	github.com/markbates/goth v1.82.0
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
