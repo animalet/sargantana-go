@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/animalet/sargantana-go/internal/session"
 	"github.com/animalet/sargantana-go/pkg/config"
-	"github.com/animalet/sargantana-go/pkg/server/session"
 	"github.com/gin-contrib/secure"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"

@@ -50,7 +50,7 @@ var _ = Describe("Redis Session Integration", func() {
 				MaxIdle:     10,
 				IdleTimeout: 240 * time.Second,
 				TLS: &database.TLSConfig{
-					CAFile: "../../../certs/ca.crt", // Use CA cert from docker-compose
+					CAFile: "../../certs/ca.crt", // Use CA cert from docker-compose
 				},
 			}
 			pool, err := cfg.CreateClient()

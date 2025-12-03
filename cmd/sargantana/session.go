@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 
+	"github.com/animalet/sargantana-go/internal/session"
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/database"
 	"github.com/animalet/sargantana-go/pkg/server"
-	"github.com/animalet/sargantana-go/pkg/server/session"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
