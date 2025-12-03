@@ -27,3 +27,4 @@ vendor/
 .secrets
 /*.out
 /certs/
+gosec-report.json

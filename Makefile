@@ -1,13 +1,21 @@
 # Makefile
 
-# Variables
-TOOLS_BIN_DIR := $(shell go env GOPATH)/bin
-GOIMPORTS := $(TOOLS_BIN_DIR)/goimports
-GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
-GO_TEST_COVERAGE := $(TOOLS_BIN_DIR)/go-test-coverage
+# Variables for development tools
+# Tools are managed via go.mod and can be run using 'go run <package>'
+GOIMPORTS := go tool goimports
+GOLANGCI_LINT := go tool golangci-lint
+GO_TEST_COVERAGE := go tool go-test-coverage
+GOSEC := go tool gosec
 
 # Build variables
 BINARY_NAME := sargantana-go
+
+# Build platforms (GOOS:GOARCH:output-name:extension)
+PLATFORMS := \
+	linux:amd64 \
+	darwin:amd64 \
+	darwin:arm64 \
+	windows:amd64:.exe
 
 # Automatically detect version from git
 VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null || echo "dev")
@@ -34,111 +42,100 @@ BINDIR := $(PREFIX)/bin
 INSTALL := install
 
 # Tasks
-.PHONY: all configure install uninstall format test clean lint deps test bench build build-all test-with-coverage check-coverage ci clean-dist
+.PHONY: all help install uninstall format test test-unit test-integration test-with-coverage \
+	check-coverage bench lint security build build-all clean clean-dist deps ci
 
 # Standard targets
-all: configure build
+.DEFAULT_GOAL := help
 
-configure: deps install-tools
-	@echo "Configuring development environment..."
+all: deps build ## Build the project with dependencies
 
-install: build
+help: ## Show this help message
+	@echo "Sargantana Go - Available targets:"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+
+install: build ## Install binary to system (default: /usr/local/bin)
 	@echo "Installing $(BINARY_NAME) to $(BINDIR)..."
-	$(INSTALL) -d $(BINDIR)
-	$(INSTALL) -m 755 bin/$(BINARY_NAME) $(BINDIR)/$(BINARY_NAME)
-	@echo "Installation complete. Run '$(BINARY_NAME)' to start the server."
+	@$(INSTALL) -d $(BINDIR)
+	@$(INSTALL) -m 755 bin/$(BINARY_NAME) $(BINDIR)/$(BINARY_NAME)
+	@echo "Installation complete"
 
-uninstall:
-	@echo "Uninstalling $(BINARY_NAME) from $(BINDIR)..."
-	rm -f $(BINDIR)/$(BINARY_NAME)
-	@echo "Uninstallation complete."
-
-# Development tools installation
-install-tools: install-goimports install-golangci-lint install-go-test-with-coverage
-	@echo "Development tools installed."
-
-install-goimports:
-	@if ! command -v goimports &> /dev/null; then \
-		echo "Installing goimports..."; \
-		go install golang.org/x/tools/cmd/goimports@latest; \
-	fi
-
-install-golangci-lint:
-	@if ! command -v golangci-lint &> /dev/null; then \
-		echo "Installing golangci-lint..."; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v2.4.0; \
-	fi
-
-install-go-test-with-coverage:
-	@if ! command -v go-test-with-coverage &> /dev/null; then \
-		echo "Installing go-test-with-coverage..."; \
-		go install github.com/vladopajic/go-test-coverage/v2@latest; \
-	fi
+uninstall: ## Remove installed binary from system
+	@echo "Uninstalling $(BINARY_NAME)..."
+	@rm -f $(BINDIR)/$(BINARY_NAME)
 
 # Dependency management
-deps:
-	@echo "Tidying go.mod and go.sum..."
-	go mod tidy
-	go mod verify
-	go mod download
+deps: ## Download and verify Go module dependencies
+	@echo "Managing dependencies..."
+	@go mod tidy
+	@go mod verify
+	@go mod download
 
 # Testing
-test:
-	@echo "Running tests..."
+test: ## Run all tests
 	go test ./...
 
-test-with-coverage:
+test-unit: ## Run unit tests only
+	go test -tags=unit ./...
+
+test-integration: ## Run integration tests only
+	go test -tags=integration ./...
+
+test-with-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
-	go test ./... -covermode=atomic -coverprofile=coverage.out
+	@go test -tags=unit,integration $(shell go list ./... | grep -v '/examples/') -covermode=atomic -coverprofile=coverage.out
 
-check-coverage: test-with-coverage install-go-test-with-coverage
-	$(GO_TEST_COVERAGE) --config=./.testcoverage.yml
+check-coverage: test-with-coverage ## Verify coverage meets threshold requirements
+	@$(GO_TEST_COVERAGE) --config=./.testcoverage.yml
 
-bench:
-	@echo "Running benchmarks..."
+bench: ## Run performance benchmarks
 	go test -bench=. ./... -benchmem
 
 # Code quality
-format: install-goimports
+format: ## Format code with go fmt and goimports
 	@echo "Formatting code..."
-	go fmt ./... && $(GOIMPORTS) -w .
+	@go fmt ./...
+	@$(GOIMPORTS) -w .
 
-lint: format install-golangci-lint
+lint: format ## Run code quality checks (format, vet, golangci-lint)
 	@echo "Linting code..."
-	go vet ./...
-	$(GOLANGCI_LINT) run ./...
+	@go vet ./...
+	@$(GOLANGCI_LINT) run ./...
+
+security: ## Run security vulnerability scan with gosec
+	@echo "Running security scan..."
+	@$(GOSEC) -tests -severity=low -confidence=low -track-suppressions \
+		-fmt=json -out=gosec-report.json -stdout -verbose=text ./...
 
 # Building
-build:
-	@echo "Building application..."
+build: ## Build the binary for current platform
 	@mkdir -p bin
-	go build -v -ldflags="$(LDFLAGS)" -o bin/$(BINARY_NAME) ./main
+	@go build -v -ldflags="$(LDFLAGS)" -o bin/$(BINARY_NAME) ./cmd/sargantana
 
-# Build for all platforms
-build-all: clean-dist
+build-all: clean-dist ## Build binaries for all supported platforms
 	@echo "Building for all platforms..."
 	@mkdir -p dist
-	@echo "Building for Linux AMD64..."
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o dist/$(BINARY_NAME)-linux-amd64 ./main
-	@echo "Building for macOS AMD64..."
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o dist/$(BINARY_NAME)-macos-amd64 ./main
-	@echo "Building for macOS ARM64..."
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o dist/$(BINARY_NAME)-macos-arm64 ./main
-	@echo "Building for Windows AMD64..."
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o dist/$(BINARY_NAME)-windows-amd64.exe ./main
-	@echo "All builds completed successfully!"
+	@for platform in $(PLATFORMS); do \
+		GOOS=$$(echo $$platform | cut -d: -f1); \
+		GOARCH=$$(echo $$platform | cut -d: -f2); \
+		EXT=$$(echo $$platform | cut -d: -f3); \
+		GOOS=$$GOOS GOARCH=$$GOARCH CGO_ENABLED=0 go build \
+			-ldflags="$(LDFLAGS)" \
+			-o dist/$(BINARY_NAME)-$$GOOS-$$GOARCH$$EXT \
+			./cmd/sargantana || exit 1; \
+	done
 	@ls -la dist/
 
 # CI pipeline
-ci: deps test-with-coverage lint
+ci: deps lint test-with-coverage check-coverage security ## Run complete CI pipeline
 
 # Cleanup
-clean: clean-dist
-	@echo "Cleaning up..."
-	go clean
-	rm -rf bin/ certs/
-	rm -f *.out
+clean: clean-dist ## Remove all build artifacts and generated files
+	@go clean
+	@rm -rf bin/
+	@rm -f *.out gosec-report.json
 
-clean-dist:
-	@echo "Cleaning dist directory..."
-	rm -rf dist/
+clean-dist: ## Remove distribution builds
+	@rm -rf dist/

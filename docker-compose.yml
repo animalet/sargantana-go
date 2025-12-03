@@ -7,120 +7,103 @@ secrets:
     file: .secrets/SESSION_SECRET
 
 services:
-  neo4j:
-    # The Docker image to use for the container
-    image: neo4j:5.15-community
-
-    # Environment variables passed to the container
-    environment:
-      # Sets the authentication credentials for the Neo4j database
-      - NEO4J_AUTH=neo4j/testpassword
-      # Specifies a list of plugins to install on startup
-      - NEO4J_PLUGINS=["apoc"]
-
-    # Port mappings from the host machine to the container
-    ports:
-      # Maps the Bolt protocol port (for database drivers)
-      - "7687:7687"
-      # Maps the HTTP/HTTPS port (for the Neo4j Browser)
-      - "7474:7474"
-
-    # Health check to determine if the container is running properly
-    healthcheck:
-      # The command to run to check the health of the service
-      test: [ "CMD-SHELL", "cypher-shell -u neo4j -p testpassword 'RETURN 1'" ]
-      # How often to run the health check
-      interval: 10s
-      # How long to wait for the check to complete before considering it failed
-      timeout: 5s
-      # How many consecutive failures are needed to mark the container as unhealthy
-      retries: 10
-    networks:
-      - sargantana-network
-
   redis:
-    hostname: redis
     image: redis:7.2-alpine
+    hostname: redis
     command: >
-      sh -c "
-      echo 'user default off' > users.acl && echo 'user redisuser on >redispass allcommands allkeys' >> users.acl &&
-      redis-server
-      --port 6379
-      --tls-port 6380
-      --tls-cert-file /certs/redis.crt
-      --tls-key-file /certs/redis.key
-      --tls-ca-cert-file /certs/ca.crt
-      --tls-auth-clients no
-      --aclfile users.acl
-      "
+      sh -c " echo 'user default off' > users.acl && echo 'user redisuser on >redispass allcommands allkeys' >> users.acl && redis-server --port 6379 --tls-port 6380 --tls-cert-file /certs/redis.crt --tls-key-file /certs/redis.key --tls-ca-cert-file /certs/ca.crt --tls-auth-clients no --aclfile users.acl "
     ports:
-      - "6380:6380"
       - "6379:6379"
+      - "6380:6380"
     volumes:
       - ./certs:/certs:ro
-    networks:
-      - sargantana-network
     depends_on:
       generate-certs:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -h redis -p 6379 -a redispass ping"]
+      test: [ "CMD-SHELL", "redis-cli -h redis -p 6379 -a redispass ping" ]
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - sargantana-network
 
   generate-certs:
     image: alpine:latest
-    command: >
-      sh -c "
-        apk add --no-cache openssl &&
-        mkdir -p /certs &&
-        rm -f /certs/* &&
-        cd /certs &&
-      
-        # Generate CA private key and certificate
-        openssl genrsa -out ca.key 4096 &&
-        openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=Redis CA' &&
-      
-        # Generate server private key and certificate signing request (CSR)
-        openssl genrsa -out redis.key 2048 &&
-        openssl req -new -key redis.key -out redis.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis' &&
-      
-        # Create a config file to define the Subject Alternative Names (SANs)
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssl
+        mkdir -p /certs && rm -f /certs/* && cd /certs
+
+        # Generate CA with proper extensions
+        cat > ca.cnf <<EOF
+        [req]
+        distinguished_name = req_distinguished_name
+        x509_extensions = v3_ca
+
+        [req_distinguished_name]
+
+        [v3_ca]
+        basicConstraints = critical,CA:TRUE
+        keyUsage = critical,keyCertSign,cRLSign
+        subjectKeyIdentifier = hash
+        EOF
+
+        openssl genrsa -out ca.key 4096
+        openssl req -new -x509 -days 365 -key ca.key -out ca.crt \
+          -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=Redis CA' \
+          -config ca.cnf -extensions v3_ca
+
+        # Generate Redis server certificate with SAN
+        openssl genrsa -out redis.key 2048
+        openssl req -new -key redis.key -out redis.csr \
+          -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=redis'
+
         cat > san.cnf <<EOF
         [req_ext]
         subjectAltName = @alt_names
+        keyUsage = critical,digitalSignature,keyEncipherment
+        extendedKeyUsage = serverAuth
+
         [alt_names]
         DNS.1 = localhost
         DNS.2 = redis
-      EOF
+        EOF
 
-        # Generate the server certificate using the SAN config file
-        # This makes the certificate valid for 'localhost' (for tests) and 'redis' (for inter-container communication)
-        openssl x509 -req -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out redis.crt -days 365 -extfile san.cnf -extensions req_ext &&
+        openssl x509 -req -in redis.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+          -out redis.crt -days 365 -extfile san.cnf -extensions req_ext
 
-        # Generate client certificate for tests that require it
-        openssl genrsa -out client.key 2048 &&
-        openssl req -new -key client.key -out client.csr -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=client' &&
-        openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365 &&
-      
-        # Set proper permissions
-        chmod 644 *.crt &&
-        chmod 644 *.key &&
-        echo 'TLS certificates (CA, server with SAN, and client) generated successfully'
-      "
+        # Generate client certificate
+        openssl genrsa -out client.key 2048
+        openssl req -new -key client.key -out client.csr \
+          -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=client'
+
+        cat > client.cnf <<EOF
+        [req_ext]
+        keyUsage = critical,digitalSignature,keyEncipherment
+        extendedKeyUsage = clientAuth
+        EOF
+
+        openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+          -out client.crt -days 365 -extfile client.cnf -extensions req_ext
+
+        chmod 644 *.crt *.key
+        echo 'TLS certificates generated successfully'
     volumes:
-      - './certs:/certs'
+      - ./certs:/certs
     networks:
       - sargantana-network
 
   mock-oauth2-server:
     image: ghcr.io/navikt/mock-oauth2-server:2.2.1
     ports:
-      - "8080:8080"
+      - "8081:8081"
     hostname: host.docker.internal
     environment:
       LOG_LEVEL: DEBUG
+      SERVER_PORT: 8081
       JSON_CONFIG: |
         {
           "interactiveLogin": false,
@@ -153,28 +136,249 @@ services:
     ports:
       - "8200:8200"
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: "dev-root-token"
-      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-      VAULT_ADDR: "http://0.0.0.0:8200"
+      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://0.0.0.0:8200
     cap_add:
       - IPC_LOCK
     command: >
       sh -c "
         vault server -dev -dev-root-token-id=dev-root-token -dev-listen-address=0.0.0.0:8200 &
         sleep 10 &&
-        export VAULT_ADDR=http://0.0.0.0:8200 &&
-        export VAULT_TOKEN=dev-root-token &&
+        export VAULT_ADDR=http://0.0.0.0:8200 VAULT_TOKEN=dev-root-token &&
         vault kv put secret/sargantana GOOGLE_KEY=test-google-key GOOGLE_SECRET=test-google-secret SESSION_SECRET=test-session-secret-that-is-long-enough &&
         vault secrets enable -version=1 -path=secret-v1 kv &&
         vault kv put secret-v1/sargantana GOOGLE_KEY=test-google-key GOOGLE_SECRET=test-google-secret SESSION_SECRET=test-session-secret-that-is-long-enough &&
-        echo 'Vault initialized with test secrets for both KV v1 and KV v2' &&
+        echo 'Vault initialized with test secrets' &&
         tail -f /dev/null
       "
+    networks:
+      - sargantana-network
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: my_blog_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sargantana-network
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack-dev
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: secretsmanager
+      DEBUG: 0
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        /usr/local/bin/docker-entrypoint.sh &
+        echo "Waiting for LocalStack to be ready..."
+        until awslocal secretsmanager list-secrets --region us-east-1 >/dev/null 2>&1; do
+          sleep 1
+        done
+        echo "LocalStack is ready, initializing secrets..."
+        awslocal secretsmanager create-secret --name sargantana/test --secret-string '{"GOOGLE_KEY":"test-google-key","GOOGLE_SECRET":"test-google-secret","SESSION_SECRET":"test-session-secret-that-is-long-enough"}' --region us-east-1
+        awslocal secretsmanager create-secret --name sargantana/plain-secret --secret-string 'plain-text-secret-value' --region us-east-1
+        echo "AWS Secrets Manager initialized with test secrets"
+        wait
+    healthcheck:
+      test: [ "CMD", "awslocal", "secretsmanager", "list-secrets", "--query", "length(SecretList)", "--output", "text" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sargantana-network
+
+  memcached:
+    image: memcached:1.6-alpine
+    hostname: memcached
+    ports:
+      - "11211:11211"
+    command: memcached -m 64 -vv
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "11211" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sargantana-network
+
+  mongodb:
+    image: mongo:7.0
+    hostname: mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: adminpass
+      MONGO_INITDB_DATABASE: sessions_test
+    ports:
+      - "27017:27017"
+    command: >
+      sh -c "
+        cat > /docker-entrypoint-initdb.d/01-init-users.js <<'EOF'
+        db = db.getSiblingDB('admin');
+        var users = db.getUsers();
+        var userExists = false;
+        for (var i = 0; i < users.users.length; i++) {
+          if (users.users[i].user === 'testuser') {
+            userExists = true;
+            break;
+          }
+        }
+        if (!userExists) {
+          db.createUser({
+            user: 'testuser',
+            pwd: 'testpass',
+            roles: [{ role: 'readWrite', db: 'sessions_test' }]
+          });
+          print('Test user created successfully');
+        } else {
+          print('Test user already exists');
+        }
+      EOF
+        exec docker-entrypoint.sh mongod --bind_ip_all
+      "
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sargantana-network
+
+  generate-mongodb-certs:
+    image: alpine:latest
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssl
+        cd /certs
+
+        # Only generate MongoDB certs if they don't exist
+        if [ ! -f mongodb.pem ]; then
+          echo "Generating MongoDB certificates..."
+
+          # Generate MongoDB server certificate
+          openssl genrsa -out mongodb.key 2048
+          openssl req -new -key mongodb.key -out mongodb.csr \
+            -subj '/C=US/ST=CA/L=San Francisco/O=Sargantana/CN=mongodb'
+
+          cat > mongodb-san.cnf <<EOF
+        [req_ext]
+        subjectAltName = @alt_names
+        keyUsage = critical,digitalSignature,keyEncipherment
+        extendedKeyUsage = serverAuth,clientAuth
+
+        [alt_names]
+        DNS.1 = localhost
+        DNS.2 = mongodb
+        EOF
+
+          openssl x509 -req -in mongodb.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+            -out mongodb.crt -days 365 -extfile mongodb-san.cnf -extensions req_ext
+
+          # Combine cert and key for MongoDB
+          cat mongodb.crt mongodb.key > mongodb.pem
+          chmod 644 mongodb.pem
+
+          echo 'MongoDB TLS certificates generated successfully'
+        else
+          echo 'MongoDB certificates already exist'
+        fi
+    volumes:
+      - ./certs:/certs
+    depends_on:
+      generate-certs:
+        condition: service_completed_successfully
+    networks:
+      - sargantana-network
+
+  mongodb-tls:
+    image: mongo:7.0
+    hostname: mongodb-tls
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: adminpass
+      MONGO_INITDB_DATABASE: sessions_test
+    ports:
+      - "27018:27017"
+    command: |
+      sh -c "
+        # Create mongod.conf
+        echo 'net:
+          bindIpAll: true
+          tls:
+            mode: requireTLS
+            certificateKeyFile: /certs/mongodb.pem
+            CAFile: /certs/ca.crt' > /etc/mongod.conf
+
+        # Create user script
+        echo \"db = db.getSiblingDB('admin');
+        var users = db.getUsers();
+        var userExists = false;
+        for (var i = 0; i < users.users.length; i++) {
+          if (users.users[i].user === 'testuser') {
+            userExists = true;
+            break;
+          }
+        }
+        if (!userExists) {
+          db.createUser({
+            user: 'testuser',
+            pwd: 'testpass',
+            roles: [{ role: 'readWrite', db: 'sessions_test' }]
+          });
+          print('Test user created successfully');
+        } else {
+          print('Test user already exists');
+        }\" > /docker-entrypoint-initdb.d/01-init-users.js
+
+        # Wait for certs to be generated
+        while [ ! -f /certs/mongodb.pem ]; do
+          echo 'Waiting for certificates...'
+          sleep 1
+        done
+        # Start Mongo with TLS config
+        exec docker-entrypoint.sh mongod --config /etc/mongod.conf
+      "
+    volumes:
+      - mongodb_tls_data:/data/db
+      - ./certs:/certs:ro
+    depends_on:
+      generate-mongodb-certs:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "mongosh", "--tls", "--tlsCertificateKeyFile", "/certs/mongodb.pem", "--tlsCAFile", "/certs/ca.crt", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sargantana-network
 
 volumes:
-  valkey_data:
-    driver: local
+  pg_data:
+  mongodb_data:
+  mongodb_tls_data:
+
 
 networks:
   sargantana-network:
-    driver: bridge
