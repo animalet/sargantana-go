@@ -2,6 +2,18 @@ module github.com/animalet/sargantana-go
 
 go 1.25.4
 
+// Retract all versions before v0.5.0 due to major architectural changes
+retract (
+	v0.4.2
+	v0.4.1
+	v0.4.0
+	v0.3.0
+	v0.2.0
+	v0.1.1
+	v0.1.0
+	v0.0.0
+)
+
 tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	github.com/securego/gosec/v2/cmd/gosec
