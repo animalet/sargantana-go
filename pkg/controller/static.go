@@ -3,6 +3,7 @@ package controller
 import (
 	"os"
 
+	"github.com/animalet/sargantana-go/internal/deepcopy"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -46,18 +47,21 @@ func (s StaticControllerConfig) Validate() error {
 }
 
 func NewStaticController(c *StaticControllerConfig, _ server.ControllerContext) (server.IController, error) {
+	// Deep copy the config to enforce immutability
+	configCopy := deepcopy.MustCopy(c)
+
 	log.Info().
-		Str("path", c.Path).
-		Str("dir", c.Dir).
-		Str("file", c.File).
-		Bool("auth", c.Auth).
+		Str("path", configCopy.Path).
+		Str("dir", configCopy.Dir).
+		Str("file", configCopy.File).
+		Bool("auth", configCopy.Auth).
 		Msg("Static content configured")
 
 	return &static{
-		path: c.Path,
-		dir:  c.Dir,
-		file: c.File,
-		auth: c.Auth,
+		path: configCopy.Path,
+		dir:  configCopy.Dir,
+		file: configCopy.File,
+		auth: configCopy.Auth,
 	}, nil
 }
 
