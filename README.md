@@ -62,6 +62,7 @@ This is a personal side project I created for my own learning and practicing wit
 - [Authentication Providers](docs/authentication-providers.md): Configure OAuth2 providers and custom authenticators.
 - [Secret Providers](docs/secret_providers.md): Use Vault, AWS Secrets Manager, and other secret sources.
 - [Configuration Guide](docs/configuration.md): Learn about the type-safe, modular configuration system.
+- [Configuration Immutability](docs/immutability.md): Understand how the framework ensures runtime configuration safety.
 - [Testing Guide](docs/testing.md): Run tests locally and understand CI workflows.
 - [Development Guide](docs/development.md): Build, compile, and contribute to the project.
 
