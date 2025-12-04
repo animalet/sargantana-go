@@ -1,10 +1,9 @@
 //go:build unit
 
-package config
+package expansion_test
 
 import (
-	"reflect"
-
+	"github.com/animalet/sargantana-go/internal/expansion"
 	"github.com/animalet/sargantana-go/pkg/config/secrets"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -29,13 +28,13 @@ var _ = Describe("Expansion", func() {
 		secrets.Register("mock", &MockSecretProvider{})
 	})
 
-	Context("expandVariables", func() {
+	Context("ExpandVariables", func() {
 		It("should expand string variables", func() {
 			type TestStruct struct {
 				Value string
 			}
 			s := TestStruct{Value: "${mock:test-secret}"}
-			err := expandVariables(reflect.ValueOf(&s).Elem())
+			err := expansion.ExpandVariables(&s)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s.Value).To(Equal("resolved-secret"))
 		})
@@ -48,7 +47,7 @@ var _ = Describe("Expansion", func() {
 				Nested Nested
 			}
 			s := TestStruct{Nested: Nested{Value: "${mock:test-secret}"}}
-			err := expandVariables(reflect.ValueOf(&s).Elem())
+			err := expansion.ExpandVariables(&s)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s.Nested.Value).To(Equal("resolved-secret"))
 		})
@@ -59,7 +58,7 @@ var _ = Describe("Expansion", func() {
 			}
 			val := "${mock:test-secret}"
 			s := TestStruct{Value: &val}
-			err := expandVariables(reflect.ValueOf(&s).Elem())
+			err := expansion.ExpandVariables(&s)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(*s.Value).To(Equal("resolved-secret"))
 		})
@@ -69,7 +68,7 @@ var _ = Describe("Expansion", func() {
 				Values []string
 			}
 			s := TestStruct{Values: []string{"${mock:test-secret}", "normal"}}
-			err := expandVariables(reflect.ValueOf(&s).Elem())
+			err := expansion.ExpandVariables(&s)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s.Values[0]).To(Equal("resolved-secret"))
 			Expect(s.Values[1]).To(Equal("normal"))
@@ -80,7 +79,7 @@ var _ = Describe("Expansion", func() {
 				Values map[string]string
 			}
 			s := TestStruct{Values: map[string]string{"key": "${mock:test-secret}"}}
-			err := expandVariables(reflect.ValueOf(&s).Elem())
+			err := expansion.ExpandVariables(&s)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(s.Values["key"]).To(Equal("resolved-secret"))
 		})
@@ -90,7 +89,7 @@ var _ = Describe("Expansion", func() {
 				Value *string
 			}
 			s := TestStruct{Value: nil}
-			err := expandVariables(reflect.ValueOf(&s).Elem())
+			err := expansion.ExpandVariables(&s)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -100,7 +99,7 @@ var _ = Describe("Expansion", func() {
 			}
 			// Use an unregistered prefix to trigger an error
 			s := TestStruct{Value: "${unregistered:some-key}"}
-			err := expandVariables(reflect.ValueOf(&s).Elem())
+			err := expansion.ExpandVariables(&s)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("error resolving property"))
 		})

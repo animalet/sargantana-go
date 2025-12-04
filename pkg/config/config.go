@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"os"
-	"reflect"
 
 	"github.com/animalet/sargantana-go/internal/deepcopy"
+	"github.com/animalet/sargantana-go/internal/expansion"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -149,7 +149,7 @@ func GetClientAndConfig[T ClientFactory[F], F any](c *Config, name string) (*F, 
 
 func doExpand[T Validatable](toExpand *T) (*T, error) {
 	log.Debug().Msgf("Expanding variables for config type %T", toExpand)
-	if err := expandVariables(reflect.ValueOf(toExpand).Elem()); err != nil {
+	if err := expansion.ExpandVariables(toExpand); err != nil {
 		return nil, err
 	}
 	log.Debug().Msgf("Validating config type %T", toExpand)

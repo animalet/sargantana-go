@@ -1,4 +1,6 @@
-package config
+// Package expansion provides internal variable expansion functionality for configuration values.
+// It handles expansion of environment variables and secret references in configuration strings.
+package expansion
 
 import (
 	"os"
@@ -16,11 +18,7 @@ import (
 //   - "file:": Reads the content of the specified file in secrets dir (if configured) and returns it as a string
 //
 // If no known prefix is found, the original string is returned unchanged.
-// expand is a custom expansion function that uses the secrets resolution system
-// It retrieves the corresponding value based on the prefix and returns it.
-// If no known prefix is found, it returns the original string unchanged.
 func expand(s string) (string, error) {
-	// Use the secrets resolution system to resolve the property
 	value, err := secrets.Resolve(s)
 	if err != nil {
 		return "", errors.Wrap(err, "error resolving property")
@@ -28,9 +26,29 @@ func expand(s string) (string, error) {
 	return value, nil
 }
 
-// expandVariables recursively traverses the fields of a struct and expands environment variables in string fields.
+// ExpandVariables recursively traverses the fields of a struct and expands environment variables in string fields.
 // It handles nested structs, pointers to structs, slices, and maps.
-func expandVariables(val reflect.Value) error {
+// The toExpand parameter must be a pointer to the value to expand.
+func ExpandVariables(toExpand any) error {
+	if toExpand == nil {
+		return nil
+	}
+
+	v := reflect.ValueOf(toExpand)
+
+	// Handle pointer: dereference to get the actual value
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil
+		}
+		return expandValue(v.Elem())
+	}
+
+	return expandValue(v)
+}
+
+// expandValue is the internal recursive function that operates on reflect.Value
+func expandValue(val reflect.Value) error {
 	switch val.Kind() {
 	case reflect.String:
 		if val.CanSet() {
@@ -51,39 +69,42 @@ func expandVariables(val reflect.Value) error {
 			}
 			val.SetString(expanded)
 		}
+
 	case reflect.Struct:
 		for i := 0; i < val.NumField(); i++ {
-			if err := expandVariables(val.Field(i)); err != nil {
+			if err := expandValue(val.Field(i)); err != nil {
 				return err
 			}
 		}
+
 	case reflect.Ptr:
 		if !val.IsNil() {
-			if err := expandVariables(val.Elem()); err != nil {
+			if err := expandValue(val.Elem()); err != nil {
 				return err
 			}
 		}
+
 	case reflect.Slice:
 		for j := 0; j < val.Len(); j++ {
-			if err := expandVariables(val.Index(j)); err != nil {
+			if err := expandValue(val.Index(j)); err != nil {
 				return err
 			}
 		}
+
 	case reflect.Map:
 		for _, key := range val.MapKeys() {
 			mapVal := val.MapIndex(key)
 			// Create a new addressable value of the same type
 			newVal := reflect.New(mapVal.Type()).Elem()
 			newVal.Set(mapVal)
-			// Expand variables in the new value
-			if err := expandVariables(newVal); err != nil {
+			if err := expandValue(newVal); err != nil {
 				return err
 			}
-			// Set the expanded value back into the map
 			val.SetMapIndex(key, newVal)
 		}
 	default:
-		return nil
+		// No action needed for other kinds
 	}
+
 	return nil
 }
