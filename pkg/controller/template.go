@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/animalet/sargantana-go/internal/deepcopy"
+	"github.com/animalet/sargantana-go/internal/snapshot"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -18,7 +18,7 @@ type TemplateControllerConfig struct {
 
 func NewTemplateController(c *TemplateControllerConfig, _ server.ControllerContext) (server.IController, error) {
 	// Deep copy the config to enforce immutability
-	configCopy := deepcopy.MustCopy(c)
+	configCopy := snapshot.MustCopy(c)
 
 	log.Info().
 		Str("path", configCopy.Path).

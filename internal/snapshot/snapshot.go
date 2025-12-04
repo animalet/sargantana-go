@@ -1,4 +1,4 @@
-package deepcopy
+package snapshot
 
 import (
 	"github.com/pkg/errors"
@@ -45,7 +45,7 @@ func Copy[T any](src *T) (*T, error) {
 //
 //	func NewServer(cfg SargantanaConfig) *Server {
 //	    return &Server{
-//	        config: *deepcopy.MustCopy(&cfg),  // Panic if copy fails
+//	        config: *snapshot.MustCopy(&cfg),  // Panic if copy fails
 //	    }
 //	}
 //

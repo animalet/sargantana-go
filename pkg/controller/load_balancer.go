@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/animalet/sargantana-go/internal/deepcopy"
+	"github.com/animalet/sargantana-go/internal/snapshot"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -40,7 +40,7 @@ func (l LoadBalancerControllerConfig) Validate() error {
 
 func NewLoadBalancerController(c *LoadBalancerControllerConfig, _ server.ControllerContext) (server.IController, error) {
 	// Deep copy the config to enforce immutability
-	configCopy := deepcopy.MustCopy(c)
+	configCopy := snapshot.MustCopy(c)
 
 	stringEndpoints := configCopy.Endpoints
 	endpoints := make([]url.URL, 0, len(stringEndpoints))

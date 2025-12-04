@@ -30,16 +30,16 @@ cfg.WebServerConfig.Address = "localhost:9999"
 
 ## Solution: Immutability at Constructor Boundaries
 
-The framework uses `deepcopy.MustCopy()` to create immutable snapshots when configs are stored by constructors.
+The framework uses `snapshot.MustCopy()` to create immutable snapshots when configs are stored by constructors.
 
 ### Pattern
 
 ```go
-import "github.com/animalet/sargantana-go/internal/deepcopy"
+import "github.com/animalet/sargantana-go/internal/snapshot"
 
 func NewServer(cfg SargantanaConfig) *Server {
     return &Server{
-        config: *deepcopy.MustCopy(&cfg),  // Deep copy = immutable snapshot
+        config: *snapshot.MustCopy(&cfg),  // Deep copy = immutable snapshot
         authenticator: NewUnauthorizedAuthenticator(),
     }
 }
@@ -68,10 +68,10 @@ cfg.WebServerConfig.Address = "different:8888"  // Server still uses original
 
 ### For Framework Developers
 
-When creating constructors that store configurations, use `deepcopy.MustCopy()`:
+When creating constructors that store configurations, use `snapshot.MustCopy()`:
 
 ```go
-import "github.com/animalet/sargantana-go/internal/deepcopy"
+import "github.com/animalet/sargantana-go/internal/snapshot"
 
 type MyComponent struct {
     config MyConfig
@@ -79,7 +79,7 @@ type MyComponent struct {
 
 func NewMyComponent(cfg MyConfig) *MyComponent {
     return &MyComponent{
-        config: *deepcopy.MustCopy(&cfg),  // Make immutable copy
+        config: *snapshot.MustCopy(&cfg),  // Make immutable copy
     }
 }
 ```
@@ -91,15 +91,15 @@ func NewMyComponent(cfg MyConfig) *MyComponent {
 - ❌ Config transformations (function returns modified config)
 - ❌ Validators (function only reads, doesn't store)
 
-## Deep Copy Functions
+## Snapshot Functions
 
-The `internal/deepcopy` package provides two functions:
+The `internal/snapshot` package provides two functions for creating immutable snapshots:
 
 ### `Copy[T](cfg *T) (*T, error)`
 Returns error on copy failure. Use when error handling is needed.
 
 ```go
-cfg, err := deepcopy.Copy(original)
+cfg, err := snapshot.Copy(original)
 if err != nil {
     return fmt.Errorf("failed to copy config: %w", err)
 }
@@ -113,7 +113,7 @@ Panics on copy failure. Use in constructors where failure indicates a programmin
 ```go
 func NewServer(cfg SargantanaConfig) *Server {
     return &Server{
-        config: *deepcopy.MustCopy(&cfg),  // Panic if copy fails
+        config: *snapshot.MustCopy(&cfg),  // Panic if copy fails
     }
 }
 ```
@@ -124,7 +124,7 @@ func NewServer(cfg SargantanaConfig) *Server {
 
 ## What Gets Copied
 
-Deep copying handles:
+Creating a snapshot deep-copies:
 - ✅ Primitive fields (strings, ints, bools, etc.)
 - ✅ Struct values
 - ✅ Slices (creates new slice with copied elements)
@@ -144,7 +144,7 @@ type Config struct {
 
 ## Performance
 
-Deep copying has minimal overhead for typical configs:
+Creating snapshots has minimal overhead for typical configs:
 
 ```
 BenchmarkCopy_SimpleStruct    1304 ns/op    456 B/op    15 allocs/op
@@ -173,7 +173,7 @@ func Get[T Validatable](c *Config, name string) (*T, error) {
 // Constructor - creates immutable snapshot
 func NewServer(cfg SargantanaConfig) *Server {
     return &Server{
-        config: *deepcopy.MustCopy(&cfg),  // Deep copy enforced here
+        config: *snapshot.MustCopy(&cfg),  // Deep copy enforced here
     }
 }
 ```
@@ -227,7 +227,7 @@ It("should protect against external config modifications", func() {
 
 Run tests:
 ```bash
-go test ./internal/deepcopy -v       # Deep copy tests (18 tests)
+go test ./internal/snapshot -v       # Snapshot tests (18 tests)
 go test ./pkg/server -v              # Server immutability tests (6 tests)
 ```
 
@@ -235,7 +235,7 @@ go test ./pkg/server -v              # Server immutability tests (6 tests)
 
 ### ✅ Already Immutable
 
-- **`server.NewServer()`** - Uses `deepcopy.MustCopy()` for config protection
+- **`server.NewServer()`** - Uses `snapshot.MustCopy()` for config protection
 - **All controllers** - Extract primitive fields, no deep copy needed
 
 ### Framework Extension
@@ -244,13 +244,13 @@ When adding new components that store configs:
 
 ```diff
  import (
-+    "github.com/animalet/sargantana-go/internal/deepcopy"
++    "github.com/animalet/sargantana-go/internal/snapshot"
  )
 
  func NewMyComponent(cfg MyConfig) *MyComponent {
      return &MyComponent{
 -        config: cfg,
-+        config: *deepcopy.MustCopy(&cfg),
++        config: *snapshot.MustCopy(&cfg),
      }
  }
 ```
@@ -259,7 +259,7 @@ When adding new components that store configs:
 
 **For Users:** Immutability is automatic and transparent. Use configs normally.
 
-**For Developers:** Use `deepcopy.MustCopy()` in constructors that store configs.
+**For Developers:** Use `snapshot.MustCopy()` in constructors that store configs.
 
 **Key Principle:** Immutability enforced at boundaries (constructors), not in transit (config loading).
 

@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/animalet/sargantana-go/internal/deepcopy"
 	"github.com/animalet/sargantana-go/internal/session"
+	"github.com/animalet/sargantana-go/internal/snapshot"
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/gin-contrib/secure"
 	"github.com/gin-contrib/sessions"
@@ -128,7 +128,7 @@ func SetDebug(debugEnabled bool) {
 // to the original config don't affect the running server.
 func NewServer(cfg SargantanaConfig) *Server {
 	return &Server{
-		config:        *deepcopy.MustCopy(&cfg),
+		config:        *snapshot.MustCopy(&cfg),
 		authenticator: NewUnauthorizedAuthenticator(),
 	}
 }

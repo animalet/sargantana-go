@@ -69,7 +69,7 @@ func NewConfig(path string) (cfg *Config, err error) {
 //
 // Note: Validation is automatically performed before returning.
 //
-// Immutability: Constructors that store this config should use deepcopy.MustCopy()
+// Immutability: Constructors that store this config should use snapshot.MustCopy()
 // to ensure external modifications don't affect the component after initialization.
 func Get[T Validatable](c *Config, name string) (*T, error) {
 	log.Debug().Str("config_name", name).Msg("Getting configuration")

@@ -1,9 +1,9 @@
-package deepcopy_test
+package snapshot_test
 
 import (
 	"testing"
 
-	"github.com/animalet/sargantana-go/internal/deepcopy"
+	"github.com/animalet/sargantana-go/internal/snapshot"
 )
 
 type BenchmarkSimpleStruct struct {
@@ -29,7 +29,7 @@ func BenchmarkCopy_SimpleStruct(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = deepcopy.Copy(original)
+		_, _ = snapshot.Copy(original)
 	}
 }
 
@@ -48,7 +48,7 @@ func BenchmarkCopy_NestedStruct(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = deepcopy.Copy(original)
+		_, _ = snapshot.Copy(original)
 	}
 }
 
@@ -65,7 +65,7 @@ func BenchmarkCopy_LargeSlice(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = deepcopy.Copy(original)
+		_, _ = snapshot.Copy(original)
 	}
 }
 
@@ -82,7 +82,7 @@ func BenchmarkCopy_LargeMap(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = deepcopy.Copy(original)
+		_, _ = snapshot.Copy(original)
 	}
 }
 
@@ -91,6 +91,6 @@ func BenchmarkCopy_Nil(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = deepcopy.Copy(original)
+		_, _ = snapshot.Copy(original)
 	}
 }

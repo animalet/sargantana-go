@@ -1,9 +1,9 @@
-package deepcopy_test
+package snapshot_test
 
 import (
 	"testing"
 
-	"github.com/animalet/sargantana-go/internal/deepcopy"
+	"github.com/animalet/sargantana-go/internal/snapshot"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -30,7 +30,7 @@ var _ = Describe("DeepCopy", func() {
 	Context("Nil handling", func() {
 		It("should return nil when copying nil pointer", func() {
 			var nilPtr *SimpleStruct
-			result, err := deepcopy.Copy(nilPtr)
+			result, err := snapshot.Copy(nilPtr)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(BeNil())
 		})
@@ -43,7 +43,7 @@ var _ = Describe("DeepCopy", func() {
 				Value: 42,
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(copied).NotTo(BeNil())
 
@@ -70,7 +70,7 @@ var _ = Describe("DeepCopy", func() {
 				},
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(copied).NotTo(BeNil())
 			Expect(copied.Nested).NotTo(BeNil())
@@ -93,7 +93,7 @@ var _ = Describe("DeepCopy", func() {
 				Nested: nil,
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(copied).NotTo(BeNil())
 			Expect(copied.Nested).To(BeNil())
@@ -106,7 +106,7 @@ var _ = Describe("DeepCopy", func() {
 				Slice: []string{"one", "two", "three"},
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(copied).NotTo(BeNil())
 
@@ -123,7 +123,7 @@ var _ = Describe("DeepCopy", func() {
 				Numbers: []int{1, 2, 3, 4, 5},
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(copied).NotTo(BeNil())
 
@@ -140,7 +140,7 @@ var _ = Describe("DeepCopy", func() {
 				Slice: []string{"one", "two"},
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 
 			originalLen := len(original.Slice)
@@ -158,7 +158,7 @@ var _ = Describe("DeepCopy", func() {
 				Slice: nil,
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 			// copier initializes nil slices to empty slices
 			Expect(copied.Slice).To(HaveLen(0))
@@ -169,7 +169,7 @@ var _ = Describe("DeepCopy", func() {
 				Slice: []string{},
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(copied.Slice).NotTo(BeNil())
 			Expect(len(copied.Slice)).To(Equal(0))
@@ -186,7 +186,7 @@ var _ = Describe("DeepCopy", func() {
 				},
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(copied).NotTo(BeNil())
 
@@ -205,7 +205,7 @@ var _ = Describe("DeepCopy", func() {
 				},
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Add key to copy
@@ -220,7 +220,7 @@ var _ = Describe("DeepCopy", func() {
 				Map: nil,
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 			// copier initializes nil maps to empty maps
 			Expect(copied.Map).To(HaveLen(0))
@@ -231,7 +231,7 @@ var _ = Describe("DeepCopy", func() {
 				Map: map[string]int{},
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(copied.Map).NotTo(BeNil())
 			Expect(len(copied.Map)).To(Equal(0))
@@ -251,7 +251,7 @@ var _ = Describe("DeepCopy", func() {
 				Numbers: []int{10, 20, 30},
 			}
 
-			copied, err := deepcopy.Copy(original)
+			copied, err := snapshot.Copy(original)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(copied).NotTo(BeNil())
 
@@ -285,7 +285,7 @@ var _ = Describe("DeepCopy", func() {
 				Value: 42,
 			}
 
-			copied := deepcopy.MustCopy(original)
+			copied := snapshot.MustCopy(original)
 
 			Expect(copied).NotTo(BeNil())
 			Expect(copied.Name).To(Equal("test"))
@@ -302,7 +302,7 @@ var _ = Describe("DeepCopy", func() {
 
 		It("should handle nil input gracefully", func() {
 			var original *SimpleStruct
-			copied := deepcopy.MustCopy(original)
+			copied := snapshot.MustCopy(original)
 			Expect(copied).To(BeNil())
 		})
 
@@ -317,7 +317,7 @@ var _ = Describe("DeepCopy", func() {
 				Map:   map[string]int{"x": 1},
 			}
 
-			copied := deepcopy.MustCopy(original)
+			copied := snapshot.MustCopy(original)
 
 			// Modify all levels of original
 			original.Field = "mod1"
@@ -345,7 +345,7 @@ var _ = Describe("DeepCopy", func() {
 
 			NewServer := func(cfg Config) *Server {
 				return &Server{
-					config: *deepcopy.MustCopy(&cfg),
+					config: *snapshot.MustCopy(&cfg),
 				}
 			}
 

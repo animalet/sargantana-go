@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/animalet/sargantana-go/internal/deepcopy"
+	"github.com/animalet/sargantana-go/internal/snapshot"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -174,7 +174,7 @@ func NewAuthController(c *AuthControllerConfig, ctx server.ControllerContext) (s
 	gob.Register(UserObject{})
 	providerFactory := ProviderFactory
 	if providerFactory == nil {
-		providerFactory = &configProviderFactory{config: *deepcopy.MustCopy(&c.Providers)}
+		providerFactory = &configProviderFactory{config: *snapshot.MustCopy(&c.Providers)}
 	}
 	providers := providerFactory.CreateProviders(callbackURLTemplate)
 	if len(providers) > 0 {

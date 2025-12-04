@@ -43,7 +43,7 @@ var _ = Describe("Blog Controller", func() {
 		})
 
 		It("should protect against external config modifications", func() {
-			// This test verifies that the NewBlogController uses deepcopy.MustCopy()
+			// This test verifies that the NewBlogController uses snapshot.MustCopy()
 			// to protect against external modifications to the config.
 			// Since we can't easily test without a real database connection,
 			// this test documents the immutability pattern and verifies the
@@ -58,7 +58,7 @@ var _ = Describe("Blog Controller", func() {
 			// Verify config is valid and copyable (validation is part of the constructor flow)
 			Expect(cfg.Validate()).To(Succeed())
 
-			// In the actual constructor, deepcopy.MustCopy(cfg) is called,
+			// In the actual constructor, snapshot.MustCopy(cfg) is called,
 			// which creates an immutable snapshot of the config.
 			// External modifications after controller creation won't affect the controller.
 			originalFeedPath := cfg.FeedPath

@@ -3,7 +3,7 @@ package controller
 import (
 	"os"
 
-	"github.com/animalet/sargantana-go/internal/deepcopy"
+	"github.com/animalet/sargantana-go/internal/snapshot"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -48,7 +48,7 @@ func (s StaticControllerConfig) Validate() error {
 
 func NewStaticController(c *StaticControllerConfig, _ server.ControllerContext) (server.IController, error) {
 	// Deep copy the config to enforce immutability
-	configCopy := deepcopy.MustCopy(c)
+	configCopy := snapshot.MustCopy(c)
 
 	log.Info().
 		Str("path", configCopy.Path).
