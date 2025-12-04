@@ -277,4 +277,92 @@ var _ = Describe("DeepCopy", func() {
 			Expect(original.Numbers[0]).To(Equal(10))
 		})
 	})
+
+	Context("MustCopy", func() {
+		It("should create immutable copy without returning error", func() {
+			original := &SimpleStruct{
+				Name:  "test",
+				Value: 42,
+			}
+
+			copied := deepcopy.MustCopy(original)
+
+			Expect(copied).NotTo(BeNil())
+			Expect(copied.Name).To(Equal("test"))
+			Expect(copied.Value).To(Equal(42))
+
+			// Modify original
+			original.Name = "modified"
+			original.Value = 99
+
+			// Copy should be unchanged
+			Expect(copied.Name).To(Equal("test"))
+			Expect(copied.Value).To(Equal(42))
+		})
+
+		It("should handle nil input gracefully", func() {
+			var original *SimpleStruct
+			copied := deepcopy.MustCopy(original)
+			Expect(copied).To(BeNil())
+		})
+
+		It("should work with nested structures", func() {
+			original := &NestedStruct{
+				Field: "parent",
+				Nested: &SimpleStruct{
+					Name:  "child",
+					Value: 100,
+				},
+				Slice: []string{"a", "b"},
+				Map:   map[string]int{"x": 1},
+			}
+
+			copied := deepcopy.MustCopy(original)
+
+			// Modify all levels of original
+			original.Field = "mod1"
+			original.Nested.Name = "mod2"
+			original.Slice[0] = "mod3"
+			original.Map["x"] = 999
+
+			// Copy should be completely unchanged
+			Expect(copied.Field).To(Equal("parent"))
+			Expect(copied.Nested.Name).To(Equal("child"))
+			Expect(copied.Slice[0]).To(Equal("a"))
+			Expect(copied.Map["x"]).To(Equal(1))
+		})
+
+		It("should be usable in constructor pattern", func() {
+			// Example of typical constructor usage
+			type Config struct {
+				Address string
+				Ports   []int
+			}
+
+			type Server struct {
+				config Config
+			}
+
+			NewServer := func(cfg Config) *Server {
+				return &Server{
+					config: *deepcopy.MustCopy(&cfg),
+				}
+			}
+
+			cfg := Config{
+				Address: "localhost:8080",
+				Ports:   []int{8080, 8081},
+			}
+
+			server := NewServer(cfg)
+
+			// Modify original config
+			cfg.Address = "hacked:9999"
+			cfg.Ports[0] = 6666
+
+			// Server's config should be unchanged
+			Expect(server.config.Address).To(Equal("localhost:8080"))
+			Expect(server.config.Ports[0]).To(Equal(8080))
+		})
+	})
 })

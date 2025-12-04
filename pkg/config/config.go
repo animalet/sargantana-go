@@ -8,7 +8,6 @@ import (
 	"encoding/xml"
 	"os"
 
-	"github.com/animalet/sargantana-go/internal/deepcopy"
 	"github.com/animalet/sargantana-go/internal/expansion"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/pkg/errors"
@@ -64,16 +63,14 @@ func NewConfig(path string) (cfg *Config, err error) {
 	return &Config{modules: modules}, nil
 }
 
-// Get loads a configuration by name and returns a deep copy.
+// Get loads a configuration by name and returns a pointer to the configuration object.
 // T must implement the Validatable interface.
-// Returns a pointer to an immutable configuration T, or nil if the configuration is not present.
-//
-// Immutability Guarantee:
-// The returned configuration is a deep copy of the original. Any modifications to the
-// returned config (including nested slices, maps, and pointer fields) will not affect
-// the original configuration or subsequent Get calls.
+// Returns a pointer to the configuration T, or nil if the configuration is not present.
 //
 // Note: Validation is automatically performed before returning.
+//
+// Immutability: Constructors that store this config should use deepcopy.MustCopy()
+// to ensure external modifications don't affect the component after initialization.
 func Get[T Validatable](c *Config, name string) (*T, error) {
 	log.Debug().Str("config_name", name).Msg("Getting configuration")
 	raw, ok := c.modules[name]
@@ -95,7 +92,7 @@ func Get[T Validatable](c *Config, name string) (*T, error) {
 		return nil, err
 	}
 
-	return deepcopy.Copy(expanded)
+	return expanded, nil
 }
 
 // GetClient loads a configuration by name and creates the corresponding client.
