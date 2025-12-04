@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/animalet/sargantana-go/internal/snapshot"
 	"github.com/animalet/sargantana-go/pkg/controller"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-contrib/sessions"
@@ -72,7 +73,7 @@ func NewBlogController(db *pgxpool.Pool) func(cfg *Config, _ server.ControllerCo
 			return nil, errors.Wrap(err, "failed to create posts table")
 		}
 
-		return &Controller{config: cfg, database: db}, nil
+		return &Controller{config: snapshot.MustCopy(cfg), database: db}, nil
 	}
 }
 

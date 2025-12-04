@@ -1,6 +1,8 @@
 package session
 
 import (
+	"net/http"
+
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/mongo/mongodriver"
 	"github.com/pkg/errors"
@@ -61,7 +63,7 @@ func NewMongoDBSessionStore(secure bool, secret []byte, client *mongo.Client, da
 		MaxAge:   86400, // 24 hours
 		Secure:   secure,
 		HttpOnly: true,
-		SameSite: 3, // Lax
+		SameSite: http.SameSiteStrictMode, // Strict mode for enhanced security
 	})
 
 	return store, nil

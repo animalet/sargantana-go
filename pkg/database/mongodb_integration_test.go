@@ -67,4 +67,33 @@ var _ = Describe("MongoDB Integration", func() {
 		err = client.Ping(context.Background(), readpref.Primary())
 		Expect(err).NotTo(HaveOccurred())
 	})
+
+	It("should fail with error when ping fails (invalid host)", func() {
+		cfg := MongoDBConfig{
+			URI:            "mongodb://invalid-host-that-does-not-exist:27017",
+			Database:       "sessions_test",
+			ConnectTimeout: 2 * time.Second,
+		}
+
+		client, err := cfg.CreateClient()
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("failed to ping MongoDB"))
+		Expect(client).To(BeNil())
+	})
+
+	It("should fail with error when ping fails due to auth failure", func() {
+		cfg := MongoDBConfig{
+			URI:            "mongodb://localhost:27017",
+			Database:       "sessions_test",
+			Username:       "wronguser",
+			Password:       "wrongpass",
+			AuthSource:     "admin",
+			ConnectTimeout: 5 * time.Second,
+		}
+
+		client, err := cfg.CreateClient()
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("failed to ping MongoDB"))
+		Expect(client).To(BeNil())
+	})
 })

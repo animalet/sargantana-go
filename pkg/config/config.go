@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"os"
-	"reflect"
 
+	"github.com/animalet/sargantana-go/internal/expansion"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -63,10 +63,14 @@ func NewConfig(path string) (cfg *Config, err error) {
 	return &Config{modules: modules}, nil
 }
 
-// Get loads a configuration by name and unmarshals it into the specified type T.
+// Get loads a configuration by name and returns a pointer to the configuration object.
 // T must implement the Validatable interface.
 // Returns a pointer to the configuration T, or nil if the configuration is not present.
-// Note: Validation is automatically performed by doExpand before this method returns.
+//
+// Note: Validation is automatically performed before returning.
+//
+// Immutability: Constructors that store this config should use snapshot.MustCopy()
+// to ensure external modifications don't affect the component after initialization.
 func Get[T Validatable](c *Config, name string) (*T, error) {
 	log.Debug().Str("config_name", name).Msg("Getting configuration")
 	raw, ok := c.modules[name]
@@ -82,7 +86,13 @@ func Get[T Validatable](c *Config, name string) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
-	return doExpand(partial)
+
+	expanded, err := doExpand(partial)
+	if err != nil {
+		return nil, err
+	}
+
+	return expanded, nil
 }
 
 // GetClient loads a configuration by name and creates the corresponding client.
@@ -106,10 +116,17 @@ func GetClient[T ClientFactory[F], F any](c *Config, name string) (*F, error) {
 	return &client, nil
 }
 
-// GetClientAndConfig loads a configuration by name and creates the corresponding client.
+// GetClientAndConfig loads a configuration by name, creates the corresponding client,
+// and returns both the client and a deep copy of the configuration.
 // T must be a type that implements ClientFactory[F].
-// Returns pointers to both the client F and the config T, or nil for both if the configuration is not present.
-// Note: Validation is automatically performed by Get before this method returns.
+// Returns pointers to both the client F and an immutable copy of config T,
+// or nil for both if the configuration is not present.
+//
+// Immutability Guarantee:
+// The returned configuration is a deep copy. Modifications to the returned config
+// will not affect the original or subsequent calls.
+//
+// Note: Validation is automatically performed before returning.
 func GetClientAndConfig[T ClientFactory[F], F any](c *Config, name string) (*F, *T, error) {
 	cfg, err := Get[T](c, name)
 	if err != nil {
@@ -129,7 +146,7 @@ func GetClientAndConfig[T ClientFactory[F], F any](c *Config, name string) (*F, 
 
 func doExpand[T Validatable](toExpand *T) (*T, error) {
 	log.Debug().Msgf("Expanding variables for config type %T", toExpand)
-	if err := expandVariables(reflect.ValueOf(toExpand).Elem()); err != nil {
+	if err := expansion.ExpandVariables(toExpand); err != nil {
 		return nil, err
 	}
 	log.Debug().Msgf("Validating config type %T", toExpand)

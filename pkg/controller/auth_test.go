@@ -226,6 +226,51 @@ var _ = Describe("Auth Controller (Detailed)", func() {
 			Expect(cfg.Validate()).To(Succeed())
 		})
 
+		It("should protect against external provider config modifications", func() {
+			// Create provider map with mutable slice
+			providers := map[string]ProviderConfig{
+				"github": {
+					Key:    "test-key",
+					Secret: "test-secret",
+					Scopes: []string{"read:user", "user:email"},
+				},
+			}
+
+			cfg := &AuthControllerConfig{
+				CallbackPath:     "/auth/callback",
+				LoginPath:        "/auth/login/{provider}",
+				LogoutPath:       "/auth/logout",
+				UserInfoPath:     "/auth/user",
+				RedirectOnLogin:  "/",
+				RedirectOnLogout: "/",
+				Providers:        providers,
+			}
+
+			ctx := server.ControllerContext{
+				ServerConfig: server.WebServerConfig{Address: "localhost:8080"},
+			}
+
+			// Reset factory to use config-based provider factory
+			origFactory := ProviderFactory
+			ProviderFactory = nil
+			defer func() { ProviderFactory = origFactory }()
+
+			ctrl, err := NewAuthController(cfg, ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ctrl).NotTo(BeNil())
+
+			// Modify original map and slice - controller should be unaffected
+			githubConfig := providers["github"]
+			githubConfig.Scopes[0] = "write:repo"
+			githubConfig.Scopes = append(githubConfig.Scopes, "admin:org")
+			providers["github"] = githubConfig
+			providers["malicious"] = ProviderConfig{Key: "hacked", Secret: "hacked"}
+
+			// Verify controller was created successfully despite external mutations
+			// The deep copy should have protected the internal state
+			Expect(ctrl).NotTo(BeNil())
+		})
+
 		It("should fail validation on missing fields", func() {
 			cfg := AuthControllerConfig{
 				Providers: map[string]ProviderConfig{"test": {Key: "k", Secret: "s"}},

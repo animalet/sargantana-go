@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/animalet/sargantana-go/internal/snapshot"
 	"github.com/animalet/sargantana-go/pkg/config"
 	"github.com/animalet/sargantana-go/pkg/server/session"
 	"github.com/gin-contrib/secure"
@@ -122,9 +123,12 @@ func SetDebug(debugEnabled bool) {
 	}
 }
 
+// NewServer creates a new Sargantana server with an immutable configuration snapshot.
+// The configuration is deep-copied internally to ensure that subsequent modifications
+// to the original config don't affect the running server.
 func NewServer(cfg SargantanaConfig) *Server {
 	return &Server{
-		config:        cfg,
+		config:        *snapshot.MustCopy(&cfg),
 		authenticator: NewUnauthorizedAuthenticator(),
 	}
 }

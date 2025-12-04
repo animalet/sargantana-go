@@ -59,7 +59,7 @@ jobs:
           # Get version info from git
           VERSION="${{ github.event.inputs.version }}"
           BINARY_NAME="sargantana-go-${{ matrix.suffix }}${{ matrix.ext }}"
-          go build -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${BINARY_NAME}" ./cmd/sargantana/main.go
+          go build -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${BINARY_NAME}" ./cmd/sargantana
           echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
 
       - name: Upload artifact

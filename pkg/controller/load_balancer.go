@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/animalet/sargantana-go/internal/snapshot"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -38,15 +39,18 @@ func (l LoadBalancerControllerConfig) Validate() error {
 }
 
 func NewLoadBalancerController(c *LoadBalancerControllerConfig, _ server.ControllerContext) (server.IController, error) {
-	stringEndpoints := c.Endpoints
+	// Deep copy the config to enforce immutability
+	configCopy := snapshot.MustCopy(c)
+
+	stringEndpoints := configCopy.Endpoints
 	endpoints := make([]url.URL, 0, len(stringEndpoints))
-	log.Info().Str("path", c.Path).Msg("Load balancing path configured")
-	log.Info().Bool("auth", c.Auth).Msg("Load balancing authentication configured")
+	log.Info().Str("path", configCopy.Path).Msg("Load balancing path configured")
+	log.Info().Bool("auth", configCopy.Auth).Msg("Load balancing authentication configured")
 	log.Info().Strs("endpoints", stringEndpoints).Msg("Load balancing endpoints configured")
 	for _, endpoint := range stringEndpoints {
 		u, err := url.ParseRequestURI(endpoint)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("failed to parse load balancer path: %s", c.Path))
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to parse load balancer path: %s", configCopy.Path))
 		}
 		endpoints = append(endpoints, *u)
 	}
@@ -61,8 +65,8 @@ func NewLoadBalancerController(c *LoadBalancerControllerConfig, _ server.Control
 	return &loadBalancer{
 		endpoints:  endpoints,
 		httpClient: httpClient,
-		path:       strings.TrimSuffix(c.Path, "/") + "/*proxyPath",
-		auth:       c.Auth,
+		path:       strings.TrimSuffix(configCopy.Path, "/") + "/*proxyPath",
+		auth:       configCopy.Auth,
 	}, nil
 }
 

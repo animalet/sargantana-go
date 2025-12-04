@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/animalet/sargantana-go/internal/snapshot"
 	"github.com/animalet/sargantana-go/pkg/server"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -16,12 +17,15 @@ type TemplateControllerConfig struct {
 }
 
 func NewTemplateController(c *TemplateControllerConfig, _ server.ControllerContext) (server.IController, error) {
+	// Deep copy the config to enforce immutability
+	configCopy := snapshot.MustCopy(c)
+
 	log.Info().
-		Str("path", c.Path).
+		Str("path", configCopy.Path).
 		Msg("Templates directory configured")
 
 	return &template{
-		path: c.Path,
+		path: configCopy.Path,
 	}, nil
 }
 
