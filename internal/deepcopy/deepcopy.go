@@ -1,8 +1,8 @@
 package deepcopy
 
 import (
-	"github.com/jinzhu/copier"
 	"github.com/pkg/errors"
+	"github.com/tiendc/go-deepcopy"
 )
 
 // Copy creates a deep copy of the source object using reflection.
@@ -23,12 +23,9 @@ func Copy[T any](src *T) (*T, error) {
 	}
 
 	var dst T
-	err := copier.CopyWithOption(&dst, src, copier.Option{
-		IgnoreEmpty: false, // Copy zero values
-		DeepCopy:    true,  // Recursively copy slices, maps, nested structs
-	})
+	err := deepcopy.Copy(&dst, &src)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to deep copy config of type %T", src)
+		return nil, errors.Wrapf(err, "failed to deep copy type %T", src)
 	}
 
 	return &dst, nil

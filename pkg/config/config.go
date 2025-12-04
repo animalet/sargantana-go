@@ -95,8 +95,6 @@ func Get[T Validatable](c *Config, name string) (*T, error) {
 		return nil, err
 	}
 
-	// Deep copy to ensure immutability
-	log.Debug().Str("config_name", name).Msg("Creating deep copy for immutability")
 	return deepcopy.Copy(expanded)
 }
 
