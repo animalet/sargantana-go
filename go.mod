@@ -35,7 +35,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/markbates/goth v1.82.0
 	github.com/onsi/ginkgo/v2 v2.27.2
-	github.com/onsi/gomega v1.38.2
+	github.com/onsi/gomega v1.38.3
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.34.0
